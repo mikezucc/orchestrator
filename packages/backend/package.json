@@ -14,21 +14,22 @@
   "dependencies": {
     "@gce-platform/types": "^1.0.0",
     "@hono/node-server": "^1.8.0",
-    "hono": "^4.0.0",
-    "drizzle-orm": "^0.29.3",
-    "postgres": "^3.4.3",
-    "googleapis": "^128.0.0",
-    "google-auth-library": "^9.6.0",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "axios": "^1.10.0",
     "dotenv": "^16.4.1",
-    "@paralleldrive/cuid2": "^2.2.2"
+    "drizzle-orm": "^0.29.3",
+    "google-auth-library": "^9.6.0",
+    "googleapis": "^128.0.0",
+    "hono": "^4.0.0",
+    "postgres": "^3.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
     "drizzle-kit": "^0.20.13",
     "eslint": "^8.56.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1"
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }

@@ -93,3 +93,51 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+// Wormhole types
+export interface WormholeClient {
+  id: string;
+  branch: string;
+  repoPath: string;
+  connected: boolean;
+  lastActivity: number;
+}
+
+export interface WormholeBranch {
+  branch: string;
+  clientCount: number;
+}
+
+export interface WormholeStatus {
+  clients: WormholeClient[];
+  branches: WormholeBranch[];
+}
+
+export interface WormholeRepository {
+  repoPath: string;
+  branches: string[];
+  activeBranches: string[];
+  clientCount: number;
+  connectedClientCount: number;
+  clients: WormholeClient[];
+}
+
+export type WormholeRepositories = WormholeRepository[];
+
+export interface WormholeBranchSwitchRequest {
+  targetBranch: string;
+  repoPath: string;
+}
+
+export interface WormholeBranchSwitchResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+export interface WormholeWebSocketMessage {
+  type: 'commit' | 'pull' | 'conflict' | 'sync' | 'branch-switch';
+  payload: any;
+  clientId: string;
+  timestamp: number;
+}

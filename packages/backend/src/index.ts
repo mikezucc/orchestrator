@@ -7,6 +7,7 @@ import { firewallRoutes } from './routes/firewall.js';
 import { authRoutes } from './routes/auth.js';
 import { syncRoutes } from './routes/sync.js';
 import { portLabelRoutes } from './routes/port-labels.js';
+import { wormholeRoutes } from './routes/wormhole.js';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.route('/api/vms', vmRoutes);
 app.route('/api/firewall', firewallRoutes);
 app.route('/api/sync', syncRoutes);
 app.route('/api/port-labels', portLabelRoutes);
+app.route('/api/wormhole', wormholeRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];
