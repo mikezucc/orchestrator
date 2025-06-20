@@ -7,9 +7,10 @@ import { useToast } from '../contexts/ToastContext';
 
 interface PortLabelsProps {
   vmId: string;
+  publicIp?: string;
 }
 
-export default function PortLabels({ vmId }: PortLabelsProps) {
+export default function PortLabels({ vmId, publicIp }: PortLabelsProps) {
   const [showAddLabel, setShowAddLabel] = useState(false);
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
@@ -39,6 +40,18 @@ export default function PortLabels({ vmId }: PortLabelsProps) {
       showError(error.response?.data?.error || 'Failed to delete port label');
     },
   });
+
+  const handleConnect = (port: string, protocol: string) => {
+    if (!publicIp) {
+      showError('No public IP address available');
+      return;
+    }
+    
+    // Determine protocol based on common ports or use http as default
+    const urlProtocol = ['443', '8443'].includes(port) ? 'https' : 'http';
+    const url = `${urlProtocol}://${publicIp}:${port}`;
+    window.open(url, '_blank');
+  };
 
   // Extract available ports from firewall rules
   const availablePorts = new Set<string>();
@@ -98,16 +111,31 @@ export default function PortLabels({ vmId }: PortLabelsProps) {
                     {label.description || '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete label for port ${label.port}?`)) {
-                          deleteMutation.mutate(label.id);
-                        }
-                      }}
-                      className="text-xs uppercase tracking-wider text-red-600 dark:text-te-orange hover:text-red-700 dark:hover:text-te-yellow transition-colors"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {label.protocol === 'tcp' && (
+                        <>
+                          <button
+                            onClick={() => handleConnect(label.port, label.protocol)}
+                            disabled={!publicIp}
+                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={publicIp ? `Open ${label.label} in browser` : 'No public IP available'}
+                          >
+                            Connect
+                          </button>
+                          <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                        </>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete label for port ${label.port}?`)) {
+                            deleteMutation.mutate(label.id);
+                          }
+                        }}
+                        className="text-xs uppercase tracking-wider text-red-600 dark:text-te-orange hover:text-red-700 dark:hover:text-te-yellow transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -283,7 +283,7 @@ export default function VMDetail() {
       </div>
 
       <div>
-        <PortLabels vmId={id!} />
+        <PortLabels vmId={id!} publicIp={vm.publicIp} />
       </div>
 
       <div>
