@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@gce-platform/types": ["./packages/types/src"]
+    }
+  },
+  "references": [
+    { "path": "./packages/types" },
+    { "path": "./packages/backend" },
+    { "path": "./packages/frontend" }
+  ]
+}
