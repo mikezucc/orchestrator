@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import type { PortRule } from '@gce-platform/types';
 
 const compute = google.compute('v1');
@@ -9,15 +10,13 @@ interface CreateVMParams {
   name: string;
   machineType: string;
   initScript?: string;
+  accessToken: string;
 }
 
-export async function createVM({ projectId, zone, name, machineType, initScript }: CreateVMParams) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+export async function createVM({ projectId, zone, name, machineType, initScript, accessToken }: CreateVMParams) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
 
   const startupScript = initScript ? `#!/bin/bash\n${initScript}` : undefined;
 
@@ -59,13 +58,10 @@ export async function createVM({ projectId, zone, name, machineType, initScript 
   return { id: name };
 }
 
-export async function deleteVM(projectId: string, zone: string, instanceName: string) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+export async function deleteVM(projectId: string, zone: string, instanceName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
 
   await compute.instances.delete({
     project: projectId,
@@ -74,13 +70,10 @@ export async function deleteVM(projectId: string, zone: string, instanceName: st
   });
 }
 
-export async function startVM(projectId: string, zone: string, instanceName: string) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+export async function startVM(projectId: string, zone: string, instanceName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
 
   await compute.instances.start({
     project: projectId,
@@ -89,13 +82,10 @@ export async function startVM(projectId: string, zone: string, instanceName: str
   });
 }
 
-export async function stopVM(projectId: string, zone: string, instanceName: string) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+export async function stopVM(projectId: string, zone: string, instanceName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
 
   await compute.instances.stop({
     project: projectId,
@@ -112,15 +102,13 @@ interface CreateFirewallRuleParams {
   sourceRanges?: string[];
   allowedPorts: PortRule[];
   targetTags: string[];
+  accessToken: string;
 }
 
 export async function createFirewallRule(params: CreateFirewallRuleParams) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: params.accessToken });
+  google.options({ auth: oauth2Client });
 
   const requestBody: any = {
     name: params.name,
@@ -150,13 +138,10 @@ export async function createFirewallRule(params: CreateFirewallRuleParams) {
   return { id: params.name };
 }
 
-export async function deleteFirewallRule(projectId: string, firewallName: string) {
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/compute'],
-  });
-
-  const authClient = await auth.getClient();
-  google.options({ auth: authClient });
+export async function deleteFirewallRule(projectId: string, firewallName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
 
   await compute.firewalls.delete({
     project: projectId,

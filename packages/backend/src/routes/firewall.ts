@@ -30,8 +30,14 @@ firewallRoutes.get('/vm/:vmId', async (c) => {
 
 firewallRoutes.post('/', async (c) => {
   const userId = c.req.header('x-user-id');
+  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
+  
   if (!userId) {
     return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
+  }
+  
+  if (!accessToken) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
   }
 
   const body = await c.req.json<CreateFirewallRuleRequest>();
@@ -52,6 +58,7 @@ firewallRoutes.post('/', async (c) => {
       sourceRanges: body.sourceRanges,
       allowedPorts: body.allowedPorts,
       targetTags: [`vm-${vm.gcpInstanceId}`],
+      accessToken,
     });
 
     const [rule] = await db.insert(firewallRules).values({
@@ -72,10 +79,15 @@ firewallRoutes.post('/', async (c) => {
 
 firewallRoutes.delete('/:id', async (c) => {
   const userId = c.req.header('x-user-id');
+  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
   const ruleId = c.req.param('id');
   
   if (!userId) {
     return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
+  }
+  
+  if (!accessToken) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
   }
 
   const [rule] = await db.select()
@@ -88,7 +100,7 @@ firewallRoutes.delete('/:id', async (c) => {
   }
 
   try {
-    await deleteFirewallRule(rule.virtual_machines.gcpProjectId, rule.firewall_rules.gcpRuleId!);
+    await deleteFirewallRule(rule.virtual_machines.gcpProjectId, rule.firewall_rules.gcpRuleId!, accessToken);
     await db.delete(firewallRules).where(eq(firewallRules.id, ruleId));
 
     return c.json<ApiResponse<{ message: string }>>({ success: true, data: { message: 'Firewall rule deleted' } });

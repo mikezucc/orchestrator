@@ -29,9 +29,10 @@ This guide will help you set up Google OAuth for the GCE VM Platform.
      - User support email: Your email
      - Developer contact information: Your email
    - Add scopes:
-     - `https://www.googleapis.com/auth/compute`
-     - `https://www.googleapis.com/auth/userinfo.email`
+     - `https://www.googleapis.com/auth/compute` (Required for VM operations)
+     - `https://www.googleapis.com/auth/userinfo.email` (Required for user identification)
    - Add test users if in development
+   - IMPORTANT: Make sure your OAuth consent screen is verified for production use
 
 ### 3. Configure OAuth Client
 
