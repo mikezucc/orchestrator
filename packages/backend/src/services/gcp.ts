@@ -172,3 +172,93 @@ export async function suspendVM(projectId: string, zone: string, instanceName: s
     instance: instanceName,
   });
 }
+
+interface DuplicateVMParams {
+  sourceProjectId: string;
+  sourceZone: string;
+  sourceInstanceName: string;
+  newName: string;
+  accessToken: string;
+}
+
+export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceName, newName, accessToken }: DuplicateVMParams) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+
+  // Get the source instance details
+  const sourceResponse = await compute.instances.get({
+    project: sourceProjectId,
+    zone: sourceZone,
+    instance: sourceInstanceName,
+  });
+
+  const sourceInstance = sourceResponse.data;
+  if (!sourceInstance) {
+    throw new Error('Source instance not found');
+  }
+
+  // Extract disk information
+  const sourceDisk = sourceInstance.disks?.[0];
+  if (!sourceDisk || !sourceDisk.source) {
+    throw new Error('Source instance has no boot disk');
+  }
+
+  // Create snapshot of the source disk for duplication
+  const snapshotName = `snapshot-${newName}-${Date.now()}`;
+  const diskName = sourceDisk.source.split('/').pop();
+  
+  await compute.disks.createSnapshot({
+    project: sourceProjectId,
+    zone: sourceZone,
+    disk: diskName,
+    requestBody: {
+      name: snapshotName,
+    },
+  });
+
+  // Wait for snapshot to be ready (simplified - in production use operation polling)
+  await new Promise(resolve => setTimeout(resolve, 10000));
+
+  // Create new instance with same configuration
+  const requestBody = {
+    name: newName,
+    machineType: sourceInstance.machineType,
+    disks: [{
+      boot: true,
+      autoDelete: true,
+      initializeParams: {
+        sourceSnapshot: `projects/${sourceProjectId}/global/snapshots/${snapshotName}`,
+        diskSizeGb: sourceDisk.diskSizeGb,
+      },
+    }],
+    networkInterfaces: sourceInstance.networkInterfaces,
+    metadata: sourceInstance.metadata,
+    tags: {
+      items: [`vm-${newName}`],
+    },
+    serviceAccounts: sourceInstance.serviceAccounts,
+    scheduling: sourceInstance.scheduling,
+  };
+
+  // Create the new instance
+  await compute.instances.insert({
+    project: sourceProjectId,
+    zone: sourceZone,
+    requestBody,
+  });
+
+  // Clean up snapshot after instance creation
+  setTimeout(async () => {
+    try {
+      await compute.snapshots.delete({
+        project: sourceProjectId,
+        snapshot: snapshotName,
+      });
+    } catch (error) {
+      console.error('Failed to delete snapshot:', error);
+    }
+  }, 30000);
+
+  return { id: newName };
+}

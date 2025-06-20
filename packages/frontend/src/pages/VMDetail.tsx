@@ -8,6 +8,7 @@ import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
 import PortLabels from '../components/PortLabels';
 import WormholeSection from '../components/WormholeSection';
+import DuplicateVMModal from '../components/DuplicateVMModal';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -16,6 +17,7 @@ export default function VMDetail() {
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
   const [showPortSelector, setShowPortSelector] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
@@ -187,6 +189,15 @@ export default function VMDetail() {
             </>
           )}
           <button
+            onClick={() => setShowDuplicateModal(true)}
+            className="btn-secondary flex items-center space-x-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span>Duplicate</span>
+          </button>
+          <button
             onClick={() => {
               if (confirm(`Delete VM "${vm.name}"?`)) {
                 deleteMutation.mutate();
@@ -301,6 +312,13 @@ export default function VMDetail() {
           vmId={id!}
           firewallRules={rules}
           onClose={() => setShowPortSelector(false)}
+        />
+      )}
+
+      {showDuplicateModal && (
+        <DuplicateVMModal
+          vm={vm}
+          onClose={() => setShowDuplicateModal(false)}
         />
       )}
     </div>

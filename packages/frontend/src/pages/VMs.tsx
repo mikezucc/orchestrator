@@ -5,12 +5,15 @@ import { Link } from 'react-router-dom';
 import CreateVMModal from '../components/CreateVMModal';
 import ProjectManager from '../components/ProjectManager';
 import VMStatusBadge from '../components/VMStatusBadge';
+import DuplicateVMModal from '../components/DuplicateVMModal';
 import { useProjects } from '../hooks/useProjects';
 import { useToast } from '../contexts/ToastContext';
+import type { VirtualMachine } from '@gce-platform/types';
 
 export default function VMs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProjectManager, setShowProjectManager] = useState(false);
+  const [duplicateVM, setDuplicateVM] = useState<VirtualMachine | null>(null);
   const queryClient = useQueryClient();
   const { projects } = useProjects();
   const { showError, showSuccess } = useToast();
@@ -242,6 +245,13 @@ export default function VMs() {
                       </Link>
                       <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
                       <button
+                        onClick={() => setDuplicateVM(vm)}
+                        className="text-xs uppercase tracking-wider text-blue-600 dark:text-te-yellow hover:text-blue-700 dark:hover:text-te-orange transition-colors"
+                      >
+                        Duplicate
+                      </button>
+                      <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                      <button
                         onClick={() => {
                           if (confirm(`Delete VM "${vm.name}"?`)) {
                             deleteMutation.mutate(vm.id);
@@ -276,6 +286,13 @@ export default function VMs() {
 
       {showProjectManager && (
         <ProjectManager onClose={() => setShowProjectManager(false)} />
+      )}
+
+      {duplicateVM && (
+        <DuplicateVMModal
+          vm={duplicateVM}
+          onClose={() => setDuplicateVM(null)}
+        />
       )}
     </div>
   );

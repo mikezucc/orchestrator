@@ -43,4 +43,9 @@ export const vmApi = {
     const { data } = await api.post<ApiResponse<{ message: string }>>(`/vms/${id}/suspend`);
     return data;
   },
+
+  duplicate: async (id: string, name: string) => {
+    const { data } = await api.post<ApiResponse<VirtualMachine>>(`/vms/${id}/duplicate`, { name });
+    return data;
+  },
 };
