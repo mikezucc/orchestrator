@@ -17,7 +17,7 @@ export default function VMDetail() {
 
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
-    queryFn: () => vmApi.get(id!),
+    queryFn: () => vmApi.get(id!, true), // Sync VM data on load
     enabled: !!id,
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to load VM details');

@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM } from '../services/gcp.js';
 import { syncUserVMsFromProjects } from '../services/gcp-sync.js';
+import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getValidAccessToken } from '../services/auth.js';
 
 export const vmRoutes = new Hono();
@@ -56,17 +57,35 @@ vmRoutes.get('/', async (c) => {
 
 vmRoutes.get('/:id', async (c) => {
   const userId = c.req.header('x-user-id');
+  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
   const vmId = c.req.param('id');
+  const shouldSync = c.req.query('sync') === 'true';
   
   if (!userId) {
     return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
   }
 
-  const [vm] = await db.select().from(virtualMachines)
+  let [vm] = await db.select().from(virtualMachines)
     .where(eq(virtualMachines.id, vmId));
 
   if (!vm || vm.userId !== userId) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+  }
+
+  // Sync VM data from GCP if requested
+  if (shouldSync && providedToken) {
+    try {
+      const accessToken = await getValidAccessToken(userId, providedToken);
+      if (accessToken) {
+        await syncSingleVM(userId, vmId, accessToken);
+        // Fetch updated VM data
+        [vm] = await db.select().from(virtualMachines)
+          .where(eq(virtualMachines.id, vmId));
+      }
+    } catch (error) {
+      console.error('Failed to sync VM data:', error);
+      // Don't fail the request, just log the error
+    }
   }
 
   return c.json<ApiResponse<VirtualMachine>>({ success: true, data: vm as VirtualMachine });

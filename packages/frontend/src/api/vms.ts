@@ -8,8 +8,9 @@ export const vmApi = {
     return data;
   },
 
-  get: async (id: string) => {
-    const { data } = await api.get<ApiResponse<VirtualMachine>>(`/vms/${id}`);
+  get: async (id: string, sync: boolean = false) => {
+    const params = sync ? { sync: 'true' } : {};
+    const { data } = await api.get<ApiResponse<VirtualMachine>>(`/vms/${id}`, { params });
     return data;
   },
 
