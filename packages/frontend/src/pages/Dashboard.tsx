@@ -14,7 +14,14 @@ export default function Dashboard() {
   
   const { data: vmsResponse, isLoading, refetch } = useQuery({
     queryKey: ['vms', projects],
-    queryFn: () => vmApi.list(projects),
+    queryFn: async () => {
+      const response = await vmApi.list(projects);
+      // Check if sync had partial errors
+      if (response.success && response.error) {
+        showError(response.error);
+      }
+      return response;
+    },
     refetchOnWindowFocus: true,
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to load VMs');
@@ -86,7 +93,11 @@ export default function Dashboard() {
           </button>
           {projects.length > 0 && (
             <button
-              onClick={() => refetch()}
+              onClick={() => {
+                refetch().catch((error: any) => {
+                  showError(error.response?.data?.error || 'Failed to sync VMs');
+                });
+              }}
               disabled={isLoading}
               className="btn-secondary"
             >

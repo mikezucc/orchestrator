@@ -19,6 +19,7 @@ vmRoutes.get('/', async (c) => {
   }
 
   // If sync is requested and we have an access token, sync VMs from GCP
+  let syncErrors: string[] = [];
   if (syncProjects && accessToken) {
     try {
       const projectIds = syncProjects.split(',').filter(Boolean);
@@ -27,15 +28,29 @@ vmRoutes.get('/', async (c) => {
         console.log(`Synced ${syncResult.synced} VMs for user ${userId}`);
         if (syncResult.errors.length > 0) {
           console.warn('Sync errors:', syncResult.errors);
+          syncErrors = syncResult.errors;
         }
       }
     } catch (error) {
       console.error('Failed to sync VMs:', error);
-      // Don't fail the request, just log the error
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: `Failed to sync VMs: ${error instanceof Error ? error.message : String(error)}` 
+      }, 500);
     }
   }
 
   const vms = await db.select().from(virtualMachines).where(eq(virtualMachines.userId, userId));
+  
+  // If there were sync errors, include them in a successful response but with a warning
+  if (syncErrors.length > 0) {
+    return c.json<ApiResponse<VirtualMachine[]>>({ 
+      success: true, 
+      data: vms as VirtualMachine[],
+      error: `Sync completed with errors: ${syncErrors.join('; ')}` 
+    });
+  }
+  
   return c.json<ApiResponse<VirtualMachine[]>>({ success: true, data: vms as VirtualMachine[] });
 });
 
