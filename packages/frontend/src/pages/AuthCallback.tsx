@@ -1,59 +1,43 @@
 import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 
 export default function AuthCallback() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     // Handle OAuth callback
-    const handleCallback = async () => {
-      const code = searchParams.get('code');
+    const handleCallback = () => {
+      const userId = searchParams.get('userId');
+      const accessToken = searchParams.get('accessToken');
+      const refreshToken = searchParams.get('refreshToken');
+      const expiresIn = searchParams.get('expiresIn');
       const error = searchParams.get('error');
 
       if (error) {
         console.error('OAuth error:', error);
-        navigate('/login');
+        window.location.href = '/login';
         return;
       }
 
-      if (code) {
-        try {
-          // The backend handles the OAuth flow, we just need to check if we're authenticated
-          // after the redirect from Google
-          const urlParams = new URLSearchParams(window.location.search);
-          const userId = urlParams.get('userId');
-          const accessToken = urlParams.get('accessToken');
-          const refreshToken = urlParams.get('refreshToken');
-          const expiresIn = urlParams.get('expiresIn');
+      if (userId && accessToken && refreshToken) {
+        // Store auth data
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('auth', JSON.stringify({
+          accessToken,
+          refreshToken,
+          expiresIn: parseInt(expiresIn || '3600'),
+        }));
 
-          if (userId && accessToken && refreshToken) {
-            localStorage.setItem('userId', userId);
-            localStorage.setItem('auth', JSON.stringify({
-              accessToken,
-              refreshToken,
-              expiresIn: parseInt(expiresIn || '3600'),
-            }));
-
-            // Redirect to dashboard
-            window.location.href = '/';
-          } else {
-            // If we don't have the tokens in URL params, the backend might handle it differently
-            navigate('/');
-          }
-        } catch (err) {
-          console.error('Failed to handle OAuth callback:', err);
-          navigate('/login');
-        }
+        // Force a full page reload to reinitialize auth context
+        window.location.href = '/';
       } else {
-        navigate('/login');
+        console.error('Missing auth data in callback');
+        window.location.href = '/login';
       }
     };
 
     handleCallback();
-  }, [navigate, searchParams, isAuthenticated]);
+  }, [searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

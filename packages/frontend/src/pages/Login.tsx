@@ -13,6 +13,11 @@ export default function Login() {
     }
   }, [isAuthenticated, navigate]);
 
+  const handleLogin = () => {
+    console.log('Starting Google OAuth flow...');
+    login();
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <div className="absolute top-4 right-4">
@@ -39,7 +44,7 @@ export default function Login() {
             </div>
             
             <button
-              onClick={login}
+              onClick={handleLogin}
               className="btn-primary w-full flex items-center justify-center space-x-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">

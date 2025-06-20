@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = 'http://localhost:3000/api/auth/google';
   };
 
   const logout = () => {
