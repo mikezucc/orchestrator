@@ -30,8 +30,11 @@ authRoutes.get('/google/callback', async (c) => {
   }
 
   try {
+    console.log('Received authorization code:', code);
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
+
+    console.log('Tokens received:', tokens);
 
     const ticket = await oauth2Client.verifyIdToken({
       idToken: tokens.id_token!,
@@ -46,27 +49,40 @@ authRoutes.get('/google/callback', async (c) => {
     }
 
     const existingUser = await db.select().from(users).where(eq(users.email, email));
+
+    console.log('Existing user:', existingUser);
     
-    let userId;
+    let userId: string;
+    // we only get the refresh token on the first ever auth moment
+    let refreshToken = tokens.refresh_token || undefined;
     if (existingUser.length === 0) {
       const [newUser] = await db.insert(users).values({
         email,
         gcpRefreshToken: tokens.refresh_token || undefined,
       }).returning();
       userId = newUser.id;
-    } else {
+    } else if (tokens.refresh_token) {
       await db.update(users)
         .set({ gcpRefreshToken: tokens.refresh_token || undefined })
         .where(eq(users.email, email));
       userId = existingUser[0].id;
+    } else {
+      // still get userId 
+      userId = existingUser[0].id;
+      refreshToken = existingUser[0].gcpRefreshToken || undefined;
+    }
+
+    const refreshTokenObj: { [key: string]: string} = {};
+    if (refreshToken) {
+      refreshTokenObj.refreshToken = refreshToken;
     }
 
     // Redirect to frontend with auth data
     const params = new URLSearchParams({
       userId,
       accessToken: tokens.access_token!,
-      refreshToken: tokens.refresh_token!,
       expiresIn: String(tokens.expiry_date ? (tokens.expiry_date - Date.now()) / 1000 : 3600),
+      ...refreshTokenObj
     });
 
     return c.redirect(`http://localhost:5173/auth/callback?${params.toString()}`);
