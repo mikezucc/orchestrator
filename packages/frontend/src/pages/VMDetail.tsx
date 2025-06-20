@@ -6,6 +6,7 @@ import { firewallApi } from '../api/firewall';
 import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
+import PortLabels from '../components/PortLabels';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -282,12 +283,17 @@ export default function VMDetail() {
       </div>
 
       <div>
+        <PortLabels vmId={id!} />
+      </div>
+
+      <div>
         <FirewallRules vmId={id!} rules={rules} />
       </div>
 
       {showPortSelector && vm.publicIp && (
         <PortSelectorModal
           publicIp={vm.publicIp}
+          vmId={id!}
           firewallRules={rules}
           onClose={() => setShowPortSelector(false)}
         />

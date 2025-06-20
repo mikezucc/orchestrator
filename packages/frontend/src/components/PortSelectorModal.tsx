@@ -1,16 +1,28 @@
 import { useState } from 'react';
-import type { FirewallRule } from '@gce-platform/types';
+import { useQuery } from '@tanstack/react-query';
+import type { FirewallRule, PortLabel } from '@gce-platform/types';
+import { portLabelApi } from '../api/port-labels';
 
 interface PortSelectorModalProps {
   publicIp: string;
+  vmId: string;
   firewallRules: FirewallRule[];
   onClose: () => void;
 }
 
-export default function PortSelectorModal({ publicIp, firewallRules, onClose }: PortSelectorModalProps) {
+export default function PortSelectorModal({ publicIp, vmId, firewallRules, onClose }: PortSelectorModalProps) {
   const [selectedPort, setSelectedPort] = useState<string>('');
   const [customPort, setCustomPort] = useState<string>('');
   const [useCustom, setUseCustom] = useState(false);
+
+  // Fetch port labels for this VM
+  const { data: labelsResponse } = useQuery({
+    queryKey: ['port-labels', vmId],
+    queryFn: () => portLabelApi.listByVM(vmId),
+  });
+
+  const portLabels = labelsResponse?.data || [];
+  const portLabelMap = new Map(portLabels.map(label => [`${label.port}-${label.protocol}`, label]));
 
   // Extract unique TCP ports from ingress firewall rules
   const availablePorts = new Set<string>();
@@ -79,13 +91,33 @@ export default function PortSelectorModal({ publicIp, firewallRules, onClose }: 
                         className="text-te-gray-900 dark:text-te-yellow focus:ring-te-gray-900 dark:focus:ring-te-yellow"
                       />
                       <span className="text-sm">
-                        Port {port}
-                        {port === '80' && ' (HTTP)'}
-                        {port === '443' && ' (HTTPS)'}
-                        {port === '22' && ' (SSH)'}
-                        {port === '3389' && ' (RDP)'}
-                        {port === '8080' && ' (HTTP Alt)'}
-                        {port === '8443' && ' (HTTPS Alt)'}
+                        <span className="font-medium">Port {port}</span>
+                        {(() => {
+                          const label = portLabelMap.get(`${port}-tcp`);
+                          if (label) {
+                            return (
+                              <>
+                                <span className="text-te-gray-600 dark:text-te-gray-400"> — </span>
+                                <span className="font-medium">{label.label}</span>
+                                {label.description && (
+                                  <span className="text-te-gray-500 dark:text-te-gray-600 text-xs block ml-6 mt-1">
+                                    {label.description}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          }
+                          // Default labels for common ports
+                          const defaultLabel = 
+                            port === '80' ? 'HTTP' :
+                            port === '443' ? 'HTTPS' :
+                            port === '22' ? 'SSH' :
+                            port === '3389' ? 'RDP' :
+                            port === '8080' ? 'HTTP Alt' :
+                            port === '8443' ? 'HTTPS Alt' :
+                            null;
+                          return defaultLabel ? <span className="text-te-gray-600 dark:text-te-gray-400"> ({defaultLabel})</span> : null;
+                        })()}
                       </span>
                     </label>
                   ))}
