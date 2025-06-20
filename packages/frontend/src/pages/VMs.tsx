@@ -36,6 +36,10 @@ export default function VMs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM deleted successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to delete VM');
@@ -47,6 +51,10 @@ export default function VMs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM started successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to start VM');
@@ -58,6 +66,10 @@ export default function VMs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM stopped successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to stop VM');
@@ -69,6 +81,10 @@ export default function VMs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM suspended successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to suspend VM');
@@ -242,6 +258,10 @@ export default function VMs() {
           onSuccess={() => {
             setShowCreateModal(false);
             queryClient.invalidateQueries({ queryKey: ['vms'] });
+            // Refresh after 500ms to get updated state
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['vms'] });
+            }, 500);
           }}
         />
       )}

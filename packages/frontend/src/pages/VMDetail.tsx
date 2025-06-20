@@ -4,11 +4,13 @@ import { vmApi } from '../api/vms';
 import { firewallApi } from '../api/firewall';
 import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
+import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showError, showSuccess } = useToast();
 
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
@@ -27,6 +29,15 @@ export default function VMDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vm', id] });
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM started successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vm', id] });
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to start VM');
     },
   });
 
@@ -35,13 +46,43 @@ export default function VMDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vm', id] });
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM stopped successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vm', id] });
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to stop VM');
+    },
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: () => vmApi.suspend(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vm', id] });
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM suspended successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vm', id] });
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to suspend VM');
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => vmApi.delete(id!),
     onSuccess: () => {
+      showSuccess('VM deleted successfully');
       navigate('/vms');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to delete VM');
     },
   });
 
@@ -86,20 +127,45 @@ export default function VMDetail() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
+              <span>{startMutation.isPending ? 'Starting...' : 'Start VM'}</span>
+            </button>
+          )}
+          {vm.status === 'suspended' && (
+            <button
+              onClick={() => startMutation.mutate()}
+              disabled={startMutation.isPending}
+              className="btn-primary flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               <span>{startMutation.isPending ? 'Resuming...' : 'Resume VM'}</span>
             </button>
           )}
           {vm.status === 'running' && (
-            <button
-              onClick={() => stopMutation.mutate()}
-              disabled={stopMutation.isPending}
-              className="btn-secondary flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{stopMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
-            </button>
+            <>
+              <button
+                onClick={() => stopMutation.mutate()}
+                disabled={stopMutation.isPending}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 9.5h-5m0 0h-5m5 0v5m0-5v-5M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+                </svg>
+                <span>{stopMutation.isPending ? 'Stopping...' : 'Stop VM'}</span>
+              </button>
+              <button
+                onClick={() => suspendMutation.mutate()}
+                disabled={suspendMutation.isPending}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{suspendMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => {

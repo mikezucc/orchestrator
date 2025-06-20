@@ -33,6 +33,10 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM started successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to start VM');
@@ -44,6 +48,10 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM stopped successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to stop VM');
@@ -55,6 +63,10 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       showSuccess('VM suspended successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vms'] });
+      }, 500);
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to suspend VM');
