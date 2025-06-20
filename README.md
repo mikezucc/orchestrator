@@ -35,18 +35,35 @@ A web platform for creating, connecting to, and managing Google Cloud Engine vir
 npm install
 ```
 
-2. Set up environment variables:
+2. Create the PostgreSQL database:
+
+First, ensure you have PostgreSQL installed and the `orchestrator` user created:
+```bash
+# Create the orchestrator user (if not exists)
+sudo -u postgres createuser orchestrator -P
+```
+
+Then create the database:
+```bash
+# Option 1: Using the shell script
+npm run db:create
+
+# Option 2: Using SQL directly
+npm run db:create:sql
+```
+
+3. Set up environment variables:
 
 Backend (.env in packages/backend):
 ```
-DATABASE_URL=postgres://localhost:5432/gce_platform
+DATABASE_URL=postgres://orchestrator:orchestrator@localhost:5432/orchestrator
 PORT=3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
 ```
 
-3. Set up the database:
+4. Set up the database schema:
 ```bash
 cd packages/backend
 npm run db:generate

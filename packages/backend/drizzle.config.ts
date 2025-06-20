@@ -8,6 +8,6 @@ export default {
   out: './drizzle',
   driver: 'pg',
   dbCredentials: {
-    connectionString: process.env.DATABASE_URL || 'postgres://localhost:5432/gce_platform',
+    connectionString: process.env.DATABASE_URL || 'postgres://orchestrator:orchestrator@localhost:5432/orchestrator',
   },
 } satisfies Config;
