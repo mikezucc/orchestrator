@@ -113,7 +113,7 @@ export default function PortSelectorModal({ publicIp, vmId, firewallRules, onClo
                             port === '443' ? 'HTTPS' :
                             port === '22' ? 'SSH' :
                             port === '3389' ? 'RDP' :
-                            port === '8080' ? 'HTTP Alt' :
+                            port === '8080' ? 'Wormhole Service' :
                             port === '8443' ? 'HTTPS Alt' :
                             null;
                           return defaultLabel ? <span className="text-te-gray-600 dark:text-te-gray-400"> ({defaultLabel})</span> : null;

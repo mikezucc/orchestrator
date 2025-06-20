@@ -7,6 +7,7 @@ import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
 import PortLabels from '../components/PortLabels';
+import WormholeSection from '../components/WormholeSection';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -284,6 +285,10 @@ export default function VMDetail() {
 
       <div>
         <PortLabels vmId={id!} publicIp={vm.publicIp} />
+      </div>
+
+      <div>
+        <WormholeSection vmId={id!} publicIp={vm.publicIp} />
       </div>
 
       <div>

@@ -116,9 +116,9 @@ export default function PortLabels({ vmId, publicIp }: PortLabelsProps) {
                         <>
                           <button
                             onClick={() => handleConnect(label.port, label.protocol)}
-                            disabled={!publicIp}
+                            disabled={!publicIp || label.port === '8080'}
                             className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={publicIp ? `Open ${label.label} in browser` : 'No public IP available'}
+                            title={label.port === '8080' ? 'Wormhole Service - Use Wormhole section instead' : (publicIp ? `Open ${label.label} in browser` : 'No public IP available')}
                           >
                             Connect
                           </button>
