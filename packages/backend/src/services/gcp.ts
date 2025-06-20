@@ -220,7 +220,7 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
   // Wait for snapshot to be ready (simplified - in production use operation polling)
   await new Promise(resolve => setTimeout(resolve, 10000));
 
-  // Create new instance with same configuration
+  // Create new instance with same configuration but without specific IP
   const requestBody = {
     name: newName,
     machineType: sourceInstance.machineType,
@@ -232,7 +232,16 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
         diskSizeGb: sourceDisk.diskSizeGb,
       },
     }],
-    networkInterfaces: sourceInstance.networkInterfaces,
+    networkInterfaces: sourceInstance.networkInterfaces?.map((ni: any) => ({
+      network: ni.network,
+      subnetwork: ni.subnetwork,
+      // Create access configs without specific natIP to get automatic IP assignment
+      accessConfigs: ni.accessConfigs?.map((ac: any) => ({
+        type: ac.type || 'ONE_TO_ONE_NAT',
+        name: ac.name || 'External NAT',
+        // Explicitly exclude natIP to let GCP assign a new one
+      })),
+    })),
     metadata: sourceInstance.metadata,
     tags: {
       items: [`vm-${newName}`],
