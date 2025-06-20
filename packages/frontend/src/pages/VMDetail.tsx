@@ -23,8 +23,19 @@ export default function VMDetail() {
 
   const { data: rulesResponse } = useQuery({
     queryKey: ['firewall-rules', id],
-    queryFn: () => firewallApi.listByVM(id!),
+    queryFn: async () => {
+      // Sync firewall rules from GCP on page load
+      const response = await firewallApi.listByVM(id!, true);
+      // Check if sync had partial errors
+      if (response.success && response.error) {
+        showError(response.error);
+      }
+      return response;
+    },
     enabled: !!id,
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to load firewall rules');
+    },
   });
 
   const startMutation = useMutation({

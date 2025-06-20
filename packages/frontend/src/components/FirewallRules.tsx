@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { firewallApi } from '../api/firewall';
 import type { FirewallRule, CreateFirewallRuleRequest, PortRule } from '@gce-platform/types';
+import { useToast } from '../contexts/ToastContext';
 
 interface FirewallRulesProps {
   vmId: string;
@@ -11,11 +12,20 @@ interface FirewallRulesProps {
 export default function FirewallRules({ vmId, rules }: FirewallRulesProps) {
   const [showAddRule, setShowAddRule] = useState(false);
   const queryClient = useQueryClient();
+  const { showError, showSuccess } = useToast();
 
   const deleteMutation = useMutation({
     mutationFn: firewallApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['firewall-rules', vmId] });
+      showSuccess('Firewall rule deleted successfully');
+      // Refresh after 500ms to get updated state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['firewall-rules', vmId] });
+      }, 500);
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to delete firewall rule');
     },
   });
 
@@ -130,10 +140,17 @@ function AddFirewallRuleModal({ vmId, onClose, onSuccess }: AddFirewallRuleModal
     sourceRanges: ['0.0.0.0/0'],
     allowedPorts: [{ protocol: 'tcp', ports: ['80'] }],
   });
+  const { showError, showSuccess } = useToast();
 
   const createMutation = useMutation({
     mutationFn: firewallApi.create,
-    onSuccess,
+    onSuccess: () => {
+      showSuccess('Firewall rule created successfully');
+      onSuccess();
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to create firewall rule');
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -2,8 +2,9 @@ import { api } from './client';
 import type { FirewallRule, CreateFirewallRuleRequest, ApiResponse } from '@gce-platform/types';
 
 export const firewallApi = {
-  listByVM: async (vmId: string) => {
-    const { data } = await api.get<ApiResponse<FirewallRule[]>>(`/firewall/vm/${vmId}`);
+  listByVM: async (vmId: string, sync: boolean = false) => {
+    const params = sync ? { sync: 'true' } : {};
+    const { data } = await api.get<ApiResponse<FirewallRule[]>>(`/firewall/vm/${vmId}`, { params });
     return data;
   },
 
