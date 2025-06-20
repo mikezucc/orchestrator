@@ -1,11 +1,33 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { Link } from 'react-router-dom';
+import { useProjects } from '../hooks/useProjects';
+import { useState } from 'react';
+import ProjectManager from '../components/ProjectManager';
 
 export default function Dashboard() {
-  const { data: vmsResponse, isLoading } = useQuery({
-    queryKey: ['vms'],
-    queryFn: vmApi.list,
+  const { projects } = useProjects();
+  const [showProjectManager, setShowProjectManager] = useState(false);
+  const queryClient = useQueryClient();
+  
+  const { data: vmsResponse, isLoading, refetch } = useQuery({
+    queryKey: ['vms', projects],
+    queryFn: () => vmApi.list(projects),
+    refetchOnWindowFocus: true,
+  });
+
+  const startMutation = useMutation({
+    mutationFn: vmApi.start,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: vmApi.stop,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+    },
   });
 
   const vms = vmsResponse?.data || [];
@@ -24,12 +46,47 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-bold uppercase tracking-wider mb-2">Dashboard</h1>
-        <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
-          System Overview
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold uppercase tracking-wider mb-2">Dashboard</h1>
+          <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
+            System Overview
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowProjectManager(true)}
+            className="btn-secondary"
+          >
+            {projects.length === 0 ? 'Configure Projects' : `${projects.length} Project${projects.length !== 1 ? 's' : ''}`}
+          </button>
+          {projects.length > 0 && (
+            <button
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="btn-secondary"
+            >
+              {isLoading ? 'Syncing...' : 'Sync VMs'}
+            </button>
+          )}
+        </div>
       </div>
+      
+      {projects.length === 0 && (
+        <div className="card bg-te-yellow dark:bg-te-gray-900 border-te-yellow dark:border-te-yellow">
+          <div className="flex items-start space-x-3">
+            <svg className="w-5 h-5 text-te-gray-900 dark:text-te-yellow flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-te-gray-900 dark:text-te-yellow">No GCP Projects Configured</p>
+              <p className="text-xs text-te-gray-700 dark:text-te-gray-400 mt-1">
+                Configure your Google Cloud project IDs to sync existing VMs.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card">
@@ -111,6 +168,7 @@ export default function Dashboard() {
                   <th className="text-left px-4 py-3">Name</th>
                   <th className="text-left px-4 py-3">Zone</th>
                   <th className="text-left px-4 py-3">Type</th>
+                  <th className="text-left px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-te-gray-200 dark:divide-te-gray-800">
@@ -134,6 +192,28 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
                       {vm.machineType}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center space-x-2">
+                        {vm.status === 'stopped' && (
+                          <button
+                            onClick={() => startMutation.mutate(vm.id)}
+                            disabled={startMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
+                          >
+                            Resume
+                          </button>
+                        )}
+                        {vm.status === 'running' && (
+                          <button
+                            onClick={() => stopMutation.mutate(vm.id)}
+                            disabled={stopMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -141,6 +221,10 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      
+      {showProjectManager && (
+        <ProjectManager onClose={() => setShowProjectManager(false)} />
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { firewallApi } from '../api/firewall';
 import FirewallRules from '../components/FirewallRules';
+import VMStatusBadge from '../components/VMStatusBadge';
 
 export default function VMDetail() {
   const { id } = useParams<{ id: string }>();
@@ -79,18 +80,25 @@ export default function VMDetail() {
             <button
               onClick={() => startMutation.mutate()}
               disabled={startMutation.isPending}
-              className="btn-primary"
+              className="btn-primary flex items-center space-x-2"
             >
-              {startMutation.isPending ? 'Starting...' : 'Start VM'}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{startMutation.isPending ? 'Resuming...' : 'Resume VM'}</span>
             </button>
           )}
           {vm.status === 'running' && (
             <button
               onClick={() => stopMutation.mutate()}
               disabled={stopMutation.isPending}
-              className="btn-secondary"
+              className="btn-secondary flex items-center space-x-2"
             >
-              {stopMutation.isPending ? 'Stopping...' : 'Stop VM'}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{stopMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
             </button>
           )}
           <button
@@ -113,15 +121,7 @@ export default function VMDetail() {
             <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
               Status
             </p>
-            <span className={
-              vm.status === 'running' 
-                ? 'badge-success' 
-                : vm.status === 'stopped'
-                ? 'badge-error'
-                : 'badge-neutral'
-            }>
-              {vm.status}
-            </span>
+            <VMStatusBadge status={vm.status} />
           </div>
           
           <div>

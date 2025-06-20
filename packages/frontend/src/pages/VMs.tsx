@@ -3,18 +3,38 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { Link } from 'react-router-dom';
 import CreateVMModal from '../components/CreateVMModal';
+import ProjectManager from '../components/ProjectManager';
+import VMStatusBadge from '../components/VMStatusBadge';
+import { useProjects } from '../hooks/useProjects';
 
 export default function VMs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showProjectManager, setShowProjectManager] = useState(false);
   const queryClient = useQueryClient();
+  const { projects } = useProjects();
 
-  const { data: vmsResponse, isLoading } = useQuery({
-    queryKey: ['vms'],
-    queryFn: vmApi.list,
+  const { data: vmsResponse, isLoading, refetch } = useQuery({
+    queryKey: ['vms', projects],
+    queryFn: () => vmApi.list(projects),
+    refetchOnWindowFocus: true,
   });
 
   const deleteMutation = useMutation({
     mutationFn: vmApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+    },
+  });
+
+  const startMutation = useMutation({
+    mutationFn: vmApi.start,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: vmApi.stop,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
     },
@@ -41,12 +61,29 @@ export default function VMs() {
             {vms.length} Total Instances
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary"
-        >
-          + Create VM
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowProjectManager(true)}
+            className="btn-secondary"
+          >
+            {projects.length === 0 ? 'Configure Projects' : `${projects.length} Project${projects.length !== 1 ? 's' : ''}`}
+          </button>
+          {projects.length > 0 && (
+            <button
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="btn-secondary"
+            >
+              {isLoading ? 'Syncing...' : 'Sync VMs'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="btn-primary"
+          >
+            + Create VM
+          </button>
+        </div>
       </div>
 
       <div className="card p-0 overflow-hidden">
@@ -72,15 +109,7 @@ export default function VMs() {
               vms.map((vm) => (
                 <tr key={vm.id} className="hover:bg-te-gray-50 dark:hover:bg-te-gray-900 transition-colors">
                   <td className="px-4 py-3">
-                    <span className={
-                      vm.status === 'running' 
-                        ? 'badge-success' 
-                        : vm.status === 'stopped'
-                        ? 'badge-error'
-                        : 'badge-neutral'
-                    }>
-                      {vm.status}
-                    </span>
+                    <VMStatusBadge status={vm.status} />
                   </td>
                   <td className="px-4 py-3">
                     <Link to={`/vms/${vm.id}`} className="link font-medium">
@@ -98,6 +127,30 @@ export default function VMs() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center space-x-2">
+                      {vm.status === 'stopped' && (
+                        <>
+                          <button
+                            onClick={() => startMutation.mutate(vm.id)}
+                            disabled={startMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
+                          >
+                            Resume
+                          </button>
+                          <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                        </>
+                      )}
+                      {vm.status === 'running' && (
+                        <>
+                          <button
+                            onClick={() => stopMutation.mutate(vm.id)}
+                            disabled={stopMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
+                          >
+                            Suspend
+                          </button>
+                          <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                        </>
+                      )}
                       <Link
                         to={`/vms/${vm.id}`}
                         className="text-xs uppercase tracking-wider hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
@@ -132,6 +185,10 @@ export default function VMs() {
             queryClient.invalidateQueries({ queryKey: ['vms'] });
           }}
         />
+      )}
+
+      {showProjectManager && (
+        <ProjectManager onClose={() => setShowProjectManager(false)} />
       )}
     </div>
   );

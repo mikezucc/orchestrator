@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv';
 import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
 import { authRoutes } from './routes/auth.js';
+import { syncRoutes } from './routes/sync.js';
 
 dotenv.config();
 
@@ -22,6 +23,7 @@ app.get('/', (c) => {
 app.route('/api/auth', authRoutes);
 app.route('/api/vms', vmRoutes);
 app.route('/api/firewall', firewallRoutes);
+app.route('/api/sync', syncRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

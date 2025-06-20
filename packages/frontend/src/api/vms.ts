@@ -2,8 +2,9 @@ import { api } from './client';
 import type { VirtualMachine, CreateVMRequest, UpdateVMRequest, ApiResponse } from '@gce-platform/types';
 
 export const vmApi = {
-  list: async () => {
-    const { data } = await api.get<ApiResponse<VirtualMachine[]>>('/vms');
+  list: async (syncProjects?: string[]) => {
+    const params = syncProjects?.length ? { sync: syncProjects.join(',') } : {};
+    const { data } = await api.get<ApiResponse<VirtualMachine[]>>('/vms', { params });
     return data;
   },
 
