@@ -16,6 +16,9 @@ export default function VMDetail() {
     queryKey: ['vm', id],
     queryFn: () => vmApi.get(id!),
     enabled: !!id,
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to load VM details');
+    },
   });
 
   const { data: rulesResponse } = useQuery({

@@ -54,6 +54,24 @@ vmRoutes.get('/', async (c) => {
   return c.json<ApiResponse<VirtualMachine[]>>({ success: true, data: vms as VirtualMachine[] });
 });
 
+vmRoutes.get('/:id', async (c) => {
+  const userId = c.req.header('x-user-id');
+  const vmId = c.req.param('id');
+  
+  if (!userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
+  }
+
+  const [vm] = await db.select().from(virtualMachines)
+    .where(eq(virtualMachines.id, vmId));
+
+  if (!vm || vm.userId !== userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+  }
+
+  return c.json<ApiResponse<VirtualMachine>>({ success: true, data: vm as VirtualMachine });
+});
+
 vmRoutes.post('/', async (c) => {
   const userId = c.req.header('x-user-id');
   const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
