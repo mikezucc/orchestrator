@@ -1,5 +1,5 @@
 interface VMStatusBadgeProps {
-  status: 'running' | 'stopped' | 'terminated' | 'pending';
+  status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending';
 }
 
 export default function VMStatusBadge({ status }: VMStatusBadgeProps) {
@@ -22,6 +22,16 @@ export default function VMStatusBadge({ status }: VMStatusBadgeProps) {
           icon: (
             <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ),
+        };
+      case 'suspended':
+        return {
+          label: 'Suspended',
+          className: 'badge-warning',
+          icon: (
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           ),
         };

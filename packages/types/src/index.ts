@@ -4,7 +4,7 @@ export interface VirtualMachine {
   gcpProjectId: string;
   zone: string;
   machineType: string;
-  status: 'running' | 'stopped' | 'terminated' | 'pending';
+  status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending';
   initScript?: string;
   createdAt: Date;
   updatedAt: Date;

@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine } from '@gce-platform/types';
-import { createVM, deleteVM, startVM, stopVM } from '../services/gcp.js';
+import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM } from '../services/gcp.js';
 import { syncUserVMsFromProjects } from '../services/gcp-sync.js';
 import { getValidAccessToken } from '../services/auth.js';
 
@@ -103,7 +103,13 @@ vmRoutes.post('/:id/start', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
 
-    await startVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
+    // Use appropriate action based on current status
+    if (vm.status === 'suspended') {
+      await resumeVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
+    } else {
+      await startVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
+    }
+    
     await db.update(virtualMachines)
       .set({ status: 'running', updatedAt: new Date() })
       .where(eq(virtualMachines.id, vmId));
@@ -160,6 +166,59 @@ vmRoutes.post('/:id/stop', async (c) => {
     return c.json<ApiResponse<{ message: string }>>({ success: true, data: { message: 'VM stopped' } });
   } catch (error: any) {
     console.error('Failed to stop VM:', error);
+    
+    // Handle specific Google Cloud errors
+    if (error.code === 403) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Permission denied. Please ensure the Compute Engine API is enabled and you have the necessary permissions.' 
+      }, 403);
+    } else if (error.code === 404) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'VM instance not found in Google Cloud. It may have been deleted outside this platform.' 
+      }, 404);
+    }
+    
+    return c.json<ApiResponse<never>>({ success: false, error: error.message || String(error) }, 500);
+  }
+});
+
+vmRoutes.post('/:id/suspend', async (c) => {
+  const userId = c.req.header('x-user-id');
+  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const vmId = c.req.param('id');
+  
+  if (!userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
+  }
+
+  const [vm] = await db.select().from(virtualMachines)
+    .where(eq(virtualMachines.id, vmId));
+
+  if (!vm || vm.userId !== userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+  }
+
+  if (vm.status !== 'running') {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM must be running to suspend' }, 400);
+  }
+
+  try {
+    // Get a valid access token (either use provided or refresh)
+    const accessToken = await getValidAccessToken(userId, providedToken);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+    }
+
+    await suspendVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
+    await db.update(virtualMachines)
+      .set({ status: 'suspended', updatedAt: new Date() })
+      .where(eq(virtualMachines.id, vmId));
+
+    return c.json<ApiResponse<{ message: string }>>({ success: true, data: { message: 'VM suspended' } });
+  } catch (error: any) {
+    console.error('Failed to suspend VM:', error);
     
     // Handle specific Google Cloud errors
     if (error.code === 403) {

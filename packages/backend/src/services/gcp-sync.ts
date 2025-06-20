@@ -101,10 +101,13 @@ export async function syncUserVMs(userId: string, accessToken: string) {
         }
 
         // Map GCP status to our status
-        let status: 'running' | 'stopped' | 'terminated' | 'pending' = 'stopped';
+        let status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending' = 'stopped';
         switch (instance.status?.toUpperCase()) {
           case 'RUNNING':
             status = 'running';
+            break;
+          case 'SUSPENDED':
+            status = 'suspended';
             break;
           case 'TERMINATED':
           case 'STOPPED':
@@ -242,10 +245,13 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
         }
 
         // Map GCP status to our status
-        let status: 'running' | 'stopped' | 'terminated' | 'pending' = 'stopped';
+        let status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending' = 'stopped';
         switch (instance.status?.toUpperCase()) {
           case 'RUNNING':
             status = 'running';
+            break;
+          case 'SUSPENDED':
+            status = 'suspended';
             break;
           case 'TERMINATED':
           case 'STOPPED':

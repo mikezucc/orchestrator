@@ -37,4 +37,9 @@ export const vmApi = {
     const { data } = await api.post<ApiResponse<{ message: string }>>(`/vms/${id}/stop`);
     return data;
   },
+
+  suspend: async (id: string) => {
+    const { data } = await api.post<ApiResponse<{ message: string }>>(`/vms/${id}/suspend`);
+    return data;
+  },
 };

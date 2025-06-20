@@ -40,6 +40,13 @@ export default function VMs() {
     },
   });
 
+  const suspendMutation = useMutation({
+    mutationFn: vmApi.suspend,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+    },
+  });
+
   const vms = vmsResponse?.data || [];
 
   if (isLoading) {
@@ -134,6 +141,18 @@ export default function VMs() {
                             disabled={startMutation.isPending}
                             className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
                           >
+                            Start
+                          </button>
+                          <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                        </>
+                      )}
+                      {vm.status === 'suspended' && (
+                        <>
+                          <button
+                            onClick={() => startMutation.mutate(vm.id)}
+                            disabled={startMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
+                          >
                             Resume
                           </button>
                           <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
@@ -145,6 +164,14 @@ export default function VMs() {
                             onClick={() => stopMutation.mutate(vm.id)}
                             disabled={stopMutation.isPending}
                             className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
+                          >
+                            Stop
+                          </button>
+                          <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                          <button
+                            onClick={() => suspendMutation.mutate(vm.id)}
+                            disabled={suspendMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-blue-600 dark:text-te-yellow hover:text-blue-700 dark:hover:text-te-orange transition-colors"
                           >
                             Suspend
                           </button>

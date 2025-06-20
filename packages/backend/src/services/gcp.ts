@@ -148,3 +148,27 @@ export async function deleteFirewallRule(projectId: string, firewallName: string
     firewall: firewallName,
   });
 }
+
+export async function resumeVM(projectId: string, zone: string, instanceName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+
+  await compute.instances.resume({
+    project: projectId,
+    zone,
+    instance: instanceName,
+  });
+}
+
+export async function suspendVM(projectId: string, zone: string, instanceName: string, accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+
+  await compute.instances.suspend({
+    project: projectId,
+    zone,
+    instance: instanceName,
+  });
+}
