@@ -4,22 +4,31 @@ import { Link } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useState } from 'react';
 import ProjectManager from '../components/ProjectManager';
+import { useToast } from '../contexts/ToastContext';
 
 export default function Dashboard() {
   const { projects } = useProjects();
   const [showProjectManager, setShowProjectManager] = useState(false);
   const queryClient = useQueryClient();
+  const { showError, showSuccess } = useToast();
   
   const { data: vmsResponse, isLoading, refetch } = useQuery({
     queryKey: ['vms', projects],
     queryFn: () => vmApi.list(projects),
     refetchOnWindowFocus: true,
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to load VMs');
+    },
   });
 
   const startMutation = useMutation({
     mutationFn: vmApi.start,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM started successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to start VM');
     },
   });
 
@@ -27,12 +36,27 @@ export default function Dashboard() {
     mutationFn: vmApi.stop,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM stopped successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to stop VM');
+    },
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: vmApi.suspend,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM suspended successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to suspend VM');
     },
   });
 
   const vms = vmsResponse?.data || [];
   const runningVMs = vms.filter(vm => vm.status === 'running').length;
-  const stoppedVMs = vms.filter(vm => vm.status === 'stopped').length;
+  const stoppedVMs = vms.filter(vm => vm.status === 'stopped' || vm.status === 'suspended').length;
 
   if (isLoading) {
     return (
@@ -178,6 +202,8 @@ export default function Dashboard() {
                       <span className={`inline-block w-2 h-2 rounded-full ${
                         vm.status === 'running' 
                           ? 'bg-green-500 dark:bg-te-yellow' 
+                          : vm.status === 'suspended'
+                          ? 'bg-yellow-500 dark:bg-te-orange'
                           : 'bg-te-gray-400 dark:bg-te-gray-600'
                       }`} />
                     </td>
@@ -200,17 +226,36 @@ export default function Dashboard() {
                             disabled={startMutation.isPending}
                             className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
                           >
+                            Start
+                          </button>
+                        )}
+                        {vm.status === 'suspended' && (
+                          <button
+                            onClick={() => startMutation.mutate(vm.id)}
+                            disabled={startMutation.isPending}
+                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
+                          >
                             Resume
                           </button>
                         )}
                         {vm.status === 'running' && (
-                          <button
-                            onClick={() => stopMutation.mutate(vm.id)}
-                            disabled={stopMutation.isPending}
-                            className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
-                          >
-                            Suspend
-                          </button>
+                          <>
+                            <button
+                              onClick={() => stopMutation.mutate(vm.id)}
+                              disabled={stopMutation.isPending}
+                              className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
+                            >
+                              Stop
+                            </button>
+                            <span className="text-te-gray-300 dark:text-te-gray-700 mx-1">|</span>
+                            <button
+                              onClick={() => suspendMutation.mutate(vm.id)}
+                              disabled={suspendMutation.isPending}
+                              className="text-xs uppercase tracking-wider text-blue-600 dark:text-te-yellow hover:text-blue-700 dark:hover:text-te-orange transition-colors"
+                            >
+                              Suspend
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

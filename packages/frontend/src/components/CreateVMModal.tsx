@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import type { CreateVMRequest } from '@gce-platform/types';
+import { useToast } from '../contexts/ToastContext';
 
 interface CreateVMModalProps {
   onClose: () => void;
@@ -16,11 +17,16 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
     machineType: 'e2-micro',
     initScript: '',
   });
+  const { showError, showSuccess } = useToast();
 
   const createMutation = useMutation({
     mutationFn: vmApi.create,
     onSuccess: () => {
+      showSuccess('VM created successfully');
       onSuccess();
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to create VM');
     },
   });
 

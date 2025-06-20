@@ -6,23 +6,32 @@ import CreateVMModal from '../components/CreateVMModal';
 import ProjectManager from '../components/ProjectManager';
 import VMStatusBadge from '../components/VMStatusBadge';
 import { useProjects } from '../hooks/useProjects';
+import { useToast } from '../contexts/ToastContext';
 
 export default function VMs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showProjectManager, setShowProjectManager] = useState(false);
   const queryClient = useQueryClient();
   const { projects } = useProjects();
+  const { showError, showSuccess } = useToast();
 
   const { data: vmsResponse, isLoading, refetch } = useQuery({
     queryKey: ['vms', projects],
     queryFn: () => vmApi.list(projects),
     refetchOnWindowFocus: true,
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to load VMs');
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: vmApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM deleted successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to delete VM');
     },
   });
 
@@ -30,6 +39,10 @@ export default function VMs() {
     mutationFn: vmApi.start,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM started successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to start VM');
     },
   });
 
@@ -37,6 +50,10 @@ export default function VMs() {
     mutationFn: vmApi.stop,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM stopped successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to stop VM');
     },
   });
 
@@ -44,6 +61,10 @@ export default function VMs() {
     mutationFn: vmApi.suspend,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vms'] });
+      showSuccess('VM suspended successfully');
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to suspend VM');
     },
   });
 
