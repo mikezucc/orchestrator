@@ -191,24 +191,65 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
       </div>
 
       {connectionStatus === 'connected' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <>
+          {/* Active Branches Summary */}
+          {repositories.length > 0 && (
+            <div className="card bg-te-gray-50 dark:bg-te-gray-900 border-te-gray-300 dark:border-te-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wider">Active Branches</h3>
+                <svg className="w-4 h-4 text-green-600 dark:text-te-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {Array.from(new Set(repositories.flatMap(repo => repo.activeBranches))).map((branch, index) => {
+                  const clientCount = status?.clients.filter(c => c.connected && c.branch === branch).length || 0;
+                  const isMainBranch = branch === 'main' || branch === 'master';
+                  
+                  return (
+                    <div key={index} className={`${
+                      isMainBranch 
+                        ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900' 
+                        : 'bg-green-600 dark:bg-green-500 text-white'
+                    } px-3 py-1 rounded-full flex items-center gap-2`}>
+                      <span className="text-xs font-medium">{branch}</span>
+                      <span className="text-2xs opacity-75">({clientCount} client{clientCount !== 1 ? 's' : ''})</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Repository Status */}
           <div className="card">
             <h3 className="text-sm font-semibold uppercase tracking-wider mb-3">Repository Status</h3>
             {repositories.length === 0 ? (
               <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No repositories found</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {repositories.map((repo, index) => (
-                  <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-2 last:border-0">
+                  <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-3 last:border-0">
                     <p className="font-mono text-xs font-medium">{repo.repoPath}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-2xs text-te-gray-600 dark:text-te-gray-500">
-                        {repo.connectedClientCount}/{repo.clientCount} clients connected
-                      </span>
-                      <span className="text-2xs text-te-gray-600 dark:text-te-gray-500">
-                        {repo.activeBranches.length} active branches
-                      </span>
+                    <div className="mt-2 space-y-1">
+                      {/* Active branches display */}
+                      {repo.activeBranches.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <span className="text-2xs text-te-gray-600 dark:text-te-gray-500 uppercase tracking-wider">Active:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {repo.activeBranches.map((branch, branchIndex) => (
+                              <span key={branchIndex} className="badge-success text-2xs">
+                                {branch}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-2xs text-te-gray-600 dark:text-te-gray-500">
+                        <span>{repo.connectedClientCount}/{repo.clientCount} clients connected</span>
+                        <span>{repo.branches.length} total branches</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -223,21 +264,43 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
               <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No connected clients</p>
             ) : (
               <div className="space-y-2">
-                {status?.clients.filter(c => c.connected).map((client, index) => (
-                  <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-2 last:border-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs">{client.id}</span>
-                      <span className="badge-neutral text-2xs">{client.branch}</span>
+                {status?.clients.filter(c => c.connected).map((client, index) => {
+                  // Determine if this branch is the main/master branch
+                  const isMainBranch = client.branch === 'main' || client.branch === 'master';
+                  
+                  return (
+                    <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-2 last:border-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <span className="font-mono text-xs block">{client.id}</span>
+                          <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
+                            {client.repoPath}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`${
+                            isMainBranch 
+                              ? 'badge-primary' 
+                              : 'badge-success'
+                          } text-2xs flex items-center gap-1`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            {client.branch}
+                          </span>
+                          <span className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+                            {new Date(client.lastActivity).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
-                      Last activity: {new Date(client.lastActivity).toLocaleTimeString()}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Branch Management */}
@@ -264,30 +327,70 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
             </div>
             
             {selectedRepo && (
-              <div>
-                <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
-                  Target Branch
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={targetBranch}
-                    onChange={(e) => setTargetBranch(e.target.value)}
-                    placeholder="e.g., feature/new-feature"
-                    className="flex-1"
-                  />
-                  <button
-                    onClick={handleBranchSwitch}
-                    disabled={!targetBranch.trim()}
-                    className="btn-primary"
-                  >
-                    Switch Branch
-                  </button>
+              <>
+                {/* Show existing branches for selected repo */}
+                {(() => {
+                  const selectedRepoData = repositories.find(r => r.repoPath === selectedRepo);
+                  const currentActiveBranches = selectedRepoData?.activeBranches || [];
+                  
+                  return selectedRepoData && selectedRepoData.branches.length > 0 ? (
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
+                        Available Branches
+                      </label>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {selectedRepoData.branches.map((branch, index) => {
+                          const isActive = currentActiveBranches.includes(branch);
+                          const isMainBranch = branch === 'main' || branch === 'master';
+                          
+                          return (
+                            <button
+                              key={index}
+                              onClick={() => setTargetBranch(branch)}
+                              className={`text-2xs px-2 py-1 rounded transition-colors ${
+                                targetBranch === branch
+                                  ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900'
+                                  : isActive
+                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800'
+                                  : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
+                              }`}
+                              title={isActive ? 'Currently active branch' : 'Click to select'}
+                            >
+                              {branch}
+                              {isActive && ' ✓'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+                
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
+                    Target Branch
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={targetBranch}
+                      onChange={(e) => setTargetBranch(e.target.value)}
+                      placeholder="e.g., feature/new-feature"
+                      className="flex-1"
+                    />
+                    <button
+                      onClick={handleBranchSwitch}
+                      disabled={!targetBranch.trim()}
+                      className="btn-primary"
+                    >
+                      Switch Branch
+                    </button>
+                  </div>
+                  <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
+                    All connected clients will switch to this branch
+                  </p>
                 </div>
-                <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
-                  All connected clients will switch to this branch
-                </p>
-              </div>
+              </>
             )}
           </div>
         </div>
