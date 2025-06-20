@@ -1,4 +1,4 @@
-import { API_BASE_URL, getHeaders } from './base';
+import { api } from './client';
 import type { 
   ApiResponse, 
   WormholeStatus, 
@@ -8,30 +8,22 @@ import type {
 } from '@gce-platform/types';
 
 export const wormholeApi = {
-  getStatus: async (vmId: string): Promise<ApiResponse<WormholeStatus>> => {
-    const response = await fetch(`${API_BASE_URL}/api/wormhole/${vmId}/status`, {
-      headers: getHeaders(),
-    });
-    return response.json();
+  getStatus: async (vmId: string) => {
+    const { data } = await api.get<ApiResponse<WormholeStatus>>(`/wormhole/${vmId}/status`);
+    return data;
   },
 
-  getRepositories: async (vmId: string): Promise<ApiResponse<WormholeRepositories>> => {
-    const response = await fetch(`${API_BASE_URL}/api/wormhole/${vmId}/repositories`, {
-      headers: getHeaders(),
-    });
-    return response.json();
+  getRepositories: async (vmId: string) => {
+    const { data } = await api.get<ApiResponse<WormholeRepositories>>(`/wormhole/${vmId}/repositories`);
+    return data;
   },
 
-  switchBranch: async (
-    vmId: string, 
-    request: WormholeBranchSwitchRequest
-  ): Promise<ApiResponse<WormholeBranchSwitchResponse>> => {
-    const response = await fetch(`${API_BASE_URL}/api/wormhole/${vmId}/branch-switch`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(request),
-    });
-    return response.json();
+  switchBranch: async (vmId: string, request: WormholeBranchSwitchRequest) => {
+    const { data } = await api.post<ApiResponse<WormholeBranchSwitchResponse>>(
+      `/wormhole/${vmId}/branch-switch`, 
+      request
+    );
+    return data;
   },
 
   // WebSocket connection helper
