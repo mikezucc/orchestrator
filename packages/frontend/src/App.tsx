@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import VMs from './pages/VMs';
 import VMDetail from './pages/VMDetail';
 import Login from './pages/Login';
+import AuthCallback from './pages/AuthCallback';
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="vms" element={<VMs />} />

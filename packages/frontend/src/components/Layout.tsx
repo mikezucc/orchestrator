@@ -1,14 +1,30 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from './ThemeToggle';
+import { useEffect } from 'react';
 
 export default function Layout() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    navigate('/login');
     return null;
   }
 

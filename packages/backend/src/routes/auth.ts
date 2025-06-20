@@ -61,14 +61,15 @@ authRoutes.get('/google/callback', async (c) => {
       userId = existingUser[0].id;
     }
 
-    const response: GCPAuthResponse = {
+    // Redirect to frontend with auth data
+    const params = new URLSearchParams({
+      userId,
       accessToken: tokens.access_token!,
       refreshToken: tokens.refresh_token!,
-      expiresIn: tokens.expiry_date ? (tokens.expiry_date - Date.now()) / 1000 : 3600,
-    };
+      expiresIn: String(tokens.expiry_date ? (tokens.expiry_date - Date.now()) / 1000 : 3600),
+    });
 
-    c.header('x-user-id', userId);
-    return c.json<ApiResponse<GCPAuthResponse>>({ success: true, data: response });
+    return c.redirect(`http://localhost:5173/auth/callback?${params.toString()}`);
   } catch (error) {
     return c.json<ApiResponse<never>>({ success: false, error: String(error) }, 500);
   }

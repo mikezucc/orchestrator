@@ -7,6 +7,7 @@ interface AuthContextType {
   login: () => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<GCPAuthResponse | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const storedAuth = localStorage.getItem('auth');
@@ -23,6 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuth(JSON.parse(storedAuth));
       setUserId(storedUserId);
     }
+    
+    setIsLoading(false);
   }, []);
 
   const login = () => {
@@ -43,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       isAuthenticated: !!auth,
+      isLoading,
     }}>
       {children}
     </AuthContext.Provider>
