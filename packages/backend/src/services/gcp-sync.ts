@@ -12,6 +12,11 @@ interface GCPInstance {
   zone: string;
   machineType: string;
   status: string;
+  networkInterfaces?: Array<{
+    accessConfigs?: Array<{
+      natIP?: string;
+    }>;
+  }>;
   metadata?: {
     items?: Array<{
       key: string;
@@ -100,6 +105,12 @@ export async function syncUserVMs(userId: string, accessToken: string) {
           initScript = startupScriptItem?.value;
         }
 
+        // Extract public IP if exists
+        let publicIp: string | undefined;
+        if (instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP) {
+          publicIp = instance.networkInterfaces[0].accessConfigs[0].natIP;
+        }
+
         // Map GCP status to our status
         let status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending' = 'stopped';
         switch (instance.status?.toUpperCase()) {
@@ -140,6 +151,7 @@ export async function syncUserVMs(userId: string, accessToken: string) {
             machineType,
             status,
             initScript,
+            publicIp,
             gcpInstanceId: instance.id,
           });
           syncedCount++;
@@ -151,6 +163,7 @@ export async function syncUserVMs(userId: string, accessToken: string) {
               status,
               machineType,
               initScript,
+              publicIp,
               updatedAt: new Date(),
             })
             .where(eq(virtualMachines.id, existingVM[0].id));
@@ -244,6 +257,12 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
           initScript = startupScriptItem?.value;
         }
 
+        // Extract public IP if exists
+        let publicIp: string | undefined;
+        if (instance.networkInterfaces?.[0]?.accessConfigs?.[0]?.natIP) {
+          publicIp = instance.networkInterfaces[0].accessConfigs[0].natIP;
+        }
+
         // Map GCP status to our status
         let status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending' = 'stopped';
         switch (instance.status?.toUpperCase()) {
@@ -284,6 +303,7 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
             machineType,
             status,
             initScript,
+            publicIp,
             gcpInstanceId: instance.id,
           });
           syncedCount++;
@@ -295,6 +315,7 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
               status,
               machineType,
               initScript,
+              publicIp,
               updatedAt: new Date(),
             })
             .where(eq(virtualMachines.id, existingVM[0].id));

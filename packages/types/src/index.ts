@@ -6,6 +6,7 @@ export interface VirtualMachine {
   machineType: string;
   status: 'running' | 'stopped' | 'suspended' | 'terminated' | 'pending';
   initScript?: string;
+  publicIp?: string;
   createdAt: Date;
   updatedAt: Date;
 }

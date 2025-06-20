@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { firewallApi } from '../api/firewall';
 import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
+import PortSelectorModal from '../components/PortSelectorModal';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -11,6 +13,7 @@ export default function VMDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
+  const [showPortSelector, setShowPortSelector] = useState(false);
 
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
@@ -227,6 +230,28 @@ export default function VMDetail() {
           
           <div>
             <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+              Public IP
+            </p>
+            {vm.publicIp ? (
+              <div className="flex items-center space-x-2">
+                <p className="font-medium font-mono">{vm.publicIp}</p>
+                <button
+                  onClick={() => setShowPortSelector(true)}
+                  className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                  title="Open in browser"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <p className="text-te-gray-500 dark:text-te-gray-600">—</p>
+            )}
+          </div>
+          
+          <div>
+            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
               Created
             </p>
             <p className="font-medium tabular-nums">
@@ -259,6 +284,14 @@ export default function VMDetail() {
       <div>
         <FirewallRules vmId={id!} rules={rules} />
       </div>
+
+      {showPortSelector && vm.publicIp && (
+        <PortSelectorModal
+          publicIp={vm.publicIp}
+          firewallRules={rules}
+          onClose={() => setShowPortSelector(false)}
+        />
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ export const virtualMachines = pgTable('virtual_machines', {
   status: text('status', { enum: ['running', 'stopped', 'suspended', 'terminated', 'pending'] }).notNull(),
   initScript: text('init_script'),
   gcpInstanceId: text('gcp_instance_id'),
+  publicIp: text('public_ip'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

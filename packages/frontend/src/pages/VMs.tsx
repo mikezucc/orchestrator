@@ -147,6 +147,7 @@ export default function VMs() {
             <tr className="table-header">
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">Name</th>
+              <th className="text-left px-4 py-3">Public IP</th>
               <th className="text-left px-4 py-3">Zone</th>
               <th className="text-left px-4 py-3">Type</th>
               <th className="text-left px-4 py-3">Created</th>
@@ -156,7 +157,7 @@ export default function VMs() {
           <tbody className="divide-y divide-te-gray-200 dark:divide-te-gray-800">
             {vms.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-te-gray-600 dark:text-te-gray-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-te-gray-600 dark:text-te-gray-500">
                   No virtual machines found. Create your first VM to get started.
                 </td>
               </tr>
@@ -170,6 +171,13 @@ export default function VMs() {
                     <Link to={`/vms/${vm.id}`} className="link font-medium">
                       {vm.name}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-sm font-mono">
+                    {vm.publicIp ? (
+                      <span className="text-te-gray-900 dark:text-te-gray-100">{vm.publicIp}</span>
+                    ) : (
+                      <span className="text-te-gray-500 dark:text-te-gray-600">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
                     {vm.zone}
