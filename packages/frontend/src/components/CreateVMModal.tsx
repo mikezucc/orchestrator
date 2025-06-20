@@ -30,13 +30,23 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Create Virtual Machine</h2>
+    <div className="fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="card max-w-md w-full">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold uppercase tracking-wider">Create VM</h2>
+          <button
+            onClick={onClose}
+            className="p-1 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="name" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
               VM Name
             </label>
             <input
@@ -45,12 +55,13 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              className="w-full"
+              placeholder="my-vm-instance"
             />
           </div>
 
           <div>
-            <label htmlFor="gcpProjectId" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="gcpProjectId" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
               GCP Project ID
             </label>
             <input
@@ -59,73 +70,76 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
               required
               value={formData.gcpProjectId}
               onChange={(e) => setFormData({ ...formData, gcpProjectId: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              className="w-full"
+              placeholder="my-project-123456"
             />
           </div>
 
-          <div>
-            <label htmlFor="zone" className="block text-sm font-medium text-gray-700">
-              Zone
-            </label>
-            <select
-              id="zone"
-              value={formData.zone}
-              onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            >
-              <option value="us-central1-a">us-central1-a</option>
-              <option value="us-central1-b">us-central1-b</option>
-              <option value="us-east1-b">us-east1-b</option>
-              <option value="us-east1-c">us-east1-c</option>
-              <option value="us-west1-a">us-west1-a</option>
-              <option value="us-west1-b">us-west1-b</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="zone" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                Zone
+              </label>
+              <select
+                id="zone"
+                value={formData.zone}
+                onChange={(e) => setFormData({ ...formData, zone: e.target.value })}
+                className="w-full"
+              >
+                <option value="us-central1-a">us-central1-a</option>
+                <option value="us-central1-b">us-central1-b</option>
+                <option value="us-east1-b">us-east1-b</option>
+                <option value="us-east1-c">us-east1-c</option>
+                <option value="us-west1-a">us-west1-a</option>
+                <option value="us-west1-b">us-west1-b</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="machineType" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                Machine Type
+              </label>
+              <select
+                id="machineType"
+                value={formData.machineType}
+                onChange={(e) => setFormData({ ...formData, machineType: e.target.value })}
+                className="w-full"
+              >
+                <option value="e2-micro">e2-micro</option>
+                <option value="e2-small">e2-small</option>
+                <option value="e2-medium">e2-medium</option>
+                <option value="e2-standard-2">e2-standard-2</option>
+                <option value="e2-standard-4">e2-standard-4</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label htmlFor="machineType" className="block text-sm font-medium text-gray-700">
-              Machine Type
-            </label>
-            <select
-              id="machineType"
-              value={formData.machineType}
-              onChange={(e) => setFormData({ ...formData, machineType: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            >
-              <option value="e2-micro">e2-micro (0.25-2 vCPUs, 1GB)</option>
-              <option value="e2-small">e2-small (0.5-2 vCPUs, 2GB)</option>
-              <option value="e2-medium">e2-medium (1-2 vCPUs, 4GB)</option>
-              <option value="e2-standard-2">e2-standard-2 (2 vCPUs, 8GB)</option>
-              <option value="e2-standard-4">e2-standard-4 (4 vCPUs, 16GB)</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="initScript" className="block text-sm font-medium text-gray-700">
-              Init Script (optional)
+            <label htmlFor="initScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+              Init Script <span className="text-2xs">(Optional)</span>
             </label>
             <textarea
               id="initScript"
               rows={4}
               value={formData.initScript}
               onChange={(e) => setFormData({ ...formData, initScript: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              placeholder="#!/bin/bash&#10;# Your startup script here"
+              className="w-full font-mono text-xs"
+              placeholder="#!/bin/bash&#10;# Startup script here"
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end space-x-3 pt-4 border-t border-te-gray-200 dark:border-te-gray-800">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              className="btn-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createMutation.isPending}
-              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              className="btn-primary"
             >
               {createMutation.isPending ? 'Creating...' : 'Create VM'}
             </button>

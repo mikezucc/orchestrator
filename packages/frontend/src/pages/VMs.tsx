@@ -23,94 +23,105 @@ export default function VMs() {
   const vms = vmsResponse?.data || [];
 
   if (isLoading) {
-    return <div className="text-center">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
+          Loading...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div className="sm:flex sm:items-center">
-        <div className="sm:flex-auto">
-          <h1 className="text-xl font-semibold text-gray-900">Virtual Machines</h1>
-          <p className="mt-2 text-sm text-gray-700">
-            A list of all your Google Cloud virtual machines.
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold uppercase tracking-wider mb-2">Virtual Machines</h1>
+          <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
+            {vms.length} Total Instances
           </p>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
-          >
-            Create VM
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="btn-primary"
+        >
+          + Create VM
+        </button>
       </div>
 
-      <div className="mt-8 flex flex-col">
-        <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Zone</th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Machine Type</th>
-                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
-                    <th className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {vms.map((vm) => (
-                    <tr key={vm.id}>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                          vm.status === 'running' 
-                            ? 'bg-green-100 text-green-800' 
-                            : vm.status === 'stopped'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {vm.status}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
-                        <Link to={`/vms/${vm.id}`} className="hover:text-indigo-600">
-                          {vm.name}
-                        </Link>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{vm.zone}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{vm.machineType}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {new Date(vm.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <Link
-                          to={`/vms/${vm.id}`}
-                          className="text-indigo-600 hover:text-indigo-900 mr-4"
-                        >
-                          View
-                        </Link>
-                        <button
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this VM?')) {
-                              deleteMutation.mutate(vm.id);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      <div className="card p-0 overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="table-header">
+              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Name</th>
+              <th className="text-left px-4 py-3">Zone</th>
+              <th className="text-left px-4 py-3">Type</th>
+              <th className="text-left px-4 py-3">Created</th>
+              <th className="text-left px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-te-gray-200 dark:divide-te-gray-800">
+            {vms.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-te-gray-600 dark:text-te-gray-500">
+                  No virtual machines found. Create your first VM to get started.
+                </td>
+              </tr>
+            ) : (
+              vms.map((vm) => (
+                <tr key={vm.id} className="hover:bg-te-gray-50 dark:hover:bg-te-gray-900 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className={
+                      vm.status === 'running' 
+                        ? 'badge-success' 
+                        : vm.status === 'stopped'
+                        ? 'badge-error'
+                        : 'badge-neutral'
+                    }>
+                      {vm.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Link to={`/vms/${vm.id}`} className="link font-medium">
+                      {vm.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
+                    {vm.zone}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
+                    {vm.machineType}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400 tabular-nums">
+                    {new Date(vm.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center space-x-2">
+                      <Link
+                        to={`/vms/${vm.id}`}
+                        className="text-xs uppercase tracking-wider hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                      >
+                        View
+                      </Link>
+                      <span className="text-te-gray-300 dark:text-te-gray-700">|</span>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete VM "${vm.name}"?`)) {
+                            deleteMutation.mutate(vm.id);
+                          }
+                        }}
+                        className="text-xs uppercase tracking-wider text-red-600 dark:text-te-orange hover:text-red-700 dark:hover:text-te-yellow transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {showCreateModal && (

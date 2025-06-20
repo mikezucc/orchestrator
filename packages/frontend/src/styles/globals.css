@@ -1,3 +1,118 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-te-gray-300 dark:border-te-gray-700;
+  }
+
+  body {
+    @apply bg-te-gray-50 dark:bg-te-gray-950 text-te-gray-900 dark:text-te-gray-100;
+    @apply font-mono text-sm;
+    @apply antialiased;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  textarea,
+  select {
+    @apply bg-white dark:bg-te-gray-900;
+    @apply border border-te-gray-300 dark:border-te-gray-700;
+    @apply text-te-gray-900 dark:text-te-gray-100;
+    @apply font-mono text-sm;
+    @apply px-3 py-2;
+    @apply focus:outline-none focus:ring-1 focus:ring-te-gray-900 dark:focus:ring-te-yellow;
+    @apply placeholder-te-gray-500 dark:placeholder-te-gray-600;
+  }
+
+  button:focus {
+    @apply outline-none;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply font-mono text-sm font-medium;
+    @apply px-4 py-2;
+    @apply border;
+    @apply transition-all duration-75;
+    @apply cursor-pointer;
+    @apply select-none;
+  }
+
+  .btn-primary {
+    @apply btn;
+    @apply bg-te-gray-900 dark:bg-te-yellow;
+    @apply text-white dark:text-te-gray-950;
+    @apply border-te-gray-900 dark:border-te-yellow;
+    @apply hover:bg-te-gray-800 dark:hover:bg-te-orange;
+    @apply hover:border-te-gray-800 dark:hover:border-te-orange;
+    @apply active:translate-y-px;
+  }
+
+  .btn-secondary {
+    @apply btn;
+    @apply bg-white dark:bg-te-gray-900;
+    @apply text-te-gray-900 dark:text-te-gray-100;
+    @apply border-te-gray-300 dark:border-te-gray-700;
+    @apply hover:bg-te-gray-100 dark:hover:bg-te-gray-800;
+    @apply active:translate-y-px;
+  }
+
+  .btn-danger {
+    @apply btn;
+    @apply bg-white dark:bg-te-gray-900;
+    @apply text-red-600 dark:text-te-orange;
+    @apply border-red-600 dark:border-te-orange;
+    @apply hover:bg-red-50 dark:hover:bg-te-gray-800;
+    @apply active:translate-y-px;
+  }
+
+  .card {
+    @apply bg-white dark:bg-te-gray-900;
+    @apply border border-te-gray-300 dark:border-te-gray-800;
+    @apply p-4;
+  }
+
+  .badge {
+    @apply inline-flex items-center;
+    @apply px-2 py-0.5;
+    @apply text-2xs font-medium uppercase tracking-wider;
+    @apply border;
+  }
+
+  .badge-success {
+    @apply badge;
+    @apply bg-green-50 dark:bg-te-gray-900;
+    @apply text-green-700 dark:text-te-yellow;
+    @apply border-green-300 dark:border-te-yellow;
+  }
+
+  .badge-error {
+    @apply badge;
+    @apply bg-red-50 dark:bg-te-gray-900;
+    @apply text-red-700 dark:text-te-orange;
+    @apply border-red-300 dark:border-te-orange;
+  }
+
+  .badge-neutral {
+    @apply badge;
+    @apply bg-te-gray-100 dark:bg-te-gray-800;
+    @apply text-te-gray-700 dark:text-te-gray-400;
+    @apply border-te-gray-300 dark:border-te-gray-700;
+  }
+
+  .table-header {
+    @apply bg-te-gray-100 dark:bg-te-gray-900;
+    @apply text-2xs font-semibold uppercase tracking-wider;
+    @apply text-te-gray-700 dark:text-te-gray-400;
+  }
+
+  .link {
+    @apply text-te-gray-900 dark:text-te-gray-100;
+    @apply underline decoration-te-gray-400 dark:decoration-te-gray-600;
+    @apply hover:decoration-te-gray-900 dark:hover:decoration-te-yellow;
+    @apply transition-colors duration-75;
+  }
+}
