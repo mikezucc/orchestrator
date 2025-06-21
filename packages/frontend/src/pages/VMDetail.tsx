@@ -9,6 +9,7 @@ import PortSelectorModal from '../components/PortSelectorModal';
 import PortLabels from '../components/PortLabels';
 import WormholeSection from '../components/WormholeSection';
 import DuplicateVMModal from '../components/DuplicateVMModal';
+import SSHTerminal from '../components/SSHTerminal';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -18,6 +19,7 @@ export default function VMDetail() {
   const { showError, showSuccess } = useToast();
   const [showPortSelector, setShowPortSelector] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showSSHTerminal, setShowSSHTerminal] = useState(false);
 
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
@@ -188,6 +190,17 @@ export default function VMDetail() {
               </button>
             </>
           )}
+          {vm.status === 'running' && vm.publicIp && (
+            <button
+              onClick={() => setShowSSHTerminal(true)}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>SSH Terminal</span>
+            </button>
+          )}
           <button
             onClick={() => setShowDuplicateModal(true)}
             className="btn-secondary flex items-center space-x-2"
@@ -257,6 +270,16 @@ export default function VMDetail() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                 </button>
+                <button
+                  onClick={() => setShowSSHTerminal(true)}
+                  className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                  title="SSH Terminal"
+                  disabled={vm.status !== 'running'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </button>
               </div>
             ) : (
               <p className="text-te-gray-500 dark:text-te-gray-600">—</p>
@@ -319,6 +342,13 @@ export default function VMDetail() {
         <DuplicateVMModal
           vm={vm}
           onClose={() => setShowDuplicateModal(false)}
+        />
+      )}
+
+      {showSSHTerminal && (
+        <SSHTerminal
+          vm={vm}
+          onClose={() => setShowSSHTerminal(false)}
         />
       )}
     </div>
