@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, jsonb, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
 
 export const users = pgTable('users', {
@@ -22,6 +22,12 @@ export const virtualMachines = pgTable('virtual_machines', {
   publicIp: text('public_ip'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    gcpInstanceUserUnique: uniqueIndex('virtual_machines_gcp_instance_user_unique')
+      .on(table.gcpInstanceId, table.userId)
+      .where('gcp_instance_id IS NOT NULL'),
+  };
 });
 
 export const firewallRules = pgTable('firewall_rules', {

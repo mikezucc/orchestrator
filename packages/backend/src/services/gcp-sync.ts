@@ -131,7 +131,7 @@ export async function syncUserVMs(userId: string, accessToken: string) {
             break;
         }
 
-        // Check if VM already exists
+        // Check if VM already exists by gcpInstanceId and userId
         const existingVM = await db.select()
           .from(virtualMachines)
           .where(
@@ -142,21 +142,47 @@ export async function syncUserVMs(userId: string, accessToken: string) {
           );
 
         if (existingVM.length === 0) {
-          // Insert new VM
-          await db.insert(virtualMachines).values({
-            userId,
-            name: instance.name,
-            gcpProjectId: projectId,
-            zone,
-            machineType,
-            status,
-            initScript,
-            publicIp,
-            gcpInstanceId: instance.id,
-          });
-          syncedCount++;
+          try {
+            // Insert new VM
+            await db.insert(virtualMachines).values({
+              userId,
+              name: instance.name,
+              gcpProjectId: projectId,
+              zone,
+              machineType,
+              status,
+              initScript,
+              publicIp,
+              gcpInstanceId: instance.id,
+            });
+            syncedCount++;
+          } catch (insertError: any) {
+            // Handle duplicate key violation
+            if (insertError.code === '23505') { // PostgreSQL unique violation
+              console.log(`VM ${instance.name} already exists, updating instead`);
+              // Try to update instead
+              await db.update(virtualMachines)
+                .set({
+                  name: instance.name,
+                  status,
+                  machineType,
+                  initScript,
+                  publicIp,
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(virtualMachines.gcpInstanceId, instance.id),
+                    eq(virtualMachines.userId, userId)
+                  )
+                );
+              syncedCount++;
+            } else {
+              throw insertError;
+            }
+          }
         } else {
-          // Update existing VM
+          // Update existing VM - use the first one if multiple exist (shouldn't happen with unique constraint)
           await db.update(virtualMachines)
             .set({
               name: instance.name,
@@ -283,7 +309,7 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
             break;
         }
 
-        // Check if VM already exists
+        // Check if VM already exists by gcpInstanceId and userId
         const existingVM = await db.select()
           .from(virtualMachines)
           .where(
@@ -294,21 +320,47 @@ export async function syncUserVMsFromProjects(userId: string, accessToken: strin
           );
 
         if (existingVM.length === 0) {
-          // Insert new VM
-          await db.insert(virtualMachines).values({
-            userId,
-            name: instance.name,
-            gcpProjectId: projectId,
-            zone,
-            machineType,
-            status,
-            initScript,
-            publicIp,
-            gcpInstanceId: instance.id,
-          });
-          syncedCount++;
+          try {
+            // Insert new VM
+            await db.insert(virtualMachines).values({
+              userId,
+              name: instance.name,
+              gcpProjectId: projectId,
+              zone,
+              machineType,
+              status,
+              initScript,
+              publicIp,
+              gcpInstanceId: instance.id,
+            });
+            syncedCount++;
+          } catch (insertError: any) {
+            // Handle duplicate key violation
+            if (insertError.code === '23505') { // PostgreSQL unique violation
+              console.log(`VM ${instance.name} already exists, updating instead`);
+              // Try to update instead
+              await db.update(virtualMachines)
+                .set({
+                  name: instance.name,
+                  status,
+                  machineType,
+                  initScript,
+                  publicIp,
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(virtualMachines.gcpInstanceId, instance.id),
+                    eq(virtualMachines.userId, userId)
+                  )
+                );
+              syncedCount++;
+            } else {
+              throw insertError;
+            }
+          }
         } else {
-          // Update existing VM
+          // Update existing VM - use the first one if multiple exist (shouldn't happen with unique constraint)
           await db.update(virtualMachines)
             .set({
               name: instance.name,
