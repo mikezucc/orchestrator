@@ -4,6 +4,35 @@ import type { PortRule } from '@gce-platform/types';
 
 const compute = google.compute('v1');
 
+// Helper function to wait for zone operations to complete
+async function waitForZoneOperation(projectId: string, zone: string, operationName: string, accessToken: string, maxWaitTime = 300000) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+  
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < maxWaitTime) {
+    const operation = await compute.zoneOperations.get({
+      project: projectId,
+      zone,
+      operation: operationName,
+    });
+    
+    if (operation.data.status === 'DONE') {
+      if (operation.data.error) {
+        throw new Error(`Operation failed: ${JSON.stringify(operation.data.error)}`);
+      }
+      return;
+    }
+    
+    // Wait 2 seconds before checking again
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  throw new Error('Operation timed out');
+}
+
 interface CreateVMParams {
   projectId: string;
   zone: string;
@@ -208,7 +237,7 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
   const snapshotName = `snapshot-${newName}-${Date.now()}`;
   const diskName = sourceDisk.source.split('/').pop();
   
-  await compute.disks.createSnapshot({
+  const snapshotOperation = await compute.disks.createSnapshot({
     project: sourceProjectId,
     zone: sourceZone,
     disk: diskName,
@@ -217,8 +246,14 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
     },
   });
 
-  // Wait for snapshot to be ready (simplified - in production use operation polling)
-  await new Promise(resolve => setTimeout(resolve, 10000));
+  // Wait for snapshot operation to complete
+  const operationName = snapshotOperation.data.name;
+  if (operationName) {
+    await waitForZoneOperation(sourceProjectId, sourceZone, operationName, accessToken);
+  }
+  
+  // Additional wait to ensure snapshot is fully ready
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
   // Create new instance with same configuration but without specific IP
   const requestBody = {
@@ -251,23 +286,29 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
   };
 
   // Create the new instance
-  await compute.instances.insert({
+  const createOperation = await compute.instances.insert({
     project: sourceProjectId,
     zone: sourceZone,
     requestBody,
   });
 
+  // Wait for instance creation to complete
+  const createOperationName = createOperation.data.name;
+  if (createOperationName) {
+    await waitForZoneOperation(sourceProjectId, sourceZone, createOperationName, accessToken);
+  }
+
   // Clean up snapshot after instance creation
-  setTimeout(async () => {
-    try {
-      await compute.snapshots.delete({
-        project: sourceProjectId,
-        snapshot: snapshotName,
-      });
-    } catch (error) {
-      console.error('Failed to delete snapshot:', error);
-    }
-  }, 30000);
+  // We can delete it immediately since the instance creation has completed
+  try {
+    await compute.snapshots.delete({
+      project: sourceProjectId,
+      snapshot: snapshotName,
+    });
+  } catch (error) {
+    // Log but don't fail if snapshot deletion fails
+    console.error('Failed to delete snapshot:', error);
+  }
 
   return { id: newName };
 }

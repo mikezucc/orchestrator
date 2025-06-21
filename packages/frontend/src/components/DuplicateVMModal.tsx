@@ -20,7 +20,7 @@ export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps)
   const duplicateMutation = useMutation({
     mutationFn: () => vmApi.duplicate(vm.id, name),
     onSuccess: (response) => {
-      showSuccess(`VM "${name}" is being created. This may take a few minutes.`);
+      showSuccess(`VM "${name}" has been duplicated successfully!`);
       queryClient.invalidateQueries({ queryKey: ['vms'] });
       onClose();
       // Navigate to the new VM's detail page
@@ -100,6 +100,14 @@ export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps)
             </p>
           </div>
 
+          {duplicateMutation.isPending && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                This process may take 1-2 minutes as we create a snapshot and duplicate the VM.
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-between items-center pt-4 border-t border-te-gray-200 dark:border-te-gray-800">
             <p className="text-xs text-te-gray-600 dark:text-te-gray-500">
               Zone: {vm.zone}
@@ -118,7 +126,15 @@ export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps)
                 disabled={duplicateMutation.isPending || !name.trim()}
                 className="btn-primary"
               >
-                {duplicateMutation.isPending ? 'Duplicating...' : 'Duplicate VM'}
+                {duplicateMutation.isPending ? (
+                  <span className="flex items-center space-x-2">
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Creating snapshot...</span>
+                  </span>
+                ) : 'Duplicate VM'}
               </button>
             </div>
           </div>
