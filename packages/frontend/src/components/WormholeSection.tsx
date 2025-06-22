@@ -20,6 +20,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
+  const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { showError, showSuccess } = useToast();
 
@@ -191,6 +192,8 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   const handleBranchSwitch = async (repoPath: string, targetBranch: string) => {
     if (!publicIp) return;
     
+    setSwitchingBranch(`${repoPath}:${targetBranch}`);
+    
     try {
       const response = await wormholeApi.directApi.switchBranch(publicIp, {
         repoPath,
@@ -199,18 +202,30 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
 
       if (response.success) {
         showSuccess(`Switched to branch ${targetBranch}`);
-        // Refresh data
-        setTimeout(() => {
-          refetchStatus();
-          refetchRepos();
-          refetchDaemons();
-        }, 1000);
+        // Immediately refetch to get updated state
+        await Promise.all([
+          refetchStatus(),
+          refetchRepos(),
+          refetchDaemons()
+        ]);
+        
+        // Additional delayed refetch to catch any slower updates
+        setTimeout(async () => {
+          await Promise.all([
+            refetchStatus(),
+            refetchRepos(),
+            refetchDaemons()
+          ]);
+          setSwitchingBranch(null);
+        }, 2000);
       } else {
         showError(response.error || 'Failed to switch branch');
+        setSwitchingBranch(null);
       }
     } catch (error) {
       showError('Failed to send branch switch command');
       console.error('Branch switch error:', error);
+      setSwitchingBranch(null);
     }
   };
 
@@ -596,30 +611,35 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                   const isLocal = localBranches.includes(branch);
                                   const isRemote = remoteBranches.includes(branch);
                                   const isRemoteOnly = isRemote && !isLocal;
+                                  const isSwitching = switchingBranch === `${repo?.repoPath || daemon?.repository.name || ''}:${branch}`;
                                   
                                   return (
                                     <div key={branch} className="relative group">
                                       <button
                                         onClick={() => handleBranchSwitch(repo?.repoPath || daemon?.repository.name || '', branch)}
-                                        disabled={isActive}
+                                        disabled={isActive || !!switchingBranch}
                                         className={`text-xs px-3 py-1 rounded transition-colors ${
                                           isActive
                                             ? isMain
                                               ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default'
                                               : 'bg-green-600 dark:bg-green-500 text-white cursor-default'
+                                            : isSwitching
+                                              ? 'bg-yellow-500 dark:bg-yellow-600 text-white animate-pulse'
                                             : isRemoteOnly
                                               ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
                                               : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
-                                        }`}
+                                        } ${switchingBranch && !isSwitching ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         title={
                                           isActive ? 'Currently active' : 
+                                          isSwitching ? 'Switching branch...' :
                                           isRemoteOnly ? 'Remote branch - will be created locally on switch' :
                                           'Click to switch all clients to this branch'
                                         }
                                       >
                                         {branch}
                                         {isActive && ' ✓'}
-                                        {isRemoteOnly && ' ↓'}
+                                        {isSwitching && ' ...'}
+                                        {!isActive && !isSwitching && isRemoteOnly && ' ↓'}
                                       </button>
                                       {/* Branch info tooltip */}
                                       {(isLocal || isRemote) && (
