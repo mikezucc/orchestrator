@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
@@ -19,6 +19,7 @@ export default function VMDetail() {
   const [showPortSelector, setShowPortSelector] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showSSHTerminal, setShowSSHTerminal] = useState(false);
+  const [showActionsDropdown, setShowActionsDropdown] = useState(false);
 
   console.log('showSSHTerminal', showSSHTerminal);
 
@@ -157,30 +158,6 @@ export default function VMDetail() {
               <span>{startMutation.isPending ? 'Resuming...' : 'Resume VM'}</span>
             </button>
           )}
-          {vm.status === 'running' && (
-            <>
-              <button
-                onClick={() => stopMutation.mutate()}
-                disabled={stopMutation.isPending}
-                className="btn-secondary flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 9.5h-5m0 0h-5m5 0v5m0-5v-5M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
-                </svg>
-                <span>{stopMutation.isPending ? 'Stopping...' : 'Stop VM'}</span>
-              </button>
-              <button
-                onClick={() => suspendMutation.mutate()}
-                disabled={suspendMutation.isPending}
-                className="btn-secondary flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{suspendMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
-              </button>
-            </>
-          )}
           {vm.status === 'running' && vm.publicIp && (
             <button
               onClick={() => setShowSSHTerminal(true)}
@@ -201,17 +178,78 @@ export default function VMDetail() {
             </svg>
             <span>Duplicate</span>
           </button>
-          <button
-            onClick={() => {
-              if (confirm(`Delete VM "${vm.name}"?`)) {
-                deleteMutation.mutate();
-              }
-            }}
-            disabled={deleteMutation.isPending}
-            className="btn-danger"
-          >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-          </button>
+          
+          {/* Actions Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowActionsDropdown(!showActionsDropdown)}
+              className="btn-secondary flex items-center space-x-2"
+            >
+              <span>Actions</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showActionsDropdown && (
+              <>
+                {/* Backdrop to close dropdown when clicking outside */}
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setShowActionsDropdown(false)}
+                />
+                
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-te-gray-900 rounded-lg shadow-lg border border-te-gray-200 dark:border-te-gray-800 py-1 z-20">
+                  {vm.status === 'running' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          stopMutation.mutate();
+                          setShowActionsDropdown(false);
+                        }}
+                        disabled={stopMutation.isPending}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 9.5h-5m0 0h-5m5 0v5m0-5v-5M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+                        </svg>
+                        <span>{stopMutation.isPending ? 'Stopping...' : 'Stop VM'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          suspendMutation.mutate();
+                          setShowActionsDropdown(false);
+                        }}
+                        disabled={suspendMutation.isPending}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>{suspendMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
+                      </button>
+                      <div className="border-t border-te-gray-200 dark:border-te-gray-800 my-1" />
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete VM "${vm.name}"?`)) {
+                        deleteMutation.mutate();
+                      }
+                      setShowActionsDropdown(false);
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2 text-red-600 dark:text-red-400"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>{deleteMutation.isPending ? 'Deleting...' : 'Delete VM'}</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
