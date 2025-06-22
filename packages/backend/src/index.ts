@@ -39,6 +39,7 @@ app.get('/health', (c) => {
 
 app.route('/api/auth', authRoutes);
 app.route('/api/auth/otp', authOTP);
+app.route('/api/auth/google', googleAuthRoutes);
 app.route('/api/vms', vmRoutes);
 app.route('/api/firewall', firewallRoutes);
 app.route('/api/sync', syncRoutes);
@@ -47,7 +48,6 @@ app.route('/api/ssh', sshRoutes);
 app.route('/api/vms', portsRoutes);
 app.route('/api/organizations', organizationRoutes);
 app.route('/api/invitations', invitationRoutes);
-app.route('/api/google-auth', googleAuthRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

@@ -260,7 +260,7 @@ organizationRoutes.post('/:orgId/configure-google', requireRole('owner', 'admin'
     }
 
     // Generate Google OAuth URL for organization-level access
-    const authUrl = `${process.env.GOOGLE_AUTH_URL || 'http://localhost:3000'}/api/google-auth/organization/${organizationId}`;
+    const authUrl = `${process.env.GOOGLE_AUTH_URL || 'http://localhost:3000'}/api/auth/google/organization/${organizationId}`;
     
     return c.json({ authUrl });
   } catch (error) {

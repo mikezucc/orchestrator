@@ -36,7 +36,7 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
 });
 
 // Initiate Google OAuth for organization (authenticated version)
-googleAuthRoutes.get('/google', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (c) => {
+googleAuthRoutes.get('/', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
@@ -53,7 +53,7 @@ googleAuthRoutes.get('/google', authenticateToken, requireOrganization, requireR
 });
 
 // Handle Google OAuth callback (no auth required since it's a redirect from Google)
-googleAuthRoutes.get('/google/callback', async (c) => {
+googleAuthRoutes.get('/callback', async (c) => {
   const code = c.req.query('code');
   const state = c.req.query('state');
   
@@ -109,7 +109,7 @@ googleAuthRoutes.get('/google/callback', async (c) => {
 });
 
 // Disconnect Google auth
-googleAuthRoutes.delete('/google', authenticateToken, requireOrganization, requireRole('owner'), async (c) => {
+googleAuthRoutes.delete('/', authenticateToken, requireOrganization, requireRole('owner'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
 
@@ -142,7 +142,7 @@ googleAuthRoutes.delete('/google', authenticateToken, requireOrganization, requi
 });
 
 // Update GCP project IDs
-googleAuthRoutes.put('/google/projects', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (c) => {
+googleAuthRoutes.put('/projects', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
     const { projectIds } = await c.req.json();
