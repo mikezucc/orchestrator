@@ -44,8 +44,11 @@ export const vmApi = {
     return data;
   },
 
-  duplicate: async (id: string, name: string) => {
-    const { data } = await api.post<ApiResponse<VirtualMachine>>(`/vms/${id}/duplicate`, { name });
+  duplicate: async (id: string, name: string, startupScript?: string) => {
+    const { data } = await api.post<ApiResponse<VirtualMachine>>(`/vms/${id}/duplicate`, { 
+      name,
+      startupScript 
+    });
     return data;
   },
 };

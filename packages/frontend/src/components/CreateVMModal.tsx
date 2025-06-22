@@ -17,6 +17,7 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
     machineType: 'e2-micro',
     initScript: '',
   });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const { showError, showSuccess } = useToast();
 
   const createMutation = useMutation({
@@ -121,18 +122,44 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
           </div>
 
           <div>
-            <label htmlFor="initScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-              Init Script <span className="text-2xs">(Optional)</span>
-            </label>
-            <textarea
-              id="initScript"
-              rows={4}
-              value={formData.initScript}
-              onChange={(e) => setFormData({ ...formData, initScript: e.target.value })}
-              className="w-full font-mono text-xs"
-              placeholder="#!/bin/bash&#10;# Startup script here"
-            />
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center space-x-2 text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+            >
+              <svg 
+                className={`w-4 h-4 transform transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <span>Advanced Options</span>
+            </button>
           </div>
+
+          {showAdvanced && (
+            <div className="space-y-4 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
+              <div>
+                <label htmlFor="initScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                  Startup Script (Optional)
+                </label>
+                <textarea
+                  id="initScript"
+                  rows={6}
+                  value={formData.initScript}
+                  onChange={(e) => setFormData({ ...formData, initScript: e.target.value })}
+                  className="w-full font-mono text-xs"
+                  placeholder="#!/bin/bash\n# Your startup script here\n# This script will run when the VM boots up\n\n# Example:\n# apt-get update\n# apt-get install -y nginx"
+                  spellCheck={false}
+                />
+                <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
+                  This script will run automatically when the VM starts. Use it to install software, configure services, etc.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-4 border-t border-te-gray-200 dark:border-te-gray-800">
             <button

@@ -298,7 +298,7 @@ vmRoutes.post('/:id/duplicate', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
   }
 
-  const body = await c.req.json<{ name: string }>();
+  const body = await c.req.json<{ name: string; startupScript?: string }>();
   
   if (!body.name) {
     return c.json<ApiResponse<never>>({ success: false, error: 'New VM name is required' }, 400);
@@ -332,6 +332,7 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       sourceZone: sourceVm.zone,
       sourceInstanceName: sourceVm.gcpInstanceId!,
       newName: body.name,
+      startupScript: body.startupScript,
       accessToken,
     });
 
@@ -344,7 +345,7 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       machineType: sourceVm.machineType,
       status: 'pending',
       userId,
-      initScript: sourceVm.initScript,
+      initScript: body.startupScript || sourceVm.initScript,
       createdAt: new Date(),
       updatedAt: new Date(),
     }).returning();

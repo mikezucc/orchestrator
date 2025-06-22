@@ -207,10 +207,11 @@ interface DuplicateVMParams {
   sourceZone: string;
   sourceInstanceName: string;
   newName: string;
+  startupScript?: string;
   accessToken: string;
 }
 
-export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceName, newName, accessToken }: DuplicateVMParams) {
+export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceName, newName, startupScript, accessToken }: DuplicateVMParams) {
   const oauth2Client = new OAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
   google.options({ auth: oauth2Client });
@@ -277,7 +278,15 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
         // Explicitly exclude natIP to let GCP assign a new one
       })),
     })),
-    metadata: sourceInstance.metadata,
+    metadata: startupScript ? {
+      items: [
+        ...(sourceInstance.metadata?.items || []).filter((item: any) => item.key !== 'startup-script'),
+        {
+          key: 'startup-script',
+          value: startupScript.startsWith('#!/bin/bash') ? startupScript : `#!/bin/bash\n${startupScript}`
+        }
+      ]
+    } : sourceInstance.metadata,
     tags: {
       items: [`vm-${newName}`],
     },

@@ -12,13 +12,15 @@ interface DuplicateVMModalProps {
 
 export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps) {
   const [name, setName] = useState(`${vm.name}-copy`);
+  const [startupScript, setStartupScript] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
 
   const duplicateMutation = useMutation({
-    mutationFn: () => vmApi.duplicate(vm.id, name),
+    mutationFn: () => vmApi.duplicate(vm.id, name, startupScript),
     onSuccess: (response) => {
       showSuccess(`VM "${name}" has been duplicated successfully!`);
       queryClient.invalidateQueries({ queryKey: ['vms'] });
@@ -99,6 +101,45 @@ export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps)
               Must start with a lowercase letter and contain only lowercase letters, numbers, and hyphens
             </p>
           </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center space-x-2 text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+            >
+              <svg 
+                className={`w-4 h-4 transform transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <span>Advanced Options</span>
+            </button>
+          </div>
+
+          {showAdvanced && (
+            <div className="space-y-4 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
+              <div>
+                <label htmlFor="startup-script" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                  Startup Script (Optional)
+                </label>
+                <textarea
+                  id="startup-script"
+                  value={startupScript}
+                  onChange={(e) => setStartupScript(e.target.value)}
+                  placeholder="#!/bin/bash\n# Your startup script here\n# This script will run when the VM boots up"
+                  className="w-full h-32 font-mono text-xs"
+                  spellCheck={false}
+                />
+                <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
+                  This script will run automatically when the VM starts. Use it to install software, configure services, etc.
+                </p>
+              </div>
+            </div>
+          )}
 
           {duplicateMutation.isPending && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
