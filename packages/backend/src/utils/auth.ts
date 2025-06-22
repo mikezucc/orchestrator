@@ -82,7 +82,7 @@ export function generateRandomPassword(): string {
 // Encrypt TOTP secret for storage
 export function encryptTOTPSecret(secret: string): string {
   const algorithm = 'aes-256-gcm';
-  const key = Buffer.from(process.env.ENCRYPTION_KEY || 'your-32-byte-encryption-key-here', 'utf8');
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32), 'utf8');
   const iv = crypto.randomBytes(16);
   
   const cipher = crypto.createCipheriv(algorithm, key, iv);
@@ -98,7 +98,7 @@ export function encryptTOTPSecret(secret: string): string {
 // Decrypt TOTP secret
 export function decryptTOTPSecret(encryptedData: string): string {
   const algorithm = 'aes-256-gcm';
-  const key = Buffer.from(process.env.ENCRYPTION_KEY || 'your-32-byte-encryption-key-here', 'utf8');
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32), 'utf8');
   
   const parts = encryptedData.split(':');
   const iv = Buffer.from(parts[0], 'hex');

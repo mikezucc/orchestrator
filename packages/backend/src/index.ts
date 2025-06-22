@@ -11,6 +11,9 @@ import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
 import { createSSHWebSocketHandler } from './routes/ssh-ws.js';
 import portsRoutes from './routes/ports.js';
+import { organizationRoutes } from './routes/organizations.js';
+import { invitationRoutes } from './routes/invitations.js';
+import { googleAuthRoutes } from './routes/google-auth.js';
 
 dotenv.config();
 
@@ -40,6 +43,9 @@ app.route('/api/sync', syncRoutes);
 app.route('/api/wormhole', wormholeRoutes);
 app.route('/api/ssh', sshRoutes);
 app.route('/api/vms', portsRoutes);
+app.route('/api/organizations', organizationRoutes);
+app.route('/api/invitations', invitationRoutes);
+app.route('/api/google-auth', googleAuthRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

@@ -1,10 +1,9 @@
-import { Router } from 'express';
+import { Hono } from 'hono';
 import { OAuth2Client } from 'google-auth-library';
-import { db } from '../db';
-import { organizations, auditLogs } from '../db/schema-auth';
+import { db } from '../db/index.js';
+import { organizations, auditLogs } from '../db/schema-auth.js';
 import { eq } from 'drizzle-orm';
-import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth';
-import type { ApiResponse } from '@gce-platform/types';
+import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
 
 const oauth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
@@ -12,10 +11,13 @@ const oauth2Client = new OAuth2Client(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-const router = Router();
+export const googleAuthRoutes = new Hono();
+
+// Apply middleware to all routes
+googleAuthRoutes.use('*', authenticateToken, requireOrganization);
 
 // Initiate Google OAuth for organization
-router.get('/google', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (req: any, res) => {
+googleAuthRoutes.get('/google', requireRole('owner', 'admin'), (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
@@ -23,21 +25,21 @@ router.get('/google', authenticateToken, requireOrganization, requireRole('owner
 
   // Store organization ID in state parameter
   const state = Buffer.from(JSON.stringify({
-    organizationId: req.organizationId,
-    userId: req.user.id,
+    organizationId: (c as any).organizationId,
+    userId: (c as any).user.id,
   })).toString('base64');
 
   const authUrlWithState = `${authUrl}&state=${state}`;
-  res.redirect(authUrlWithState);
+  return c.redirect(authUrlWithState);
 });
 
 // Handle Google OAuth callback
-router.get('/google/callback', async (req, res) => {
-  const code = req.query.code as string;
-  const state = req.query.state as string;
+googleAuthRoutes.get('/google/callback', async (c) => {
+  const code = c.req.query('code');
+  const state = c.req.query('state');
   
   if (!code || !state) {
-    return res.status(400).json({ success: false, error: 'Missing authorization code or state' });
+    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=missing_params`);
   }
 
   try {
@@ -48,10 +50,7 @@ router.get('/google/callback', async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
     
     if (!tokens.refresh_token) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No refresh token received. Please revoke access and try again.' 
-      });
+      return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=no_refresh_token`);
     }
 
     // Update organization with Google credentials
@@ -70,22 +69,22 @@ router.get('/google/callback', async (req, res) => {
       action: 'google.auth_connected',
       resourceType: 'organization',
       resourceId: organizationId,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
     // Redirect to frontend success page
-    res.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?success=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?success=true`);
   } catch (error) {
     console.error('Google auth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=true`);
   }
 });
 
 // Disconnect Google auth
-router.delete('/google', authenticateToken, requireOrganization, requireRole('owner'), async (req: any, res) => {
+googleAuthRoutes.delete('/google', requireRole('owner'), async (c) => {
   try {
-    const organizationId = req.organizationId;
+    const organizationId = (c as any).organizationId;
 
     // Remove Google credentials
     await db
@@ -100,29 +99,29 @@ router.delete('/google', authenticateToken, requireOrganization, requireRole('ow
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'google.auth_disconnected',
       resourceType: 'organization',
       resourceId: organizationId,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, message: 'Google authentication disconnected' });
+    return c.json({ success: true, message: 'Google authentication disconnected' });
   } catch (error) {
     console.error('Disconnect Google auth error:', error);
-    res.status(500).json({ success: false, error: 'Failed to disconnect Google auth' });
+    return c.json({ success: false, error: 'Failed to disconnect Google auth' }, 500);
   }
 });
 
 // Update GCP project IDs
-router.put('/google/projects', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+googleAuthRoutes.put('/google/projects', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { projectIds } = req.body;
+    const organizationId = (c as any).organizationId;
+    const { projectIds } = await c.req.json();
 
     if (!Array.isArray(projectIds)) {
-      return res.status(400).json({ success: false, error: 'Project IDs must be an array' });
+      return c.json({ success: false, error: 'Project IDs must be an array' }, 400);
     }
 
     // Update organization
@@ -137,20 +136,18 @@ router.put('/google/projects', authenticateToken, requireOrganization, requireRo
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'google.projects_updated',
       resourceType: 'organization',
       resourceId: organizationId,
       metadata: { projectIds },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, message: 'GCP projects updated' });
+    return c.json({ success: true, message: 'GCP projects updated' });
   } catch (error) {
     console.error('Update GCP projects error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update GCP projects' });
+    return c.json({ success: false, error: 'Failed to update GCP projects' }, 500);
   }
 });
-
-export default router;

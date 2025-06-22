@@ -1,6 +1,6 @@
-import { Router } from 'express';
-import { db } from '../db';
-import { authUsers, organizations, organizationMembers, sessions, auditLogs } from '../db/schema-auth';
+import { Hono } from 'hono';
+import { db } from '../db/index.js';
+import { authUsers, organizations, organizationMembers, sessions, auditLogs } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import { 
   generateTOTPSecret, 
@@ -10,22 +10,22 @@ import {
   generateEmailToken,
   encryptTOTPSecret,
   decryptTOTPSecret
-} from '../utils/auth';
-import { emailService } from '../services/email';
+} from '../utils/auth.js';
+import { emailService } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
 
-const router = Router();
+export const authRoutes = new Hono();
 
 // Sign up - Step 1: Email registration
-router.post('/signup', async (req, res) => {
+authRoutes.post('/signup', async (c) => {
   try {
-    const { email, name, organizationName } = req.body;
+    const { email, name, organizationName } = await c.req.json();
 
     if (!email || !organizationName) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Email and organization name are required' 
-      });
+      }, 400);
     }
 
     // Check if user already exists
@@ -36,10 +36,10 @@ router.post('/signup', async (req, res) => {
       .limit(1);
 
     if (existingUser.length > 0) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'User with this email already exists' 
-      });
+      }, 400);
     }
 
     // Create user with unverified email
@@ -76,35 +76,35 @@ router.post('/signup', async (req, res) => {
       resourceType: 'user',
       resourceId: user.id,
       metadata: { email, organizationName },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
     // Send verification email
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
     await emailService.sendVerificationEmail(email, verificationUrl);
 
-    res.json({ 
+    return c.json({ 
       success: true, 
       message: 'Verification email sent. Please check your inbox.',
       userId: user.id,
     });
   } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create account' });
+    return c.json({ success: false, error: 'Failed to create account' }, 500);
   }
 });
 
 // Verify email
-router.post('/verify-email', async (req, res) => {
+authRoutes.post('/verify-email', async (c) => {
   try {
-    const { token } = req.body;
+    const { token } = await c.req.json();
 
     if (!token) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Verification token is required' 
-      });
+      }, 400);
     }
 
     // Find user with valid token
@@ -120,18 +120,18 @@ router.post('/verify-email', async (req, res) => {
       .limit(1);
 
     if (!user || !user.emailVerificationExpires) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid or expired verification token' 
-      });
+      }, 400);
     }
 
     // Check if token is expired
     if (new Date() > user.emailVerificationExpires) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Verification token has expired' 
-      });
+      }, 400);
     }
 
     // Mark email as verified
@@ -145,27 +145,27 @@ router.post('/verify-email', async (req, res) => {
       })
       .where(eq(authUsers.id, user.id));
 
-    res.json({ 
+    return c.json({ 
       success: true, 
       message: 'Email verified successfully. Please set up two-factor authentication.',
       userId: user.id,
     });
   } catch (error) {
     console.error('Email verification error:', error);
-    res.status(500).json({ success: false, error: 'Failed to verify email' });
+    return c.json({ success: false, error: 'Failed to verify email' }, 500);
   }
 });
 
 // Setup TOTP - Step 2: After email verification
-router.post('/setup-totp', async (req, res) => {
+authRoutes.post('/setup-totp', async (c) => {
   try {
-    const { userId } = req.body;
+    const { userId } = await c.req.json();
 
     if (!userId) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'User ID is required' 
-      });
+      }, 400);
     }
 
     // Get user
@@ -176,17 +176,17 @@ router.post('/setup-totp', async (req, res) => {
       .limit(1);
 
     if (!user || !user.emailVerified) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'User not found or email not verified' 
-      });
+      }, 400);
     }
 
     if (user.totpEnabled) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Two-factor authentication is already enabled' 
-      });
+      }, 400);
     }
 
     // Generate TOTP secret
@@ -196,7 +196,7 @@ router.post('/setup-totp', async (req, res) => {
     // Store encrypted secret temporarily (will be confirmed when user verifies)
     const encryptedSecret = encryptTOTPSecret(secret);
     
-    res.json({ 
+    return c.json({ 
       success: true,
       qrCode,
       secret, // User should save this as backup
@@ -204,20 +204,20 @@ router.post('/setup-totp', async (req, res) => {
     });
   } catch (error) {
     console.error('TOTP setup error:', error);
-    res.status(500).json({ success: false, error: 'Failed to setup two-factor authentication' });
+    return c.json({ success: false, error: 'Failed to setup two-factor authentication' }, 500);
   }
 });
 
 // Confirm TOTP setup
-router.post('/confirm-totp', async (req, res) => {
+authRoutes.post('/confirm-totp', async (c) => {
   try {
-    const { setupToken, totpCode } = req.body;
+    const { setupToken, totpCode } = await c.req.json();
 
     if (!setupToken || !totpCode) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Setup token and TOTP code are required' 
-      });
+      }, 400);
     }
 
     // Decode setup token
@@ -230,10 +230,10 @@ router.post('/confirm-totp', async (req, res) => {
     const isValid = verifyTOTP(totpCode, secret);
 
     if (!isValid) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid authentication code' 
-      });
+      }, 400);
     }
 
     // Enable TOTP for user
@@ -262,8 +262,8 @@ router.post('/confirm-totp', async (req, res) => {
       userId,
       token: sessionToken,
       expiresAt,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     }).returning();
 
     // Send confirmation email
@@ -277,11 +277,11 @@ router.post('/confirm-totp', async (req, res) => {
       action: 'auth.totp_enabled',
       resourceType: 'user',
       resourceId: userId,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ 
+    return c.json({ 
       success: true,
       message: 'Two-factor authentication enabled successfully',
       token: sessionToken,
@@ -289,20 +289,20 @@ router.post('/confirm-totp', async (req, res) => {
     });
   } catch (error) {
     console.error('TOTP confirmation error:', error);
-    res.status(500).json({ success: false, error: 'Failed to confirm two-factor authentication' });
+    return c.json({ success: false, error: 'Failed to confirm two-factor authentication' }, 500);
   }
 });
 
 // Login
-router.post('/login', async (req, res) => {
+authRoutes.post('/login', async (c) => {
   try {
-    const { email, totpCode } = req.body;
+    const { email, totpCode } = await c.req.json();
 
     if (!email || !totpCode) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Email and authentication code are required' 
-      });
+      }, 400);
     }
 
     // Get user
@@ -313,10 +313,10 @@ router.post('/login', async (req, res) => {
       .limit(1);
 
     if (!user || !user.totpEnabled || !user.totpSecret) {
-      return res.status(401).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid credentials' 
-      });
+      }, 401);
     }
 
     // Verify TOTP
@@ -324,10 +324,10 @@ router.post('/login', async (req, res) => {
     const isValid = verifyTOTP(totpCode, secret);
 
     if (!isValid) {
-      return res.status(401).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid authentication code' 
-      });
+      }, 401);
     }
 
     // Get user's organizations
@@ -354,8 +354,8 @@ router.post('/login', async (req, res) => {
       userId: user.id,
       token: sessionToken,
       expiresAt,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
     // Log the login
@@ -365,11 +365,11 @@ router.post('/login', async (req, res) => {
       action: 'auth.login',
       resourceType: 'user',
       resourceId: user.id,
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ 
+    return c.json({ 
       success: true,
       token: sessionToken,
       user: {
@@ -382,35 +382,35 @@ router.post('/login', async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ success: false, error: 'Failed to login' });
+    return c.json({ success: false, error: 'Failed to login' }, 500);
   }
 });
 
 // Logout
-router.post('/logout', async (req, res) => {
+authRoutes.post('/logout', async (c) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
 
     if (token) {
       // Delete session
       await db.delete(sessions).where(eq(sessions.token, token));
     }
 
-    res.json({ success: true, message: 'Logged out successfully' });
+    return c.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
-    res.status(500).json({ success: false, error: 'Failed to logout' });
+    return c.json({ success: false, error: 'Failed to logout' }, 500);
   }
 });
 
 // Get current user
-router.get('/me', async (req, res) => {
+authRoutes.get('/me', async (c) => {
   try {
-    const user = (req as any).user;
-    const organizationId = (req as any).organizationId;
+    const user = (c as any).user;
+    const organizationId = (c as any).organizationId;
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'Not authenticated' });
+      return c.json({ success: false, error: 'Not authenticated' }, 401);
     }
 
     // Get user's organizations
@@ -427,7 +427,7 @@ router.get('/me', async (req, res) => {
 
     const currentOrg = memberships.find(m => m.organizationId === organizationId) || memberships[0];
 
-    res.json({
+    return c.json({
       success: true,
       user: {
         id: user.id,
@@ -439,18 +439,18 @@ router.get('/me', async (req, res) => {
     });
   } catch (error) {
     console.error('Get current user error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get user data' });
+    return c.json({ success: false, error: 'Failed to get user data' }, 500);
   }
 });
 
 // Switch organization
-router.post('/switch-organization', async (req, res) => {
+authRoutes.post('/switch-organization', async (c) => {
   try {
-    const user = (req as any).user;
-    const { organizationId } = req.body;
+    const user = (c as any).user;
+    const { organizationId } = await c.req.json();
 
     if (!user) {
-      return res.status(401).json({ success: false, error: 'Not authenticated' });
+      return c.json({ success: false, error: 'Not authenticated' }, 401);
     }
 
     // Verify user has access to organization
@@ -466,7 +466,7 @@ router.post('/switch-organization', async (req, res) => {
       .limit(1);
 
     if (!membership) {
-      return res.status(403).json({ success: false, error: 'Access denied' });
+      return c.json({ success: false, error: 'Access denied' }, 403);
     }
 
     // Create new session token with organization
@@ -475,7 +475,7 @@ router.post('/switch-organization', async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     // Update session
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = c.req.header('Authorization')?.replace('Bearer ', '');
     if (token) {
       await db
         .update(sessions)
@@ -487,15 +487,13 @@ router.post('/switch-organization', async (req, res) => {
         .where(eq(sessions.token, token));
     }
 
-    res.json({ 
+    return c.json({ 
       success: true,
       token: sessionToken,
       organizationId,
     });
   } catch (error) {
     console.error('Switch organization error:', error);
-    res.status(500).json({ success: false, error: 'Failed to switch organization' });
+    return c.json({ success: false, error: 'Failed to switch organization' }, 500);
   }
 });
-
-export default router;

@@ -1,16 +1,20 @@
-import { Router } from 'express';
-import { db } from '../db';
-import { organizations, organizationMembers, authUsers, auditLogs } from '../db/schema-auth';
-import { virtualMachines } from '../db/schema';
+import { Hono } from 'hono';
+import { db } from '../db/index.js';
+import { organizations, organizationMembers, authUsers, auditLogs } from '../db/schema-auth.js';
+import { virtualMachines } from '../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth';
+import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
 
-const router = Router();
+export const organizationRoutes = new Hono();
+
+// Apply middleware to all routes
+organizationRoutes.use('*', authenticateToken);
+organizationRoutes.use('*', requireOrganization);
 
 // Get current organization details
-router.get('/current', authenticateToken, requireOrganization, async (req: any, res) => {
+organizationRoutes.get('/current', async (c) => {
   try {
-    const organizationId = req.organizationId;
+    const organizationId = (c as any).organizationId;
 
     const [organization] = await db
       .select()
@@ -19,7 +23,7 @@ router.get('/current', authenticateToken, requireOrganization, async (req: any, 
       .limit(1);
 
     if (!organization) {
-      return res.status(404).json({ success: false, error: 'Organization not found' });
+      return c.json({ success: false, error: 'Organization not found' }, 404);
     }
 
     // Get member count
@@ -34,29 +38,29 @@ router.get('/current', authenticateToken, requireOrganization, async (req: any, 
       .from(virtualMachines)
       .where(eq(virtualMachines.organizationId, organizationId));
 
-    res.json({
+    return c.json({
       success: true,
       data: {
         ...organization,
         memberCount: members.length,
         vmCount: vms.length,
-        userRole: req.memberRole,
+        userRole: (c as any).memberRole,
       },
     });
   } catch (error) {
     console.error('Get organization error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get organization' });
+    return c.json({ success: false, error: 'Failed to get organization' }, 500);
   }
 });
 
 // Update organization
-router.put('/current', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+organizationRoutes.put('/current', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { name } = req.body;
+    const organizationId = (c as any).organizationId;
+    const { name } = await c.req.json();
 
     if (!name) {
-      return res.status(400).json({ success: false, error: 'Organization name is required' });
+      return c.json({ success: false, error: 'Organization name is required' }, 400);
     }
 
     const [updated] = await db
@@ -71,26 +75,26 @@ router.put('/current', authenticateToken, requireOrganization, requireRole('owne
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'organization.updated',
       resourceType: 'organization',
       resourceId: organizationId,
       metadata: { name },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, data: updated });
+    return c.json({ success: true, data: updated });
   } catch (error) {
     console.error('Update organization error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update organization' });
+    return c.json({ success: false, error: 'Failed to update organization' }, 500);
   }
 });
 
 // Get organization members
-router.get('/members', authenticateToken, requireOrganization, async (req: any, res) => {
+organizationRoutes.get('/members', async (c) => {
   try {
-    const organizationId = req.organizationId;
+    const organizationId = (c as any).organizationId;
 
     const members = await db
       .select({
@@ -108,22 +112,22 @@ router.get('/members', authenticateToken, requireOrganization, async (req: any, 
       .where(eq(organizationMembers.organizationId, organizationId))
       .orderBy(desc(organizationMembers.joinedAt));
 
-    res.json({ success: true, data: members });
+    return c.json({ success: true, data: members });
   } catch (error) {
     console.error('Get members error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get members' });
+    return c.json({ success: false, error: 'Failed to get members' }, 500);
   }
 });
 
 // Update member role
-router.put('/members/:memberId', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+organizationRoutes.put('/members/:memberId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { memberId } = req.params;
-    const { role } = req.body;
+    const organizationId = (c as any).organizationId;
+    const memberId = c.req.param('memberId');
+    const { role } = await c.req.json();
 
     if (!role || !['admin', 'member'].includes(role)) {
-      return res.status(400).json({ success: false, error: 'Invalid role' });
+      return c.json({ success: false, error: 'Invalid role' }, 400);
     }
 
     // Check if member exists
@@ -139,12 +143,12 @@ router.put('/members/:memberId', authenticateToken, requireOrganization, require
       .limit(1);
 
     if (!member) {
-      return res.status(404).json({ success: false, error: 'Member not found' });
+      return c.json({ success: false, error: 'Member not found' }, 404);
     }
 
     // Can't change owner role
     if (member.role === 'owner') {
-      return res.status(400).json({ success: false, error: 'Cannot change owner role' });
+      return c.json({ success: false, error: 'Cannot change owner role' }, 400);
     }
 
     // Update role
@@ -159,27 +163,27 @@ router.put('/members/:memberId', authenticateToken, requireOrganization, require
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'member.role_updated',
       resourceType: 'user',
       resourceId: member.userId,
       metadata: { oldRole: member.role, newRole: role },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, message: 'Member role updated' });
+    return c.json({ success: true, message: 'Member role updated' });
   } catch (error) {
     console.error('Update member role error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update member role' });
+    return c.json({ success: false, error: 'Failed to update member role' }, 500);
   }
 });
 
 // Remove member
-router.delete('/members/:memberId', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+organizationRoutes.delete('/members/:memberId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { memberId } = req.params;
+    const organizationId = (c as any).organizationId;
+    const memberId = c.req.param('memberId');
 
     // Check if member exists
     const [member] = await db
@@ -194,17 +198,17 @@ router.delete('/members/:memberId', authenticateToken, requireOrganization, requ
       .limit(1);
 
     if (!member) {
-      return res.status(404).json({ success: false, error: 'Member not found' });
+      return c.json({ success: false, error: 'Member not found' }, 404);
     }
 
     // Can't remove owner
     if (member.role === 'owner') {
-      return res.status(400).json({ success: false, error: 'Cannot remove organization owner' });
+      return c.json({ success: false, error: 'Cannot remove organization owner' }, 400);
     }
 
     // Can't remove yourself
-    if (member.userId === req.user.id) {
-      return res.status(400).json({ success: false, error: 'Cannot remove yourself' });
+    if (member.userId === (c as any).user.id) {
+      return c.json({ success: false, error: 'Cannot remove yourself' }, 400);
     }
 
     // Remove member
@@ -215,28 +219,28 @@ router.delete('/members/:memberId', authenticateToken, requireOrganization, requ
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'member.removed',
       resourceType: 'user',
       resourceId: member.userId,
       metadata: { role: member.role },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, message: 'Member removed' });
+    return c.json({ success: true, message: 'Member removed' });
   } catch (error) {
     console.error('Remove member error:', error);
-    res.status(500).json({ success: false, error: 'Failed to remove member' });
+    return c.json({ success: false, error: 'Failed to remove member' }, 500);
   }
 });
 
 // Get audit logs
-router.get('/audit-logs', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+organizationRoutes.get('/audit-logs', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const organizationId = (c as any).organizationId;
+    const limit = parseInt(c.req.query('limit') || '50');
+    const offset = parseInt(c.req.query('offset') || '0');
 
     const logs = await db
       .select({
@@ -260,11 +264,9 @@ router.get('/audit-logs', authenticateToken, requireOrganization, requireRole('o
       .limit(limit)
       .offset(offset);
 
-    res.json({ success: true, data: logs });
+    return c.json({ success: true, data: logs });
   } catch (error) {
     console.error('Get audit logs error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get audit logs' });
+    return c.json({ success: false, error: 'Failed to get audit logs' }, 500);
   }
 });
-
-export default router;

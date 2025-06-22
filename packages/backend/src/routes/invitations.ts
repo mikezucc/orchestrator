@@ -1,25 +1,30 @@
-import { Router } from 'express';
-import { db } from '../db';
-import { teamInvitations, organizations, organizationMembers, authUsers, auditLogs } from '../db/schema-auth';
+import { Hono } from 'hono';
+import { db } from '../db/index.js';
+import { teamInvitations, organizations, organizationMembers, authUsers, auditLogs } from '../db/schema-auth.js';
 import { eq, and, desc, isNull } from 'drizzle-orm';
-import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth';
-import { emailService } from '../services/email';
+import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
+import { emailService } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
 
-const router = Router();
+export const invitationRoutes = new Hono();
+
+// Apply middleware to protected routes
+invitationRoutes.use('/send', authenticateToken, requireOrganization);
+invitationRoutes.use('/pending', authenticateToken, requireOrganization);
+invitationRoutes.use('/:invitationId', authenticateToken, requireOrganization);
 
 // Send invitation
-router.post('/send', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+invitationRoutes.post('/send', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { email, role } = req.body;
+    const organizationId = (c as any).organizationId;
+    const { email, role } = await c.req.json();
 
     if (!email || !role) {
-      return res.status(400).json({ success: false, error: 'Email and role are required' });
+      return c.json({ success: false, error: 'Email and role are required' }, 400);
     }
 
     if (!['admin', 'member'].includes(role)) {
-      return res.status(400).json({ success: false, error: 'Invalid role' });
+      return c.json({ success: false, error: 'Invalid role' }, 400);
     }
 
     // Check if user is already a member
@@ -42,7 +47,7 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
         .limit(1);
 
       if (existingMember.length > 0) {
-        return res.status(400).json({ success: false, error: 'User is already a member' });
+        return c.json({ success: false, error: 'User is already a member' }, 400);
       }
     }
 
@@ -60,7 +65,7 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
       .limit(1);
 
     if (pendingInvite.length > 0) {
-      return res.status(400).json({ success: false, error: 'Invitation already sent to this email' });
+      return c.json({ success: false, error: 'Invitation already sent to this email' }, 400);
     }
 
     // Get organization details
@@ -79,7 +84,7 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
       organizationId,
       email,
       role,
-      invitedBy: req.user.id,
+      invitedBy: (c as any).user.id,
       token,
       expiresAt,
     }).returning();
@@ -88,7 +93,7 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
     const invitationUrl = `${process.env.FRONTEND_URL}/accept-invitation?token=${token}`;
     await emailService.sendTeamInvitation(
       email,
-      req.user.name || req.user.email,
+      (c as any).user.name || (c as any).user.email,
       organization.name,
       invitationUrl,
       role
@@ -97,16 +102,16 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'invitation.sent',
       resourceType: 'invitation',
       resourceId: invitation.id,
       metadata: { email, role },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ 
+    return c.json({ 
       success: true, 
       message: 'Invitation sent',
       data: {
@@ -118,14 +123,14 @@ router.post('/send', authenticateToken, requireOrganization, requireRole('owner'
     });
   } catch (error) {
     console.error('Send invitation error:', error);
-    res.status(500).json({ success: false, error: 'Failed to send invitation' });
+    return c.json({ success: false, error: 'Failed to send invitation' }, 500);
   }
 });
 
 // Get pending invitations
-router.get('/pending', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+invitationRoutes.get('/pending', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
+    const organizationId = (c as any).organizationId;
 
     const invitations = await db
       .select({
@@ -153,18 +158,18 @@ router.get('/pending', authenticateToken, requireOrganization, requireRole('owne
     // Filter out expired invitations
     const validInvitations = invitations.filter(inv => new Date() < inv.expiresAt);
 
-    res.json({ success: true, data: validInvitations });
+    return c.json({ success: true, data: validInvitations });
   } catch (error) {
     console.error('Get invitations error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get invitations' });
+    return c.json({ success: false, error: 'Failed to get invitations' }, 500);
   }
 });
 
 // Cancel invitation
-router.delete('/:invitationId', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (req: any, res) => {
+invitationRoutes.delete('/:invitationId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = req.organizationId;
-    const { invitationId } = req.params;
+    const organizationId = (c as any).organizationId;
+    const invitationId = c.req.param('invitationId');
 
     // Check if invitation exists
     const [invitation] = await db
@@ -180,7 +185,7 @@ router.delete('/:invitationId', authenticateToken, requireOrganization, requireR
       .limit(1);
 
     if (!invitation) {
-      return res.status(404).json({ success: false, error: 'Invitation not found' });
+      return c.json({ success: false, error: 'Invitation not found' }, 404);
     }
 
     // Delete invitation
@@ -191,32 +196,32 @@ router.delete('/:invitationId', authenticateToken, requireOrganization, requireR
     // Log the action
     await db.insert(auditLogs).values({
       organizationId,
-      userId: req.user.id,
+      userId: (c as any).user.id,
       action: 'invitation.cancelled',
       resourceType: 'invitation',
       resourceId: invitationId,
       metadata: { email: invitation.email },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ success: true, message: 'Invitation cancelled' });
+    return c.json({ success: true, message: 'Invitation cancelled' });
   } catch (error) {
     console.error('Cancel invitation error:', error);
-    res.status(500).json({ success: false, error: 'Failed to cancel invitation' });
+    return c.json({ success: false, error: 'Failed to cancel invitation' }, 500);
   }
 });
 
 // Accept invitation (public endpoint)
-router.post('/accept', async (req, res) => {
+invitationRoutes.post('/accept', async (c) => {
   try {
-    const { token, userId } = req.body;
+    const { token, userId } = await c.req.json();
 
     if (!token || !userId) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invitation token and user ID are required' 
-      });
+      }, 400);
     }
 
     // Get invitation
@@ -232,18 +237,18 @@ router.post('/accept', async (req, res) => {
       .limit(1);
 
     if (!invitation) {
-      return res.status(404).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid or already used invitation' 
-      });
+      }, 404);
     }
 
     // Check if expired
     if (new Date() > invitation.expiresAt) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invitation has expired' 
-      });
+      }, 400);
     }
 
     // Get user
@@ -254,10 +259,10 @@ router.post('/accept', async (req, res) => {
       .limit(1);
 
     if (!user || user.email !== invitation.email) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid user or email mismatch' 
-      });
+      }, 400);
     }
 
     // Check if already a member
@@ -273,10 +278,10 @@ router.post('/accept', async (req, res) => {
       .limit(1);
 
     if (existingMember.length > 0) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'You are already a member of this organization' 
-      });
+      }, 400);
     }
 
     // Add user to organization
@@ -307,11 +312,11 @@ router.post('/accept', async (req, res) => {
       resourceType: 'invitation',
       resourceId: invitation.id,
       metadata: { role: invitation.role },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
     });
 
-    res.json({ 
+    return c.json({ 
       success: true, 
       message: 'Invitation accepted',
       organization: {
@@ -322,14 +327,14 @@ router.post('/accept', async (req, res) => {
     });
   } catch (error) {
     console.error('Accept invitation error:', error);
-    res.status(500).json({ success: false, error: 'Failed to accept invitation' });
+    return c.json({ success: false, error: 'Failed to accept invitation' }, 500);
   }
 });
 
 // Get invitation details (public endpoint)
-router.get('/details/:token', async (req, res) => {
+invitationRoutes.get('/details/:token', async (c) => {
   try {
-    const { token } = req.params;
+    const token = c.req.param('token');
 
     const [invitation] = await db
       .select({
@@ -359,25 +364,23 @@ router.get('/details/:token', async (req, res) => {
       .limit(1);
 
     if (!invitation) {
-      return res.status(404).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invalid or already used invitation' 
-      });
+      }, 404);
     }
 
     // Check if expired
     if (new Date() > invitation.expiresAt) {
-      return res.status(400).json({ 
+      return c.json({ 
         success: false, 
         error: 'Invitation has expired' 
-      });
+      }, 400);
     }
 
-    res.json({ success: true, data: invitation });
+    return c.json({ success: true, data: invitation });
   } catch (error) {
     console.error('Get invitation details error:', error);
-    res.status(500).json({ success: false, error: 'Failed to get invitation details' });
+    return c.json({ success: false, error: 'Failed to get invitation details' }, 500);
   }
 });
-
-export default router;
