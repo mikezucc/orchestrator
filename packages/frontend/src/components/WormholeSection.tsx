@@ -12,12 +12,14 @@ import type {
 interface WormholeSectionProps {
   vmId: string;
   publicIp?: string;
+  autoConnect?: boolean;
 }
 
-export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps) {
+export default function WormholeSection({ vmId, publicIp, autoConnect = true }: WormholeSectionProps) {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [showSystemInfo, setShowSystemInfo] = useState(false);
+  const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const { showError, showSuccess } = useToast();
 
@@ -60,9 +62,25 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
     };
   }, []);
 
-  const handleConnect = () => {
+  // Auto-connect when component mounts if publicIp is available
+  useEffect(() => {
+    if (autoConnect && publicIp && !hasAttemptedAutoConnect && connectionStatus === 'disconnected') {
+      setHasAttemptedAutoConnect(true);
+      // Small delay to ensure the page is fully loaded
+      const timer = setTimeout(() => {
+        console.log('Auto-connecting to Wormhole service...');
+        handleConnect(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [publicIp, autoConnect, hasAttemptedAutoConnect, connectionStatus]);
+
+  const handleConnect = (isAutoConnect = false) => {
     if (!publicIp) {
-      showError('No public IP available for this VM');
+      if (!isAutoConnect) {
+        showError('No public IP available for this VM');
+      }
       return;
     }
 
@@ -74,7 +92,9 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
 
       ws.onopen = () => {
         setConnectionStatus('connected');
-        showSuccess('Connected to Wormhole service');
+        if (!isAutoConnect) {
+          showSuccess('Connected to Wormhole service');
+        }
         
         // Register as a monitoring client
         const registerMessage: WormholeWebSocketMessage = {
@@ -112,16 +132,26 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
 
       ws.onerror = (error) => {
         console.error('WebSocket error:', error);
-        showError('WebSocket connection error');
+        if (!isAutoConnect) {
+          showError('WebSocket connection error');
+        }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setConnectionStatus('disconnected');
         wsRef.current = null;
+        
+        // If this was an auto-connection attempt and it failed quickly, 
+        // it might mean the service isn't ready yet
+        if (isAutoConnect && event.code === 1006) {
+          console.log('Auto-connection failed, service might not be ready');
+        }
       };
     } catch (error) {
       setConnectionStatus('disconnected');
-      showError('Failed to connect to Wormhole service');
+      if (!isAutoConnect) {
+        showError('Failed to connect to Wormhole service');
+      }
       console.error('Connection error:', error);
     }
   };
@@ -242,6 +272,7 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
                 : 'bg-te-gray-400 dark:bg-te-gray-600'
             }`} />
             {connectionStatus}
+            {connectionStatus === 'connecting' && hasAttemptedAutoConnect && ' (auto)'}
           </span>
           {connectionStatus === 'disconnected' ? (
             <button

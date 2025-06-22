@@ -324,7 +324,7 @@ export default function VMDetail() {
       </div>
 
       <div>
-        <WormholeSection vmId={id!} publicIp={vm.publicIp} />
+        <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
       </div>
 
       <div>
