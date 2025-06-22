@@ -552,9 +552,6 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                 const repoClients = repo ? getRepoClients(repo.repoPath) : [];
                 const isExpanded = expandedRepos.has(repoPath);
                 const mainBranch = daemon?.repository.branch;
-
-                console.log('daemon', daemon?.repository.branch);
-                console.log('repoClients', repoClients);
                 
                 return (
                   <div key={repoPath} className={`card`}>
@@ -585,44 +582,14 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                   : 'text-red-600 dark:text-red-500'
                               }`}>
                                 <span className="inline-block w-2 h-2 rounded-full bg-current mr-1"></span>
-                                Daemon {daemon.status}
                               </span>
                             )}
                             {/* Client count */}
                             {repo && (
                               <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
-                                {repoClients.length} connected client{repoClients.length !== 1 ? 's' : ''}
+                                {repoClients.length-1} {repoClients.length === 1 ? 'people' : 'persons'} working
                               </span>
                             )}
-                            {/* Branch count with details */}
-                            {(() => {
-                              const branchInfo = repo?.availableBranches || daemon?.repository.branches;
-                              if (branchInfo) {
-                                const totalBranches = branchInfo.all.length;
-                                const localOnly = branchInfo.local.filter(b => !branchInfo.remote.includes(b)).length;
-                                const remoteOnly = branchInfo.remote.filter(b => !branchInfo.local.includes(b)).length;
-                                
-                                return (
-                                  <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
-                                    {totalBranches} branch{totalBranches !== 1 ? 'es' : ''}
-                                    {(localOnly > 0 || remoteOnly > 0) && (
-                                      <span className="text-2xs ml-1">
-                                        ({localOnly > 0 && `${localOnly} local`}
-                                        {localOnly > 0 && remoteOnly > 0 && ', '}
-                                        {remoteOnly > 0 && `${remoteOnly} remote`})
-                                      </span>
-                                    )}
-                                  </span>
-                                );
-                              } else if (repo) {
-                                return (
-                                  <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
-                                    {repo.branches.length} branch{repo.branches.length !== 1 ? 'es' : ''}
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })()}
                           </div>
                         </div>
                       </div>
