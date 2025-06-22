@@ -552,13 +552,12 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                 const repoClients = repo ? getRepoClients(repo.repoPath) : [];
                 const isExpanded = expandedRepos.has(repoPath);
                 const mainBranch = daemon?.repository.branch;
-                const isActive = repo && repo.connectedClientCount > 0;
 
                 console.log('daemon', daemon?.repository.branch);
                 console.log('repoClients', repoClients);
                 
                 return (
-                  <div key={repoPath} className={`card ${!isActive ? 'opacity-75' : ''}`}>
+                  <div key={repoPath} className={`card`}>
                     {/* Repository Header */}
                     <div 
                       className="flex items-center justify-between cursor-pointer"
@@ -749,25 +748,21 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                     <div key={branch} className="relative group">
                                       <button
                                         onClick={() => handleBranchSwitch(repo?.repoPath || daemon?.repository.name || '', branch)}
-                                        disabled={isActive || !!switchingBranch}
+                                        disabled={!!switchingBranch}
                                         className={`text-xs px-3 py-1 rounded transition-colors ${
-                                          isActive
-                                            ? 'bg-green-600 dark:bg-green-500 text-white cursor-default'
-                                            : isSwitching
-                                              ? 'bg-yellow-500 dark:bg-yellow-600 text-white animate-pulse'
-                                            : isRemoteOnly
-                                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
-                                              : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
+                                          isSwitching
+                                            ? 'bg-yellow-500 dark:bg-yellow-600 text-white animate-pulse'
+                                          : isRemoteOnly
+                                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                            : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
                                         } ${switchingBranch && !isSwitching ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         title={
-                                          isActive ? 'Currently active' : 
                                           isSwitching ? 'Switching branch...' :
                                           isRemoteOnly ? 'Remote branch - will be created locally on switch' :
                                           'Click to switch all clients to this branch'
                                         }
                                       >
                                         {branch}
-                                        {isActive && ' ✓'}
                                         {isSwitching && ' ...'}
                                         {!isActive && !isSwitching && isRemoteOnly && ' ↓'}
                                       </button>
