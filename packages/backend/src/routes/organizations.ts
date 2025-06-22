@@ -11,6 +11,28 @@ export const organizationRoutes = new Hono();
 organizationRoutes.use('*', authenticateToken);
 organizationRoutes.use('*', requireOrganization);
 
+// Get my organization (simplified endpoint for frontend)
+organizationRoutes.get('/my-organization', async (c) => {
+  try {
+    const organizationId = (c as any).organizationId;
+
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    if (!organization) {
+      return c.json({ error: 'Organization not found' }, 404);
+    }
+
+    return c.json(organization);
+  } catch (error) {
+    console.error('Error fetching organization:', error);
+    return c.json({ error: 'Failed to fetch organization' }, 500);
+  }
+});
+
 // Get current organization details
 organizationRoutes.get('/current', async (c) => {
   try {
@@ -91,14 +113,81 @@ organizationRoutes.put('/current', requireRole('owner', 'admin'), async (c) => {
   }
 });
 
-// Get organization members
-organizationRoutes.get('/members', async (c) => {
+// Update organization by ID (for frontend compatibility)
+organizationRoutes.put('/:orgId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = (c as any).organizationId;
+    const organizationId = c.req.param('orgId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
+    
+    const updates = await c.req.json();
+    
+    const [updated] = await db
+      .update(organizations)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, organizationId))
+      .returning();
+
+    // Log the action
+    await db.insert(auditLogs).values({
+      organizationId,
+      userId: (c as any).user.id,
+      action: 'organization.updated',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      metadata: updates,
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
+    });
+
+    return c.json(updated);
+  } catch (error) {
+    console.error('Update organization error:', error);
+    return c.json({ error: 'Failed to update organization' }, 500);
+  }
+});
+
+// Configure Google Cloud OAuth for organization
+organizationRoutes.post('/:orgId/configure-google', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const organizationId = c.req.param('orgId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    // Generate Google OAuth URL for organization-level access
+    const authUrl = `${process.env.GOOGLE_AUTH_URL || 'http://localhost:3000'}/api/google-auth/organization/${organizationId}`;
+    
+    return c.json({ authUrl });
+  } catch (error) {
+    console.error('Configure Google error:', error);
+    return c.json({ error: 'Failed to configure Google authentication' }, 500);
+  }
+});
+
+// Get organization members
+organizationRoutes.get('/:orgId/members', async (c) => {
+  try {
+    const organizationId = c.req.param('orgId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
 
     const members = await db
       .select({
         id: organizationMembers.id,
+        organizationId: organizationMembers.organizationId,
+        userId: organizationMembers.userId,
         role: organizationMembers.role,
         joinedAt: organizationMembers.joinedAt,
         user: {
@@ -112,7 +201,7 @@ organizationRoutes.get('/members', async (c) => {
       .where(eq(organizationMembers.organizationId, organizationId))
       .orderBy(desc(organizationMembers.joinedAt));
 
-    return c.json({ success: true, data: members });
+    return c.json(members);
   } catch (error) {
     console.error('Get members error:', error);
     return c.json({ success: false, error: 'Failed to get members' }, 500);
@@ -120,10 +209,15 @@ organizationRoutes.get('/members', async (c) => {
 });
 
 // Update member role
-organizationRoutes.put('/members/:memberId', requireRole('owner', 'admin'), async (c) => {
+organizationRoutes.put('/:orgId/members/:userId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = (c as any).organizationId;
-    const memberId = c.req.param('memberId');
+    const organizationId = c.req.param('orgId');
+    const userId = c.req.param('userId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
     const { role } = await c.req.json();
 
     if (!role || !['admin', 'member'].includes(role)) {
@@ -136,7 +230,7 @@ organizationRoutes.put('/members/:memberId', requireRole('owner', 'admin'), asyn
       .from(organizationMembers)
       .where(
         and(
-          eq(organizationMembers.id, memberId),
+          eq(organizationMembers.userId, userId),
           eq(organizationMembers.organizationId, organizationId)
         )
       )
@@ -158,7 +252,7 @@ organizationRoutes.put('/members/:memberId', requireRole('owner', 'admin'), asyn
         role,
         updatedAt: new Date(),
       })
-      .where(eq(organizationMembers.id, memberId));
+      .where(eq(organizationMembers.id, member.id));
 
     // Log the action
     await db.insert(auditLogs).values({
@@ -180,10 +274,15 @@ organizationRoutes.put('/members/:memberId', requireRole('owner', 'admin'), asyn
 });
 
 // Remove member
-organizationRoutes.delete('/members/:memberId', requireRole('owner', 'admin'), async (c) => {
+organizationRoutes.delete('/:orgId/members/:userId', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = (c as any).organizationId;
-    const memberId = c.req.param('memberId');
+    const organizationId = c.req.param('orgId');
+    const userId = c.req.param('userId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
 
     // Check if member exists
     const [member] = await db
@@ -191,7 +290,7 @@ organizationRoutes.delete('/members/:memberId', requireRole('owner', 'admin'), a
       .from(organizationMembers)
       .where(
         and(
-          eq(organizationMembers.id, memberId),
+          eq(organizationMembers.userId, userId),
           eq(organizationMembers.organizationId, organizationId)
         )
       )
@@ -214,7 +313,7 @@ organizationRoutes.delete('/members/:memberId', requireRole('owner', 'admin'), a
     // Remove member
     await db
       .delete(organizationMembers)
-      .where(eq(organizationMembers.id, memberId));
+      .where(eq(organizationMembers.id, member.id));
 
     // Log the action
     await db.insert(auditLogs).values({

@@ -8,16 +8,18 @@ import { createId } from '@paralleldrive/cuid2';
 
 export const invitationRoutes = new Hono();
 
-// Apply middleware to protected routes
-invitationRoutes.use('/send', authenticateToken, requireOrganization);
-invitationRoutes.use('/pending', authenticateToken, requireOrganization);
-invitationRoutes.use('/:invitationId', authenticateToken, requireOrganization);
+// Apply middleware to all routes
+invitationRoutes.use('*', authenticateToken, requireOrganization);
 
-// Send invitation
-invitationRoutes.post('/send', requireRole('owner', 'admin'), async (c) => {
+// Send invitation (simplified endpoint)
+invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
   try {
-    const organizationId = (c as any).organizationId;
-    const { email, role } = await c.req.json();
+    const { organizationId, email, role } = await c.req.json();
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
 
     if (!email || !role) {
       return c.json({ success: false, error: 'Email and role are required' }, 400);
@@ -111,19 +113,62 @@ invitationRoutes.post('/send', requireRole('owner', 'admin'), async (c) => {
       userAgent: c.req.header('user-agent'),
     });
 
-    return c.json({ 
-      success: true, 
-      message: 'Invitation sent',
-      data: {
-        id: invitation.id,
-        email: invitation.email,
-        role: invitation.role,
-        expiresAt: invitation.expiresAt,
-      }
+    return c.json({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      email: invitation.email,
+      role: invitation.role,
+      invitedBy: invitation.invitedBy,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt
     });
   } catch (error) {
     console.error('Send invitation error:', error);
     return c.json({ success: false, error: 'Failed to send invitation' }, 500);
+  }
+});
+
+// Get invitations by organization
+invitationRoutes.get('/organization/:orgId', async (c) => {
+  try {
+    const organizationId = c.req.param('orgId');
+    
+    // Verify organization access
+    if (organizationId !== (c as any).organizationId) {
+      return c.json({ error: 'Unauthorized' }, 403);
+    }
+
+    const invitations = await db
+      .select({
+        id: teamInvitations.id,
+        organizationId: teamInvitations.organizationId,
+        email: teamInvitations.email,
+        role: teamInvitations.role,
+        invitedBy: teamInvitations.invitedBy,
+        expiresAt: teamInvitations.expiresAt,
+        createdAt: teamInvitations.createdAt,
+        inviter: {
+          name: authUsers.name,
+          email: authUsers.email,
+        },
+      })
+      .from(teamInvitations)
+      .innerJoin(authUsers, eq(authUsers.id, teamInvitations.invitedBy))
+      .where(
+        and(
+          eq(teamInvitations.organizationId, organizationId),
+          isNull(teamInvitations.acceptedAt)
+        )
+      )
+      .orderBy(desc(teamInvitations.createdAt));
+
+    // Filter out expired invitations
+    const validInvitations = invitations.filter(inv => new Date() < inv.expiresAt);
+
+    return c.json(validInvitations);
+  } catch (error) {
+    console.error('Get invitations error:', error);
+    return c.json({ error: 'Failed to get invitations' }, 500);
   }
 });
 
@@ -209,6 +254,65 @@ invitationRoutes.delete('/:invitationId', requireRole('owner', 'admin'), async (
   } catch (error) {
     console.error('Cancel invitation error:', error);
     return c.json({ success: false, error: 'Failed to cancel invitation' }, 500);
+  }
+});
+
+// Resend invitation
+invitationRoutes.post('/:invitationId/resend', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const organizationId = (c as any).organizationId;
+    const invitationId = c.req.param('invitationId');
+
+    // Get invitation
+    const [invitation] = await db
+      .select()
+      .from(teamInvitations)
+      .where(
+        and(
+          eq(teamInvitations.id, invitationId),
+          eq(teamInvitations.organizationId, organizationId),
+          isNull(teamInvitations.acceptedAt)
+        )
+      )
+      .limit(1);
+
+    if (!invitation) {
+      return c.json({ error: 'Invitation not found' }, 404);
+    }
+
+    // Get organization
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    // Resend invitation email
+    const invitationUrl = `${process.env.FRONTEND_URL}/accept-invitation?token=${invitation.token}`;
+    await emailService.sendTeamInvitation(
+      invitation.email,
+      (c as any).user.name || (c as any).user.email,
+      organization.name,
+      invitationUrl,
+      invitation.role
+    );
+
+    // Log the action
+    await db.insert(auditLogs).values({
+      organizationId,
+      userId: (c as any).user.id,
+      action: 'invitation.resent',
+      resourceType: 'invitation',
+      resourceId: invitation.id,
+      metadata: { email: invitation.email },
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
+    });
+
+    return c.json({ message: 'Invitation resent successfully' });
+  } catch (error) {
+    console.error('Resend invitation error:', error);
+    return c.json({ error: 'Failed to resend invitation' }, 500);
   }
 });
 

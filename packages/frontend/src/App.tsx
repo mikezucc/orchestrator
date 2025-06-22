@@ -10,6 +10,7 @@ import VMDetail from './pages/VMDetail';
 import Login from './pages/Login';
 import LoginOTP from './pages/LoginOTP';
 import AuthCallback from './pages/AuthCallback';
+import OrganizationSettings from './pages/OrganizationSettings';
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function App() {
                   <Route index element={<Dashboard />} />
                   <Route path="vms" element={<VMs />} />
                   <Route path="vms/:id" element={<VMDetail />} />
+                  <Route path="organization/settings" element={<OrganizationSettings />} />
                 </Route>
               </Routes>
             </Router>
