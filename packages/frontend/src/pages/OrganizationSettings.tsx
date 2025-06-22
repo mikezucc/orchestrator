@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { organizationApi, invitationApi, type OrganizationMember, type TeamInvitation } from '../api/organizations';
+import { organizationApi, invitationApi } from '../api/organizations';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import ThemeToggle from '../components/ThemeToggle';
 import { ChevronLeft, Settings, Users, Key, Mail, UserPlus, Shield, Trash2, RefreshCw, ExternalLink } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function OrganizationSettings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { userId } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -16,6 +17,20 @@ export default function OrganizationSettings() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [showInviteForm, setShowInviteForm] = useState(false);
+
+  // Handle Google Cloud connection success
+  useEffect(() => {
+    if (searchParams.get('gcpConnected') === 'true') {
+      showToast('Google Cloud account connected successfully', 'success');
+      setActiveTab('gcp');
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      // Clean up URL
+      navigate('/organization/settings', { replace: true });
+    } else if (searchParams.get('error')) {
+      showToast('Failed to connect Google Cloud account', 'error');
+      navigate('/organization/settings', { replace: true });
+    }
+  }, [searchParams, showToast, queryClient, navigate]);
 
   // Fetch organization data
   const { data: organization, isLoading: orgLoading } = useQuery({

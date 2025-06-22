@@ -13,11 +13,30 @@ const oauth2Client = new OAuth2Client(
 
 export const googleAuthRoutes = new Hono();
 
-// Apply middleware to all routes
-googleAuthRoutes.use('*', authenticateToken, requireOrganization);
+// Initiate Google OAuth for organization with a specific ID (no auth required for initial redirect)
+googleAuthRoutes.get('/organization/:orgId', async (c) => {
+  const organizationId = c.req.param('orgId');
+  
+  // Note: We can't verify permissions here since the user is being redirected
+  // The callback will need to verify the user has permission to update this org
+  
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
+  });
 
-// Initiate Google OAuth for organization
-googleAuthRoutes.get('/google', requireRole('owner', 'admin'), (c) => {
+  // Store organization ID in state parameter
+  const state = Buffer.from(JSON.stringify({
+    organizationId,
+    returnUrl: c.req.query('returnUrl') || '/organization/settings',
+  })).toString('base64');
+
+  const authUrlWithState = `${authUrl}&state=${state}`;
+  return c.redirect(authUrlWithState);
+});
+
+// Initiate Google OAuth for organization (authenticated version)
+googleAuthRoutes.get('/google', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
@@ -33,25 +52,32 @@ googleAuthRoutes.get('/google', requireRole('owner', 'admin'), (c) => {
   return c.redirect(authUrlWithState);
 });
 
-// Handle Google OAuth callback
+// Handle Google OAuth callback (no auth required since it's a redirect from Google)
 googleAuthRoutes.get('/google/callback', async (c) => {
   const code = c.req.query('code');
   const state = c.req.query('state');
   
   if (!code || !state) {
-    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=missing_params`);
+    return c.redirect(`${process.env.FRONTEND_URL}/organization/settings?error=missing_params`);
   }
 
   try {
     // Decode state
-    const { organizationId, userId } = JSON.parse(Buffer.from(state, 'base64').toString());
+    const decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
+    const { organizationId, userId, returnUrl } = decodedState;
 
     // Exchange code for tokens
     const { tokens } = await oauth2Client.getToken(code);
     
     if (!tokens.refresh_token) {
-      return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=no_refresh_token`);
+      return c.redirect(`${process.env.FRONTEND_URL}${returnUrl || '/organization/settings'}?error=no_refresh_token`);
     }
+
+    // Get the authenticated user info from Google
+    oauth2Client.setCredentials(tokens);
+    const { data: userInfo } = await oauth2Client.request({
+      url: 'https://www.googleapis.com/oauth2/v1/userinfo',
+    });
 
     // Update organization with Google credentials
     await db
@@ -62,27 +88,28 @@ googleAuthRoutes.get('/google/callback', async (c) => {
       })
       .where(eq(organizations.id, organizationId));
 
-    // Log the action
+    // Log the action (using email from Google since we might not have userId)
     await db.insert(auditLogs).values({
       organizationId,
-      userId,
+      userId: userId || null,
       action: 'google.auth_connected',
       resourceType: 'organization',
       resourceId: organizationId,
+      metadata: { googleEmail: userInfo.email },
       ipAddress: c.env?.remoteAddr || '',
       userAgent: c.req.header('user-agent'),
     });
 
     // Redirect to frontend success page
-    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?success=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}${returnUrl || '/organization/settings'}?gcpConnected=true`);
   } catch (error) {
     console.error('Google auth error:', error);
-    return c.redirect(`${process.env.FRONTEND_URL}/settings/google-auth?error=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}${returnUrl || '/organization/settings'}?error=true`);
   }
 });
 
 // Disconnect Google auth
-googleAuthRoutes.delete('/google', requireRole('owner'), async (c) => {
+googleAuthRoutes.delete('/google', authenticateToken, requireOrganization, requireRole('owner'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
 
@@ -115,7 +142,7 @@ googleAuthRoutes.delete('/google', requireRole('owner'), async (c) => {
 });
 
 // Update GCP project IDs
-googleAuthRoutes.put('/google/projects', requireRole('owner', 'admin'), async (c) => {
+googleAuthRoutes.put('/google/projects', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
     const { projectIds } = await c.req.json();
