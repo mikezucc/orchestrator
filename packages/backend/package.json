@@ -16,6 +16,7 @@
     "@hono/node-server": "^1.8.0",
     "@hono/node-ws": "^1.1.7",
     "@paralleldrive/cuid2": "^2.2.2",
+    "@types/sshpk": "^1.17.4",
     "@types/ws": "^8.18.1",
     "axios": "^1.10.0",
     "dotenv": "^16.4.1",
@@ -25,6 +26,7 @@
     "hono": "^4.0.0",
     "postgres": "^3.4.3",
     "ssh2": "^1.16.0",
+    "sshpk": "^1.18.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {
