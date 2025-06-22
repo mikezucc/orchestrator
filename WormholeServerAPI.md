@@ -1,18 +1,32 @@
-# Wormhole Server API Documentation
+# Wormhole Server API Documentation V2
 
-The Wormhole server provides both WebSocket and REST API endpoints for managing file synchronization across distributed development environments. This guide explains how external services can interact with the Wormhole server.
+The Wormhole server has evolved from a simple file synchronization service to a comprehensive system monitoring and management platform. This guide documents all available APIs and features.
+
+## Overview
+
+The Wormhole server provides:
+- **File Synchronization**: Real-time sync across distributed development environments
+- **Repository Management**: Automatic discovery and daemon management for Git repositories
+- **System Monitoring**: Active port scanning and process tracking
+- **Remote Control**: Branch switching and daemon orchestration
 
 ## Server Connection
 
-The Wormhole server runs on port 8080 by default (configurable via `WORMHOLE_PORT` environment variable).
+Default port: 8080 (configurable via `WORMHOLE_PORT` environment variable)
 
 - **WebSocket endpoint**: `ws://localhost:8080`
 - **REST API base URL**: `http://localhost:8080`
 
+## Environment Variables
+
+- `WORMHOLE_PORT`: Server port (default: 8080)
+- `WORMHOLE_SCAN_INTERVAL`: Repository scan interval in milliseconds (default: 300000 / 5 minutes)
+
 ## REST API Endpoints
 
-### 1. Get Server Status
+### 1. System Status
 
+#### Get Server Status
 Retrieve information about all connected clients and branches.
 
 **Request:**
@@ -25,9 +39,9 @@ GET /api/status
 {
   "clients": [
     {
-      "id": "abc123",
+      "id": "MacBook-Pro-a3f2c8b9",
       "branch": "main",
-      "repoPath": "/path/to/repo",
+      "repoPath": "organization/repository",
       "connected": true,
       "lastActivity": 1703123456789
     }
@@ -41,9 +55,57 @@ GET /api/status
 }
 ```
 
-### 2. Get Repository Information
+#### Get Active Ports
+Monitor all active network ports and their associated processes.
 
-Retrieve detailed information about repositories and their branches.
+**Request:**
+```http
+GET /api/ports
+```
+
+**Response:**
+```json
+{
+  "totalPorts": 15,
+  "processes": [
+    {
+      "processName": "node",
+      "pid": 12345,
+      "ports": [
+        {
+          "port": 8080,
+          "protocol": "tcp",
+          "state": "LISTEN",
+          "address": "0.0.0.0",
+          "service": "HTTP-Alt"
+        }
+      ]
+    }
+  ],
+  "raw": [
+    {
+      "port": 22,
+      "protocol": "tcp",
+      "state": "LISTEN",
+      "address": "0.0.0.0",
+      "pid": 1234,
+      "processName": "sshd",
+      "service": "SSH"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Requires appropriate permissions (may need sudo)
+- Linux: Attempts ss → netstat → lsof
+- macOS: Uses lsof
+- Automatically identifies common services
+
+### 2. Repository Management
+
+#### Get Repository Information
+Retrieve detailed information about synchronized repositories.
 
 **Request:**
 ```http
@@ -54,14 +116,14 @@ GET /api/repositories
 ```json
 [
   {
-    "repoPath": "/path/to/repo",
+    "repoPath": "organization/repository",
     "branches": ["main", "develop", "feature/xyz"],
     "activeBranches": ["main", "develop"],
     "clientCount": 3,
     "connectedClientCount": 2,
     "clients": [
       {
-        "id": "abc123",
+        "id": "MacBook-Pro-a3f2c8b9",
         "branch": "main",
         "connected": true,
         "lastActivity": 1703123456789
@@ -71,16 +133,62 @@ GET /api/repositories
 ]
 ```
 
-**Response Fields:**
-- `repoPath`: Full path to the repository
-- `branches`: All branches that have been used by clients
-- `activeBranches`: Branches with currently connected clients
-- `clientCount`: Total number of clients (connected and disconnected)
-- `connectedClientCount`: Number of currently connected clients
-- `clients`: Detailed list of clients sorted by most recent activity
+#### Get Running Daemons
+Monitor all Wormhole daemons managed by the server.
 
-### 3. Trigger Branch Switch
+**Request:**
+```http
+GET /api/daemons
+```
 
+**Response:**
+```json
+{
+  "count": 3,
+  "runningCount": 3,
+  "daemons": [
+    {
+      "repository": {
+        "path": "/Users/username/projects/myapp",
+        "name": "organization/myapp",
+        "branch": "main",
+        "hasOrigin": true,
+        "originUrl": "https://github.com/organization/myapp.git"
+      },
+      "pid": 12345,
+      "status": "running",
+      "startTime": 1703123456789,
+      "uptime": 300000
+    }
+  ]
+}
+```
+
+#### Trigger Repository Scan
+Manually scan for Git repositories in the home directory.
+
+**Request:**
+```http
+POST /api/scan
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Repository scan initiated"
+}
+```
+
+**Automatic Scanning:**
+- Scans home directory recursively (up to 5 levels)
+- Excludes: node_modules, .cache, .npm, Library, etc.
+- Starts daemons for new repositories
+- Stops daemons for removed repositories
+
+### 3. Remote Control
+
+#### Trigger Branch Switch
 Command all clients monitoring a specific repository to switch branches.
 
 **Request:**
@@ -90,11 +198,11 @@ Content-Type: application/json
 
 {
   "targetBranch": "feature/new-feature",
-  "repoPath": "/path/to/repo"
+  "repoPath": "organization/repository"
 }
 ```
 
-**Response (Success):**
+**Response:**
 ```json
 {
   "success": true,
@@ -102,262 +210,298 @@ Content-Type: application/json
 }
 ```
 
-**Response (Error):**
-```json
-{
-  "success": false,
-  "error": "Invalid request"
-}
-```
-
-**Notes:**
-- All connected clients monitoring the specified repository will switch to the target branch
-- Clients will stash uncommitted changes before switching
-- Pending commits are pushed before the switch
-- If the branch doesn't exist locally, it will be created tracking the remote branch
+**Behavior:**
+- Clients stash uncommitted changes
+- Push pending commits before switching
+- Create branch if it doesn't exist locally
+- Pull latest changes after switch
 
 ## WebSocket Protocol
 
-For real-time synchronization, clients connect via WebSocket and exchange messages.
+### Connection Flow
 
-### Message Types
-
-All WebSocket messages follow this structure:
-
-```typescript
-interface SyncMessage {
-  type: 'commit' | 'pull' | 'conflict' | 'sync' | 'branch-switch';
-  payload: any;
-  clientId: string;
-  timestamp: number;
-}
-```
-
-### Client Registration
-
-When a client connects, it must register with the server:
-
+1. **Client Registration**
 ```json
 {
   "type": "sync",
   "payload": {
-    "clientId": "unique-client-id",
+    "clientId": "MacBook-Pro-a3f2c8b9",
     "branch": "main",
-    "repoPath": "/path/to/repo",
+    "repoPath": "organization/repository",
     "action": "register"
   },
-  "clientId": "unique-client-id",
+  "clientId": "MacBook-Pro-a3f2c8b9",
   "timestamp": 1703123456789
 }
 ```
 
-### Message Types Explained
+2. **Server Acknowledgment**
+```json
+{
+  "type": "sync",
+  "payload": {
+    "action": "client-joined",
+    "client": {
+      "id": "MacBook-Pro-a3f2c8b9",
+      "branch": "main",
+      "lastSync": 1703123456789,
+      "connected": true
+    }
+  },
+  "clientId": "server",
+  "timestamp": 1703123456789
+}
+```
 
-1. **commit**: Notifies other clients about a new commit
-   ```json
-   {
-     "type": "commit",
-     "payload": {
-       "id": "commit-id",
-       "timestamp": 1703123456789,
-       "filePath": "src/file.js",
-       "changeType": "modify",
-       "hash": "abc123",
-       "message": "[wormhole:clientid] modify src/file.js"
-     },
-     "clientId": "sender-client-id",
-     "timestamp": 1703123456789
-   }
-   ```
+### Message Types
 
-2. **pull**: Request other clients to push their changes
-   ```json
-   {
-     "type": "pull",
-     "payload": {
-       "branch": "main"
-     },
-     "clientId": "requesting-client-id",
-     "timestamp": 1703123456789
-   }
-   ```
+#### Commit Notification
+```json
+{
+  "type": "commit",
+  "payload": {
+    "id": "commit-id",
+    "timestamp": 1703123456789,
+    "filePath": "src/file.js",
+    "changeType": "modify",
+    "hash": "abc123",
+    "message": "[wormhole:MacBook-Pro] modify src/file.js"
+  },
+  "clientId": "MacBook-Pro-a3f2c8b9",
+  "timestamp": 1703123456789
+}
+```
 
-3. **conflict**: Report a merge conflict
-   ```json
-   {
-     "type": "conflict",
-     "payload": {
-       "commit": { /* commit details */ },
-       "error": "Conflict details"
-     },
-     "clientId": "client-id",
-     "timestamp": 1703123456789
-   }
-   ```
-
-4. **branch-switch**: Server-initiated branch switch command
-   ```json
-   {
-     "type": "branch-switch",
-     "payload": {
-       "targetBranch": "feature/new-feature",
-       "repoPath": "/path/to/repo"
-     },
-     "clientId": "server",
-     "timestamp": 1703123456789
-   }
-   ```
+#### Branch Switch Command
+```json
+{
+  "type": "branch-switch",
+  "payload": {
+    "targetBranch": "feature/new-feature",
+    "repoPath": "organization/repository"
+  },
+  "clientId": "server",
+  "timestamp": 1703123456789
+}
+```
 
 ## Integration Examples
 
-### Python Example
-
+### Python
 ```python
 import requests
 import websocket
 import json
 
-# REST API Example - Trigger branch switch
-def switch_branch(repo_path, target_branch):
-    url = "http://localhost:8080/api/branch-switch"
-    payload = {
-        "repoPath": repo_path,
-        "targetBranch": target_branch
-    }
-    response = requests.post(url, json=payload)
-    return response.json()
+class WormholeClient:
+    def __init__(self, base_url="http://localhost:8080"):
+        self.base_url = base_url
+    
+    def get_status(self):
+        return requests.get(f"{self.base_url}/api/status").json()
+    
+    def get_ports(self):
+        return requests.get(f"{self.base_url}/api/ports").json()
+    
+    def get_daemons(self):
+        return requests.get(f"{self.base_url}/api/daemons").json()
+    
+    def switch_branch(self, repo_name, target_branch):
+        return requests.post(
+            f"{self.base_url}/api/branch-switch",
+            json={"repoPath": repo_name, "targetBranch": target_branch}
+        ).json()
+    
+    def trigger_scan(self):
+        return requests.post(f"{self.base_url}/api/scan").json()
 
-# REST API Example - Get repository status
-def get_repositories():
-    url = "http://localhost:8080/api/repositories"
-    response = requests.get(url)
-    return response.json()
+# Example usage
+client = WormholeClient()
 
-# WebSocket Example - Monitor commits
-def on_message(ws, message):
-    data = json.loads(message)
-    if data['type'] == 'commit':
-        print(f"New commit: {data['payload']['message']}")
+# Monitor system
+ports = client.get_ports()
+for process in ports['processes']:
+    print(f"{process['processName']} (PID: {process['pid']})")
+    for port in process['ports']:
+        print(f"  - {port['port']}/{port['protocol']} ({port['service']})")
 
-def monitor_commits():
-    ws = websocket.WebSocketApp("ws://localhost:8080",
-                                on_message=on_message)
-    ws.run_forever()
+# Manage repositories
+daemons = client.get_daemons()
+print(f"Running daemons: {daemons['runningCount']}/{daemons['count']}")
+
+# Switch branches
+client.switch_branch("myorg/myrepo", "develop")
 ```
 
-### Node.js Example
-
+### Node.js
 ```javascript
 const axios = require('axios');
 const WebSocket = require('ws');
 
-// REST API Example - Get server status
-async function getServerStatus() {
-  const response = await axios.get('http://localhost:8080/api/status');
-  return response.data;
-}
-
-// REST API Example - Switch branches
-async function switchBranch(repoPath, targetBranch) {
-  const response = await axios.post('http://localhost:8080/api/branch-switch', {
-    repoPath,
-    targetBranch
-  });
-  return response.data;
-}
-
-// WebSocket Example - Connect as monitoring service
-function connectMonitor() {
-  const ws = new WebSocket('ws://localhost:8080');
+class WormholeClient {
+  constructor(baseUrl = 'http://localhost:8080') {
+    this.baseUrl = baseUrl;
+  }
   
-  ws.on('open', () => {
-    // Register as a monitoring client
-    ws.send(JSON.stringify({
-      type: 'sync',
-      payload: {
+  async getSystemInfo() {
+    const [status, ports, daemons] = await Promise.all([
+      axios.get(`${this.baseUrl}/api/status`),
+      axios.get(`${this.baseUrl}/api/ports`),
+      axios.get(`${this.baseUrl}/api/daemons`)
+    ]);
+    
+    return {
+      status: status.data,
+      ports: ports.data,
+      daemons: daemons.data
+    };
+  }
+  
+  async monitorChanges(repoName) {
+    const ws = new WebSocket('ws://localhost:8080');
+    
+    ws.on('open', () => {
+      ws.send(JSON.stringify({
+        type: 'sync',
+        payload: {
+          clientId: 'monitor-service',
+          branch: 'main',
+          repoPath: repoName,
+          action: 'register'
+        },
         clientId: 'monitor-service',
-        branch: 'main',
-        repoPath: '/monitored/repo',
-        action: 'register'
-      },
-      clientId: 'monitor-service',
-      timestamp: Date.now()
-    }));
-  });
-  
-  ws.on('message', (data) => {
-    const message = JSON.parse(data);
-    console.log('Received:', message.type, message.payload);
-  });
+        timestamp: Date.now()
+      }));
+    });
+    
+    ws.on('message', (data) => {
+      const message = JSON.parse(data);
+      if (message.type === 'commit') {
+        console.log('New commit:', message.payload);
+      }
+    });
+  }
 }
 ```
 
-### cURL Examples
-
+### cURL Commands
 ```bash
-# Get server status
+# System monitoring
 curl http://localhost:8080/api/status
+curl http://localhost:8080/api/ports
 
-# Get repository information
+# Repository management
 curl http://localhost:8080/api/repositories
+curl http://localhost:8080/api/daemons
+curl -X POST http://localhost:8080/api/scan
 
-# Trigger branch switch
+# Remote control
 curl -X POST http://localhost:8080/api/branch-switch \
   -H "Content-Type: application/json" \
-  -d '{
-    "repoPath": "/path/to/repo",
-    "targetBranch": "develop"
-  }'
+  -d '{"repoPath": "org/repo", "targetBranch": "develop"}'
 ```
 
-## Admin Dashboard Integration
+## Use Cases
 
-An admin dashboard can use these APIs to:
+### 1. Infrastructure Monitoring Dashboard
+```python
+# Monitor all development services
+def get_development_services():
+    client = WormholeClient()
+    ports = client.get_ports()
+    
+    dev_services = {}
+    for process in ports['processes']:
+        if process['processName'] in ['node', 'python', 'ruby']:
+            dev_services[process['processName']] = process['ports']
+    
+    return dev_services
+```
 
-1. **Monitor Repository Status**: Poll `/api/repositories` to display:
-   - Active repositories
-   - Connected clients per repository
-   - Current branches being worked on
+### 2. Automated Repository Management
+```python
+# Ensure all repositories are on correct branch
+def align_branches(target_branch):
+    client = WormholeClient()
+    repos = requests.get(f"{client.base_url}/api/repositories").json()
+    
+    for repo in repos:
+        if target_branch not in repo['activeBranches']:
+            client.switch_branch(repo['repoPath'], target_branch)
+            print(f"Switched {repo['repoPath']} to {target_branch}")
+```
 
-2. **Manage Branches**: Use `/api/branch-switch` to:
-   - Coordinate team branch switches
-   - Ensure all developers are on the correct branch
-   - Implement branch policies
-
-3. **Real-time Monitoring**: Connect via WebSocket to:
-   - Track commit activity
-   - Monitor client connections/disconnections
-   - Observe conflict resolution
+### 3. System Health Check
+```python
+# Check for port conflicts and daemon health
+def health_check():
+    client = WormholeClient()
+    
+    # Check for common port conflicts
+    ports = client.get_ports()
+    common_ports = {80, 443, 3000, 8080, 5432, 3306}
+    
+    conflicts = []
+    for port_info in ports['raw']:
+        if port_info['port'] in common_ports:
+            conflicts.append(port_info)
+    
+    # Check daemon health
+    daemons = client.get_daemons()
+    unhealthy = [d for d in daemons['daemons'] if d['status'] != 'running']
+    
+    return {
+        'port_conflicts': conflicts,
+        'unhealthy_daemons': unhealthy,
+        'daemon_coverage': f"{daemons['runningCount']}/{daemons['count']}"
+    }
+```
 
 ## Security Considerations
 
-Currently, the Wormhole server does not implement authentication. For production use, consider:
+1. **Port Scanning**: Requires elevated permissions on Linux
+   - Run with `sudo` for complete visibility
+   - Or configure capabilities: `setcap cap_net_admin+ep /path/to/wormhole`
 
-1. Adding API key authentication for REST endpoints
-2. Implementing WebSocket token-based authentication
-3. Using HTTPS/WSS for encrypted connections
-4. Restricting access by IP address
-5. Adding rate limiting
+2. **Authentication**: Currently no authentication implemented
+   - Use firewall rules to restrict access
+   - Consider reverse proxy with authentication
 
-## Error Handling
+3. **CORS**: Enabled for all origins by default
+   - Configure specific origins in production
 
-The server returns appropriate HTTP status codes:
+## Performance Notes
 
-- `200 OK`: Successful request
-- `400 Bad Request`: Invalid request data
-- `404 Not Found`: Unknown endpoint
-- `500 Internal Server Error`: Server error
+- Repository scanning: O(n) where n is number of directories
+- Port scanning: ~100-500ms depending on method and permissions
+- WebSocket latency: <10ms for local connections
+- Daemon startup: ~1s per repository
 
-WebSocket disconnections trigger automatic reconnection attempts by clients.
+## Troubleshooting
 
-## CORS Support
-
-The server includes CORS headers to allow cross-origin requests:
-
+### Port Scan Errors
 ```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, POST, OPTIONS
-Access-Control-Allow-Headers: Content-Type
+Error: Port scan failed
 ```
+Solution: Run server with sudo or configure appropriate capabilities
 
-For production, configure specific allowed origins instead of using `*`.
+### Daemon Won't Start
+Check logs in `.wormhole/server.log` for specific errors. Common issues:
+- Repository doesn't have git origin
+- Invalid git configuration
+- Port already in use
+
+### Branch Switch Fails
+Ensure:
+- Remote branch exists
+- No merge conflicts
+- Network connectivity to git remote
+
+## Future Enhancements
+
+- OAuth2/JWT authentication
+- Metrics export (Prometheus format)
+- Docker container support
+- Repository grouping and tagging
+- Custom scan directories
+- Webhook notifications

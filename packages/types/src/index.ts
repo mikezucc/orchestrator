@@ -141,3 +141,50 @@ export interface WormholeWebSocketMessage {
   clientId: string;
   timestamp: number;
 }
+
+// Port information types
+export interface WormholePort {
+  port: number;
+  protocol: string;
+  state: string;
+  address: string;
+  service?: string;
+}
+
+export interface WormholeProcess {
+  processName: string;
+  pid: number;
+  ports: WormholePort[];
+}
+
+export interface WormholePortsInfo {
+  totalPorts: number;
+  processes: WormholeProcess[];
+  raw: Array<WormholePort & {
+    pid?: number;
+    processName?: string;
+  }>;
+}
+
+// Daemon information types
+export interface WormholeDaemonRepository {
+  path: string;
+  name: string;
+  branch: string;
+  hasOrigin: boolean;
+  originUrl?: string;
+}
+
+export interface WormholeDaemon {
+  repository: WormholeDaemonRepository;
+  pid: number;
+  status: 'running' | 'stopped' | 'error';
+  startTime: number;
+  uptime: number;
+}
+
+export interface WormholeDaemonsInfo {
+  count: number;
+  runningCount: number;
+  daemons: WormholeDaemon[];
+}
