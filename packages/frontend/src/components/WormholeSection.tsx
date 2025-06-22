@@ -950,22 +950,11 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {/* Active branches */}
-                        {repo?.activeBranches.map((branch: string) => (
+                        {/* Show only the current VM's branch */}
+                        {daemon && (
                           <span 
-                            key={branch}
-                            className={`text-xs px-2 py-1 rounded ${
-                              branch === mainBranch
-                                ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900'
-                                : 'bg-green-600 dark:bg-green-500 text-white'
-                            }`}
+                            className="text-xs px-2 py-1 rounded bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900"
                           >
-                            {branch}
-                          </span>
-                        ))}
-                        {/* Daemon branch if no active branches */}
-                        {!repo && daemon && (
-                          <span className="text-xs px-2 py-1 rounded bg-te-gray-300 dark:bg-te-gray-700">
                             {daemon.repository.branch}
                           </span>
                         )}
