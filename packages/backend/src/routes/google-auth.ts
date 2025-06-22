@@ -23,6 +23,7 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
+    prompt: 'consent', // Force consent screen to get new refresh token
   });
 
   // Store organization ID in state parameter
@@ -40,6 +41,7 @@ googleAuthRoutes.get('/', authenticateToken, requireOrganization, requireRole('o
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
+    prompt: 'consent', // Force consent screen to get new refresh token
   });
 
   // Store organization ID in state parameter
