@@ -27,6 +27,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   const [showDebugView, setShowDebugView] = useState(false);
   const [showPortsView, setShowPortsView] = useState(false);
   const [editingPort, setEditingPort] = useState<{ port: number; protocol: string } | null>(null);
+  const [expandedProcesses, setExpandedProcesses] = useState<Set<string>>(new Set(['node']));
   const [wsMessages, setWsMessages] = useState<Array<{ time: string; type: 'sent' | 'received'; message: any }>>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
@@ -83,7 +84,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
 
   // Mutation for saving port descriptions
   const savePortMutation = useMutation({
-    mutationFn: (data: { port: number; protocol: string; name: string; description?: string; processName?: string }) => 
+    mutationFn: (data: { port: number; protocol: string; name: string; description?: string; processName?: string; isFavorite?: boolean }) => 
       portsApi.savePortDescription(vmId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['port-descriptions', vmId] });
@@ -94,6 +95,20 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
       showError('Failed to save port description');
     }
   });
+
+  // Helper function to toggle favorite
+  const toggleFavorite = (port: number, protocol: string, description?: PortDescription) => {
+    if (!description) return;
+    
+    savePortMutation.mutate({
+      port,
+      protocol: protocol.toLowerCase(),
+      name: description.name,
+      description: description.description,
+      processName: description.processName,
+      isFavorite: !description.isFavorite,
+    });
+  };
 
   useEffect(() => {
     return () => {
@@ -350,6 +365,119 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
     ...(daemonsData?.daemons || []).map((d: WormholeDaemon) => d.repository.name)
   ]));
 
+  // Port Card Component
+  const PortCard = ({ port, description, processName, isEditing, onEdit }: {
+    port: WormholePort | any;
+    description?: PortDescription;
+    processName?: string;
+    isEditing: boolean;
+    onEdit: () => void;
+  }) => {
+    if (isEditing) {
+      return (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            savePortMutation.mutate({
+              port: port.port,
+              protocol: port.protocol.toLowerCase(),
+              name: formData.get('name') as string,
+              description: formData.get('description') as string,
+              processName,
+              isFavorite: description?.isFavorite,
+            });
+          }}
+          className="space-y-2"
+        >
+          <div className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+            {port.port}/{port.protocol}
+          </div>
+          <input
+            name="name"
+            type="text"
+            placeholder="Service name"
+            defaultValue={description?.name}
+            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-xs"
+            required
+            autoFocus
+          />
+          <input
+            name="description"
+            type="text"
+            placeholder="Description (optional)"
+            defaultValue={description?.description}
+            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-xs"
+          />
+          <div className="flex space-x-1">
+            <button
+              type="submit"
+              className="flex-1 px-2 py-1 bg-green-600 dark:bg-green-500 text-white rounded hover:bg-green-700 dark:hover:bg-green-600 text-xs"
+              disabled={savePortMutation.isPending}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingPort(null)}
+              className="flex-1 px-2 py-1 bg-te-gray-400 dark:bg-te-gray-600 text-white rounded hover:bg-te-gray-500 dark:hover:bg-te-gray-700 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      );
+    }
+
+    return (
+      <div className="h-full flex flex-col">
+        {description && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(port.port, port.protocol, description);
+            }}
+            className={`absolute top-1 right-1 p-1 rounded hover:bg-te-gray-100 dark:hover:bg-te-gray-700 ${
+              description.isFavorite ? 'text-yellow-500' : 'text-te-gray-400 dark:text-te-gray-600'
+            }`}
+            title={description.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          </button>
+        )}
+        <div 
+          className="cursor-pointer hover:bg-te-gray-50 dark:hover:bg-te-gray-700 rounded -m-2 p-2 flex-1 flex flex-col"
+          onClick={onEdit}
+        >
+          {description ? (
+            <>
+              <div className="font-medium text-sm text-te-gray-800 dark:text-te-gray-200 mb-1">
+                {description.name}
+              </div>
+              <div className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+                {port.port}/{port.protocol}
+                {description.description && (
+                  <div className="mt-0.5">{description.description}</div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-te-gray-500 dark:text-te-gray-600 italic text-xs">
+                {port.service || 'Click to add'}
+              </div>
+              <div className="text-2xs text-te-gray-500 dark:text-te-gray-600 mt-1">
+                {port.port}/{port.protocol}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -582,25 +710,132 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                 <p className="text-sm text-te-gray-600 dark:text-te-gray-500">No active ports detected</p>
               ) : (
                 <div className="space-y-4">
-                  {portsData.processes.map((process: WormholeProcess) => {
-                    const sortedPorts = [...process.ports].sort((a, b) => a.port - b.port);
+                  {/* Favorite Ports Section */}
+                  {(() => {
+                    const favoritePorts = portDescriptions.filter(d => d.isFavorite);
+                    if (favoritePorts.length === 0) return null;
                     
                     return (
-                      <div key={process.pid} className="border border-te-gray-200 dark:border-te-gray-700 rounded p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium">
-                            <span className="font-mono">{process.processName}</span>
-                            <span className="text-xs text-te-gray-600 dark:text-te-gray-500 ml-2">
-                              PID: {process.pid}
-                            </span>
-                          </h4>
+                      <div>
+                        <h4 className="text-sm font-medium mb-2 flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <span>Favorite Ports</span>
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {favoritePorts.map((description) => {
+                            const port = portsData.raw?.find((p: any) => 
+                              p.port === description.port && 
+                              p.protocol.toLowerCase() === description.protocol.toLowerCase()
+                            );
+                            
+                            if (!port) return null;
+                            
+                            const isEditing = editingPort?.port === port.port && editingPort?.protocol === port.protocol;
+                            
+                            return (
+                              <div 
+                                key={`${port.port}-${port.protocol}`}
+                                className="text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800 rounded p-2 relative"
+                              >
+                                <PortCard
+                                  port={port}
+                                  description={description}
+                                  processName={description.processName}
+                                  isEditing={isEditing}
+                                  onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Process Ports Sections */}
+                  {portsData.processes.map((process: WormholeProcess) => {
+                    const sortedPorts = [...process.ports].sort((a, b) => a.port - b.port);
+                    const isExpanded = expandedProcesses.has(process.processName);
+                    const isNodeProcess = process.processName.toLowerCase() === 'node';
+                    
+                    return (
+                      <div key={process.pid} className="border border-te-gray-200 dark:border-te-gray-700 rounded">
+                        <div 
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-te-gray-50 dark:hover:bg-te-gray-800"
+                          onClick={() => {
+                            setExpandedProcesses(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(process.processName)) {
+                                newSet.delete(process.processName);
+                              } else {
+                                newSet.add(process.processName);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <svg 
+                              className={`w-3 h-3 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
+                                isExpanded ? 'rotate-90' : ''
+                              }`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <h4 className="text-sm font-medium">
+                              <span className="font-mono">{process.processName}</span>
+                            </h4>
+                          </div>
                           <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
                             {process.ports.length} port{process.ports.length !== 1 ? 's' : ''}
                           </span>
                         </div>
                         
-                        <div className="space-y-2">
-                          {sortedPorts.map((port: WormholePort) => {
+                        {isExpanded && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 p-2 pt-0">
+                            {sortedPorts.map((port: WormholePort) => {
+                              const description = portDescriptions.find(
+                                d => d.port === port.port && d.protocol === port.protocol.toLowerCase()
+                              );
+                              const isEditing = editingPort?.port === port.port && editingPort?.protocol === port.protocol;
+                              
+                              return (
+                                <div 
+                                  key={`${port.port}-${port.protocol}`}
+                                  className="text-xs bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded p-2 relative"
+                                >
+                                  <PortCard
+                                    port={port}
+                                    description={description}
+                                    processName={process.processName}
+                                    isEditing={isEditing}
+                                    onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Raw ports section for unassigned ports */}
+                  {portsData.raw && portsData.raw.filter((p: any) => !p.processName).length > 0 && (
+                    <div className="border border-te-gray-200 dark:border-te-gray-700 rounded">
+                      <div className="p-2">
+                        <h4 className="text-sm font-medium">Other Ports</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 p-2 pt-0">
+                        {portsData.raw
+                          .filter((p: any) => !p.processName)
+                          .sort((a: any, b: any) => a.port - b.port)
+                          .map((port: any) => {
                             const description = portDescriptions.find(
                               d => d.port === port.port && d.protocol === port.protocol.toLowerCase()
                             );
@@ -609,127 +844,15 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                             return (
                               <div 
                                 key={`${port.port}-${port.protocol}`}
-                                className="flex items-center justify-between text-xs bg-white dark:bg-te-gray-800 p-2 rounded"
+                                className="text-xs bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded p-2 relative"
                               >
-                                <div className="flex items-center space-x-3">
-                                  <span className="font-mono font-medium">
-                                    {port.port}/{port.protocol}
-                                  </span>
-                                  {description ? (
-                                    <div>
-                                      <span className="font-medium">{description.name}</span>
-                                      {description.description && (
-                                        <span className="text-te-gray-600 dark:text-te-gray-500 ml-2">
-                                          - {description.description}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-te-gray-500 dark:text-te-gray-600 italic">
-                                      {port.service || 'No description'}
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                {isEditing ? (
-                                  <form
-                                    onSubmit={(e) => {
-                                      e.preventDefault();
-                                      const formData = new FormData(e.currentTarget);
-                                      savePortMutation.mutate({
-                                        port: port.port,
-                                        protocol: port.protocol.toLowerCase(),
-                                        name: formData.get('name') as string,
-                                        description: formData.get('description') as string,
-                                        processName: process.processName,
-                                      });
-                                    }}
-                                    className="flex items-center space-x-2"
-                                  >
-                                    <input
-                                      name="name"
-                                      type="text"
-                                      placeholder="Service name"
-                                      defaultValue={description?.name}
-                                      className="px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600"
-                                      required
-                                      autoFocus
-                                    />
-                                    <input
-                                      name="description"
-                                      type="text"
-                                      placeholder="Description (optional)"
-                                      defaultValue={description?.description}
-                                      className="px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600"
-                                    />
-                                    <button
-                                      type="submit"
-                                      className="px-2 py-1 bg-green-600 dark:bg-green-500 text-white rounded hover:bg-green-700 dark:hover:bg-green-600"
-                                      disabled={savePortMutation.isPending}
-                                    >
-                                      Save
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingPort(null)}
-                                      className="px-2 py-1 bg-te-gray-400 dark:bg-te-gray-600 text-white rounded hover:bg-te-gray-500 dark:hover:bg-te-gray-700"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </form>
-                                ) : (
-                                  <button
-                                    onClick={() => setEditingPort({ port: port.port, protocol: port.protocol })}
-                                    className="px-2 py-1 bg-te-gray-200 dark:bg-te-gray-700 rounded hover:bg-te-gray-300 dark:hover:bg-te-gray-600"
-                                  >
-                                    Edit
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  
-                  {/* Raw ports section for unassigned ports */}
-                  {portsData.raw && portsData.raw.filter((p: any) => !p.processName).length > 0 && (
-                    <div className="border border-te-gray-200 dark:border-te-gray-700 rounded p-3">
-                      <h4 className="text-sm font-medium mb-2">Other Ports</h4>
-                      <div className="space-y-2">
-                        {portsData.raw
-                          .filter((p: any) => !p.processName)
-                          .sort((a: any, b: any) => a.port - b.port)
-                          .map((port: any) => {
-                            const description = portDescriptions.find(
-                              d => d.port === port.port && d.protocol === port.protocol.toLowerCase()
-                            );
-                            
-                            return (
-                              <div 
-                                key={`${port.port}-${port.protocol}`}
-                                className="flex items-center justify-between text-xs bg-white dark:bg-te-gray-800 p-2 rounded"
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <span className="font-mono font-medium">
-                                    {port.port}/{port.protocol}
-                                  </span>
-                                  {description ? (
-                                    <div>
-                                      <span className="font-medium">{description.name}</span>
-                                      {description.description && (
-                                        <span className="text-te-gray-600 dark:text-te-gray-500 ml-2">
-                                          - {description.description}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-te-gray-500 dark:text-te-gray-600 italic">
-                                      {port.service || 'Unknown service'}
-                                    </span>
-                                  )}
-                                </div>
+                                <PortCard
+                                  port={port}
+                                  description={description}
+                                  processName={undefined}
+                                  isEditing={isEditing}
+                                  onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                                />
                               </div>
                             );
                           })}

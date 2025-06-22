@@ -43,7 +43,7 @@ ports.put('/:vmId/ports', async (c) => {
     return c.json({ success: false, error: 'User ID required' }, 401);
   }
   
-  const { port, protocol, name, description, processName } = await c.req.json();
+  const { port, protocol, name, description, processName, isFavorite } = await c.req.json();
   
   if (!port || !protocol || !name) {
     return c.json({ success: false, error: 'Port, protocol, and name are required' }, 400);
@@ -78,6 +78,7 @@ ports.put('/:vmId/ports', async (c) => {
           name,
           description,
           processName,
+          isFavorite: isFavorite ?? existing[0].isFavorite,
           updatedAt: new Date(),
         })
         .where(eq(portDescriptions.id, existing[0].id))
@@ -95,6 +96,7 @@ ports.put('/:vmId/ports', async (c) => {
           name,
           description,
           processName,
+          isFavorite: isFavorite ?? false,
           createdBy: userId,
         })
         .returning();

@@ -8,6 +8,7 @@ export interface PortDescription {
   name: string;
   description?: string;
   processName?: string;
+  isFavorite: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -19,6 +20,7 @@ export interface SavePortDescriptionData {
   name: string;
   description?: string;
   processName?: string;
+  isFavorite?: boolean;
 }
 
 export const portsApi = {
