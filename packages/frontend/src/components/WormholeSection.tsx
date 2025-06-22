@@ -10,10 +10,8 @@ interface WormholeSectionProps {
 }
 
 export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps) {
-  const [selectedRepo, setSelectedRepo] = useState<string>('');
-  const [targetBranch, setTargetBranch] = useState<string>('');
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const [messages, setMessages] = useState<Array<{ type: string; content: string; timestamp: Date }>>([]);
+  const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const wsRef = useRef<WebSocket | null>(null);
   const { showError, showSuccess } = useToast();
 
@@ -22,7 +20,7 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
     queryKey: ['wormhole-status', vmId],
     queryFn: () => wormholeApi.getStatus(vmId),
     enabled: !!vmId && connectionStatus === 'connected',
-    refetchInterval: 5000, // Poll every 5 seconds when connected
+    refetchInterval: 5000,
   });
 
   // Fetch repositories
@@ -81,11 +79,11 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as WormholeWebSocketMessage;
-          setMessages(prev => [...prev, {
-            type: message.type,
-            content: JSON.stringify(message.payload, null, 2),
-            timestamp: new Date(message.timestamp)
-          }]);
+          // Refresh data on relevant messages
+          if (message.type === 'sync' || message.type === 'branch-switch') {
+            refetchStatus();
+            refetchRepos();
+          }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
         }
@@ -115,21 +113,27 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
     setConnectionStatus('disconnected');
   };
 
-  const handleBranchSwitch = async () => {
-    if (!selectedRepo || !targetBranch) {
-      showError('Please select a repository and enter a target branch');
-      return;
-    }
+  const toggleRepo = (repoPath: string) => {
+    setExpandedRepos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(repoPath)) {
+        newSet.delete(repoPath);
+      } else {
+        newSet.add(repoPath);
+      }
+      return newSet;
+    });
+  };
 
+  const handleBranchSwitch = async (repoPath: string, targetBranch: string) => {
     try {
       const response = await wormholeApi.switchBranch(vmId, {
-        repoPath: selectedRepo,
-        targetBranch: targetBranch
+        repoPath,
+        targetBranch
       });
 
       if (response.success) {
-        showSuccess('Branch switch command sent successfully');
-        setTargetBranch('');
+        showSuccess(`Switched to branch ${targetBranch}`);
         // Refresh data
         setTimeout(() => {
           refetchStatus();
@@ -144,13 +148,19 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
     }
   };
 
+  // Get clients for a specific repository
+  const getRepoClients = (repoPath: string) => {
+    return status?.clients.filter(c => c.connected && c.repoPath === repoPath) || [];
+  };
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold uppercase tracking-wider">Wormhole Service</h2>
           <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mt-1">
-            File Synchronization & Branch Management (Port 8080)
+            File Synchronization (Port 8080)
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -191,236 +201,139 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
       </div>
 
       {connectionStatus === 'connected' && (
-        <>
-          {/* Active Branches Summary */}
-          {repositories.length > 0 && (
-            <div className="card bg-te-gray-50 dark:bg-te-gray-900 border-te-gray-300 dark:border-te-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold uppercase tracking-wider">Active Branches</h3>
-                <svg className="w-4 h-4 text-green-600 dark:text-te-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {Array.from(new Set(repositories.flatMap(repo => repo.activeBranches))).map((branch, index) => {
-                  const clientCount = status?.clients.filter(c => c.connected && c.branch === branch).length || 0;
-                  const isMainBranch = branch === 'main' || branch === 'master';
-                  
-                  return (
-                    <div key={index} className={`${
-                      isMainBranch 
-                        ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900' 
-                        : 'bg-green-600 dark:bg-green-500 text-white'
-                    } px-3 py-1 rounded-full flex items-center gap-2`}>
-                      <span className="text-xs font-medium">{branch}</span>
-                      <span className="text-2xs opacity-75">({clientCount} client{clientCount !== 1 ? 's' : ''})</span>
-                    </div>
-                  );
-                })}
-              </div>
+        <div className="space-y-3">
+          {repositories.length === 0 ? (
+            <div className="card">
+              <p className="text-sm text-te-gray-600 dark:text-te-gray-500 text-center py-8">
+                No repositories found. Waiting for clients to connect...
+              </p>
             </div>
-          )}
+          ) : (
+            repositories.map((repo) => {
+              const repoClients = getRepoClients(repo.repoPath);
+              const isExpanded = expandedRepos.has(repo.repoPath);
+              const mainBranch = repo.branches.find(b => b === 'main' || b === 'master') || repo.branches[0];
+              
+              return (
+                <div key={repo.repoPath} className="card">
+                  {/* Repository Header */}
+                  <div 
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => toggleRepo(repo.repoPath)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <svg 
+                        className={`w-4 h-4 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
+                          isExpanded ? 'rotate-90' : ''
+                        }`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <div>
+                        <h3 className="font-mono text-sm font-medium">{repo.repoPath}</h3>
+                        <div className="flex items-center space-x-3 mt-1">
+                          <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
+                            {repoClients.length} connected client{repoClients.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
+                            {repo.branches.length} branch{repo.branches.length !== 1 ? 'es' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {repo.activeBranches.map((branch) => (
+                        <span 
+                          key={branch}
+                          className={`text-xs px-2 py-1 rounded ${
+                            branch === mainBranch
+                              ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900'
+                              : 'bg-green-600 dark:bg-green-500 text-white'
+                          }`}
+                        >
+                          {branch}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Repository Status */}
-          <div className="card">
-            <h3 className="text-sm font-semibold uppercase tracking-wider mb-3">Repository Status</h3>
-            {repositories.length === 0 ? (
-              <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No repositories found</p>
-            ) : (
-              <div className="space-y-3">
-                {repositories.map((repo, index) => (
-                  <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-3 last:border-0">
-                    <p className="font-mono text-xs font-medium">{repo.repoPath}</p>
-                    <div className="mt-2 space-y-1">
-                      {/* Active branches display */}
-                      {repo.activeBranches.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-2xs text-te-gray-600 dark:text-te-gray-500 uppercase tracking-wider">Active:</span>
-                          <div className="flex flex-wrap gap-1">
-                            {repo.activeBranches.map((branch, branchIndex) => (
-                              <span key={branchIndex} className="badge-success text-2xs">
-                                {branch}
-                              </span>
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="mt-4 space-y-4">
+                      {/* Connected Clients */}
+                      {repoClients.length > 0 && (
+                        <div>
+                          <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                            Connected Clients
+                          </h4>
+                          <div className="space-y-2">
+                            {repoClients.map((client) => (
+                              <div 
+                                key={client.id}
+                                className="flex items-center justify-between text-xs bg-te-gray-50 dark:bg-te-gray-900 p-2 rounded"
+                              >
+                                <span className="font-mono">{client.id}</span>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-2 py-0.5 rounded ${
+                                    client.branch === mainBranch
+                                      ? 'bg-te-gray-800 dark:bg-te-yellow text-white dark:text-te-gray-900'
+                                      : 'bg-green-600 dark:bg-green-500 text-white'
+                                  }`}>
+                                    {client.branch}
+                                  </span>
+                                  <span className="text-te-gray-500 dark:text-te-gray-600">
+                                    {new Date(client.lastActivity).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
                       )}
-                      <div className="flex items-center justify-between text-2xs text-te-gray-600 dark:text-te-gray-500">
-                        <span>{repo.connectedClientCount}/{repo.clientCount} clients connected</span>
-                        <span>{repo.branches.length} total branches</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* Connected Clients */}
-          <div className="card">
-            <h3 className="text-sm font-semibold uppercase tracking-wider mb-3">Connected Clients</h3>
-            {status?.clients.filter(c => c.connected).length === 0 ? (
-              <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No connected clients</p>
-            ) : (
-              <div className="space-y-2">
-                {status?.clients.filter(c => c.connected).map((client, index) => {
-                  // Determine if this branch is the main/master branch
-                  const isMainBranch = client.branch === 'main' || client.branch === 'master';
-                  
-                  return (
-                    <div key={index} className="border-b border-te-gray-200 dark:border-te-gray-800 pb-2 last:border-0">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <span className="font-mono text-xs block">{client.id}</span>
-                          <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
-                            {client.repoPath}
-                          </p>
+                      {/* Branch Management */}
+                      <div>
+                        <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                          Branch Management
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {repo.branches.map((branch) => {
+                            const isActive = repo.activeBranches.includes(branch);
+                            const isMain = branch === mainBranch;
+                            
+                            return (
+                              <button
+                                key={branch}
+                                onClick={() => handleBranchSwitch(repo.repoPath, branch)}
+                                disabled={isActive}
+                                className={`text-xs px-3 py-1 rounded transition-colors ${
+                                  isActive
+                                    ? isMain
+                                      ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default'
+                                      : 'bg-green-600 dark:bg-green-500 text-white cursor-default'
+                                    : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
+                                }`}
+                                title={isActive ? 'Currently active' : 'Click to switch all clients to this branch'}
+                              >
+                                {branch}
+                                {isActive && ' ✓'}
+                              </button>
+                            );
+                          })}
                         </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`${
-                            isMainBranch 
-                              ? 'badge-primary' 
-                              : 'badge-success'
-                          } text-2xs flex items-center gap-1`}>
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                            </svg>
-                            {client.branch}
-                          </span>
-                          <span className="text-2xs text-te-gray-500 dark:text-te-gray-600">
-                            {new Date(client.lastActivity).toLocaleTimeString()}
-                          </span>
-                        </div>
+                        <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-2">
+                          Click any branch to switch all connected clients
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          </div>
-        </>
-      )}
-
-      {/* Branch Management */}
-      {connectionStatus === 'connected' && repositories.length > 0 && (
-        <div className="card">
-          <h3 className="text-sm font-semibold uppercase tracking-wider mb-3">Branch Management</h3>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
-                Repository
-              </label>
-              <select
-                value={selectedRepo}
-                onChange={(e) => setSelectedRepo(e.target.value)}
-                className="w-full"
-              >
-                <option value="">Select a repository</option>
-                {repositories.map((repo, index) => (
-                  <option key={index} value={repo.repoPath}>
-                    {repo.repoPath}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {selectedRepo && (
-              <>
-                {/* Show existing branches for selected repo */}
-                {(() => {
-                  const selectedRepoData = repositories.find(r => r.repoPath === selectedRepo);
-                  const currentActiveBranches = selectedRepoData?.activeBranches || [];
-                  
-                  return selectedRepoData && selectedRepoData.branches.length > 0 ? (
-                    <div>
-                      <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
-                        Available Branches
-                      </label>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {selectedRepoData.branches.map((branch, index) => {
-                          const isActive = currentActiveBranches.includes(branch);
-                          const isMainBranch = branch === 'main' || branch === 'master';
-                          
-                          return (
-                            <button
-                              key={index}
-                              onClick={() => setTargetBranch(branch)}
-                              className={`text-2xs px-2 py-1 rounded transition-colors ${
-                                targetBranch === branch
-                                  ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900'
-                                  : isActive
-                                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800'
-                                  : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
-                              }`}
-                              title={isActive ? 'Currently active branch' : 'Click to select'}
-                            >
-                              {branch}
-                              {isActive && ' ✓'}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
-                
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-1">
-                    Target Branch
-                  </label>
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      value={targetBranch}
-                      onChange={(e) => setTargetBranch(e.target.value)}
-                      placeholder="e.g., feature/new-feature"
-                      className="flex-1"
-                    />
-                    <button
-                      onClick={handleBranchSwitch}
-                      disabled={!targetBranch.trim()}
-                      className="btn-primary"
-                    >
-                      Switch Branch
-                    </button>
-                  </div>
-                  <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
-                    All connected clients will switch to this branch
-                  </p>
+                  )}
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* WebSocket Messages */}
-      {connectionStatus === 'connected' && (
-        <div className="card">
-          <h3 className="text-sm font-semibold uppercase tracking-wider mb-3">Activity Log</h3>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {messages.length === 0 ? (
-              <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No activity yet</p>
-            ) : (
-              messages.slice(-10).map((msg, index) => (
-                <div key={index} className="space-y-1">
-                  <div className="flex items-start space-x-2">
-                    <span className="text-2xs text-te-gray-600 dark:text-te-gray-500 whitespace-nowrap">
-                      {msg.timestamp.toLocaleTimeString()}
-                    </span>
-                    <div className="flex-1">
-                      <span className="badge-neutral text-2xs uppercase">{msg.type}</span>
-                      <pre className="font-mono text-2xs text-te-gray-600 dark:text-te-gray-400 mt-1 overflow-x-auto">
-                        {msg.content}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+              );
+            })
+          )}
         </div>
       )}
 
@@ -434,8 +347,7 @@ export default function WormholeSection({ vmId, publicIp }: WormholeSectionProps
       )}
 
       <div className="text-xs text-te-gray-600 dark:text-te-gray-500 space-y-1">
-        <p>• WebSocket connection: ws://{publicIp || '<public-ip>'}:8080</p>
-        <p>• REST API endpoints: http://{publicIp || '<public-ip>'}:8080/api/*</p>
+        <p>• WebSocket: ws://{publicIp || '<public-ip>'}:8080</p>
         <p>• Ensure port 8080 is accessible through firewall rules</p>
       </div>
     </div>
