@@ -22,26 +22,31 @@ api.interceptors.request.use((config) => {
         console.error('Failed to parse user data:', error);
       }
     }
-    return config;
-  }
-  
-  // Fall back to Google auth
-  const userId = localStorage.getItem('userId');
-  const authData = localStorage.getItem('auth');
-  
-  if (userId) {
-    config.headers['x-user-id'] = userId;
-  }
-  
-  if (authData) {
-    try {
-      const auth = JSON.parse(authData);
-      if (auth.accessToken) {
-        config.headers['Authorization'] = `Bearer ${auth.accessToken}`;
-      }
-    } catch (error) {
-      console.error('Failed to parse auth data:', error);
+  } else {
+    // Fall back to Google auth
+    const userId = localStorage.getItem('userId');
+    const authData = localStorage.getItem('auth');
+    
+    if (userId) {
+      config.headers['x-user-id'] = userId;
     }
+    
+    if (authData) {
+      try {
+        const auth = JSON.parse(authData);
+        if (auth.accessToken) {
+          config.headers['Authorization'] = `Bearer ${auth.accessToken}`;
+        }
+      } catch (error) {
+        console.error('Failed to parse auth data:', error);
+      }
+    }
+  }
+  
+  // Add organization ID if available
+  const organizationId = localStorage.getItem('currentOrganizationId');
+  if (organizationId) {
+    config.headers['x-organization-id'] = organizationId;
   }
   
   return config;

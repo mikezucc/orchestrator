@@ -23,23 +23,28 @@ class FetchClient {
         const user = JSON.parse(userData);
         headers['Authorization'] = `Bearer ${token}`;
         headers['x-user-id'] = user.id;
-        return headers;
       } catch (e) {
         console.error('Failed to parse user data:', e);
       }
+    } else {
+      // Fall back to Google auth
+      const authData = localStorage.getItem('auth');
+      if (authData) {
+        try {
+          const auth = JSON.parse(authData);
+          if (auth.accessToken) {
+            headers['Authorization'] = `Bearer ${auth.accessToken}`;
+          }
+        } catch (e) {
+          console.error('Failed to parse auth data:', e);
+        }
+      }
     }
 
-    // Fall back to Google auth
-    const authData = localStorage.getItem('auth');
-    if (authData) {
-      try {
-        const auth = JSON.parse(authData);
-        if (auth.accessToken) {
-          headers['Authorization'] = `Bearer ${auth.accessToken}`;
-        }
-      } catch (e) {
-        console.error('Failed to parse auth data:', e);
-      }
+    // Add organization ID if available
+    const organizationId = localStorage.getItem('currentOrganizationId');
+    if (organizationId) {
+      headers['x-organization-id'] = organizationId;
     }
 
     return headers;

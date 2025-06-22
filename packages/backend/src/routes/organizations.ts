@@ -8,8 +8,47 @@ import { requireRole } from '../middleware/auth.js';
 
 export const organizationRoutes = new Hono();
 
-// Apply middleware to all routes
+// Apply middleware to all routes except user memberships
 organizationRoutes.use('*', flexibleAuth);
+
+// Get user's organization memberships (doesn't require organization)
+organizationRoutes.get('/user/memberships', async (c) => {
+  try {
+    const userId = (c as any).userId || (c as any).user?.id;
+    
+    if (!userId) {
+      return c.json({ error: 'User not found' }, 401);
+    }
+
+    const memberships = await db
+      .select({
+        id: organizationMembers.id,
+        organizationId: organizationMembers.organizationId,
+        userId: organizationMembers.userId,
+        role: organizationMembers.role,
+        joinedAt: organizationMembers.joinedAt,
+        organization: {
+          id: organizations.id,
+          name: organizations.name,
+          slug: organizations.slug,
+          gcpRefreshToken: organizations.gcpRefreshToken,
+          gcpProjectIds: organizations.gcpProjectIds,
+          createdAt: organizations.createdAt,
+          updatedAt: organizations.updatedAt,
+        },
+      })
+      .from(organizationMembers)
+      .innerJoin(organizations, eq(organizations.id, organizationMembers.organizationId))
+      .where(eq(organizationMembers.userId, userId));
+
+    return c.json(memberships);
+  } catch (error) {
+    console.error('Error fetching user memberships:', error);
+    return c.json({ error: 'Failed to fetch memberships' }, 500);
+  }
+});
+
+// Apply organization requirement to remaining routes
 organizationRoutes.use('*', flexibleRequireOrganization);
 
 // Get my organization (simplified endpoint for frontend)

@@ -38,6 +38,12 @@ export interface TeamInvitation {
 }
 
 export const organizationApi = {
+  // Get current user's organization memberships
+  getUserMemberships: async (): Promise<Array<OrganizationMember & { organization: Organization }>> => {
+    const { data } = await api.get('/organizations/user/memberships');
+    return data;
+  },
+
   // Get current user's organization
   getMyOrganization: async (): Promise<Organization> => {
     const { data } = await api.get('/organizations/my-organization');

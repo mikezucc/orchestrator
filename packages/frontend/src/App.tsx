@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { OrganizationProvider } from './contexts/OrganizationContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import VMs from './pages/VMs';
@@ -20,19 +21,21 @@ function App() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <Router>
-              <Routes>
-                <Route path="/login" element={<LoginOTP />} />
-                <Route path="/login-google" element={<Login />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
-                <Route path="/" element={<Layout />}>
-                  <Route index element={<Dashboard />} />
-                  <Route path="vms" element={<VMs />} />
-                  <Route path="vms/:id" element={<VMDetail />} />
-                  <Route path="organization/settings" element={<OrganizationSettings />} />
-                </Route>
-              </Routes>
-            </Router>
+            <OrganizationProvider>
+              <Router>
+                <Routes>
+                  <Route path="/login" element={<LoginOTP />} />
+                  <Route path="/login-google" element={<Login />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/" element={<Layout />}>
+                    <Route index element={<Dashboard />} />
+                    <Route path="vms" element={<VMs />} />
+                    <Route path="vms/:id" element={<VMDetail />} />
+                    <Route path="organization/settings" element={<OrganizationSettings />} />
+                  </Route>
+                </Routes>
+              </Router>
+            </OrganizationProvider>
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>

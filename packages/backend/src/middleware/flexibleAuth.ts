@@ -11,6 +11,7 @@ export const flexibleAuth: MiddlewareHandler = async (c, next) => {
     const authHeader = c.req.header('Authorization');
     const token = authHeader?.replace('Bearer ', '');
     const userId = c.req.header('x-user-id');
+    const organizationIdHeader = c.req.header('x-organization-id');
 
     if (!token) {
       return c.json({ success: false, error: 'No authentication token provided' }, 401);
@@ -50,7 +51,7 @@ export const flexibleAuth: MiddlewareHandler = async (c, next) => {
       // Attach user and organization to context
       (c as any).user = user;
       (c as any).userId = user.id;
-      (c as any).organizationId = decoded.organizationId;
+      (c as any).organizationId = organizationIdHeader || decoded.organizationId;
       (c as any).authType = 'otp';
 
       // Get member role if organization is set
@@ -89,7 +90,7 @@ export const flexibleAuth: MiddlewareHandler = async (c, next) => {
           // Attach user info to context
           (c as any).user = user;
           (c as any).userId = user.id;
-          (c as any).organizationId = null; // Will be set by flexibleRequireOrganization
+          (c as any).organizationId = organizationIdHeader || null; // Use header or will be set by flexibleRequireOrganization
           (c as any).authType = 'google';
 
           // Get member role if organization is set

@@ -1,10 +1,13 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 import ThemeToggle from './ThemeToggle';
+import OrganizationSwitcher from './OrganizationSwitcher';
 import { useEffect } from 'react';
 
 export default function Layout() {
   const { isAuthenticated, logout, isLoading } = useAuth();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -14,7 +17,7 @@ export default function Layout() {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
-  if (isLoading) {
+  if (isLoading || orgLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
@@ -79,6 +82,8 @@ export default function Layout() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <OrganizationSwitcher />
+              <div className="h-6 w-px bg-te-gray-300 dark:bg-te-gray-700" />
               <ThemeToggle />
               <button
                 onClick={logout}
