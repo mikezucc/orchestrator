@@ -606,7 +606,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                 }
                                 
                                 return allBranches.map((branch: string) => {
-                                  const isActive = repo?.activeBranches.includes(branch) || daemon?.repository.branch === branch;
+                                  const isActive = daemon?.repository.branch === branch;
                                   const isMain = branch === mainBranch;
                                   const isLocal = localBranches.includes(branch);
                                   const isRemote = remoteBranches.includes(branch);
