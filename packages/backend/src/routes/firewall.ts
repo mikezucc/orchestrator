@@ -1,36 +1,39 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { firewallRules, virtualMachines } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { CreateFirewallRuleRequest, ApiResponse, FirewallRule } from '@gce-platform/types';
 import { createFirewallRule, deleteFirewallRule } from '../services/gcp.js';
 import { syncFirewallRulesForVM } from '../services/gcp-firewall-sync.js';
-import { getValidAccessToken } from '../services/auth.js';
+import { getOrganizationAccessToken } from '../services/organization-auth.js';
+import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 
 export const firewallRoutes = new Hono();
 
+// Apply flexible auth middleware to all routes
+firewallRoutes.use('*', flexibleAuth, flexibleRequireOrganization);
+
 firewallRoutes.get('/vm/:vmId', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('vmId');
   const shouldSync = c.req.query('sync') === 'true';
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   // Sync firewall rules from GCP if requested
   let syncErrors: string[] = [];
-  if (shouldSync && providedToken) {
+  if (shouldSync) {
     try {
-      const accessToken = await getValidAccessToken(userId, providedToken);
+      const accessToken = await getOrganizationAccessToken(organizationId);
       if (accessToken) {
         const syncResult = await syncFirewallRulesForVM(userId, vmId, accessToken);
         console.log(`Synced ${syncResult.synced} firewall rules for VM ${vmId}`);
@@ -61,27 +64,27 @@ firewallRoutes.get('/vm/:vmId', async (c) => {
 });
 
 firewallRoutes.post('/', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
-  
-  if (!accessToken) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
-  }
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
 
   const body = await c.req.json<CreateFirewallRuleRequest>();
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, body.vmId));
+    .where(and(
+      eq(virtualMachines.id, body.vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   try {
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to get access token' }, 401);
+    }
+
     const gcpRule = await createFirewallRule({
       projectId: vm.gcpProjectId,
       name: body.name,
@@ -110,28 +113,28 @@ firewallRoutes.post('/', async (c) => {
 });
 
 firewallRoutes.delete('/:id', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const ruleId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
-  
-  if (!accessToken) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
-  }
 
   const [rule] = await db.select()
     .from(firewallRules)
     .innerJoin(virtualMachines, eq(firewallRules.vmId, virtualMachines.id))
-    .where(eq(firewallRules.id, ruleId));
+    .where(and(
+      eq(firewallRules.id, ruleId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!rule || rule.virtual_machines.userId !== userId) {
+  if (!rule) {
     return c.json<ApiResponse<never>>({ success: false, error: 'Firewall rule not found' }, 404);
   }
 
   try {
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to get access token' }, 401);
+    }
+
     await deleteFirewallRule(rule.virtual_machines.gcpProjectId, rule.firewall_rules.gcpRuleId!, accessToken);
     await db.delete(firewallRules).where(eq(firewallRules.id, ruleId));
 

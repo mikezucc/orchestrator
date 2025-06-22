@@ -7,7 +7,6 @@ import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine } fr
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
 import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
-import { getValidAccessToken } from '../services/auth.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
 import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 
@@ -88,31 +87,33 @@ vmRoutes.get('/', async (c) => {
 });
 
 vmRoutes.get('/:id', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
   const shouldSync = c.req.query('sync') === 'true';
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   let [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   // Sync VM data from GCP if requested
-  if (shouldSync && providedToken) {
+  if (shouldSync) {
     try {
-      const accessToken = await getValidAccessToken(userId, providedToken);
+      const accessToken = await getOrganizationAccessToken(organizationId);
       if (accessToken) {
         await syncSingleVM(userId, vmId, accessToken);
         // Fetch updated VM data
         [vm] = await db.select().from(virtualMachines)
-          .where(eq(virtualMachines.id, vmId));
+          .where(and(
+            eq(virtualMachines.id, vmId),
+            eq(virtualMachines.organizationId, organizationId)
+          ));
       }
     } catch (error) {
       console.error('Failed to sync VM data:', error);
@@ -124,20 +125,18 @@ vmRoutes.get('/:id', async (c) => {
 });
 
 vmRoutes.post('/', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
-  
-  if (!accessToken) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
-  }
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
 
   const body = await c.req.json<CreateVMRequest>();
   
   try {
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+    }
+
     const gcpInstance = await createVM({
       projectId: body.gcpProjectId,
       zone: body.zone,
@@ -149,6 +148,7 @@ vmRoutes.post('/', async (c) => {
 
     const [vm] = await db.insert(virtualMachines).values({
       userId,
+      organizationId,
       name: body.name,
       gcpProjectId: body.gcpProjectId,
       zone: body.zone,
@@ -165,24 +165,23 @@ vmRoutes.post('/', async (c) => {
 });
 
 vmRoutes.post('/:id/start', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   try {
-    // Get a valid access token (either use provided or refresh)
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
@@ -220,24 +219,23 @@ vmRoutes.post('/:id/start', async (c) => {
 });
 
 vmRoutes.post('/:id/stop', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   try {
-    // Get a valid access token (either use provided or refresh)
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
@@ -269,18 +267,17 @@ vmRoutes.post('/:id/stop', async (c) => {
 });
 
 vmRoutes.post('/:id/suspend', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
@@ -289,8 +286,8 @@ vmRoutes.post('/:id/suspend', async (c) => {
   }
 
   try {
-    // Get a valid access token (either use provided or refresh)
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
@@ -322,13 +319,9 @@ vmRoutes.post('/:id/suspend', async (c) => {
 });
 
 vmRoutes.post('/:id/duplicate', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   const body = await c.req.json<{ name: string; startupScript?: string }>();
   
@@ -336,24 +329,30 @@ vmRoutes.post('/:id/duplicate', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: 'New VM name is required' }, 400);
   }
 
-  // Check if name already exists
+  // Check if name already exists within the organization
   const existingVm = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.name, body.name));
+    .where(and(
+      eq(virtualMachines.name, body.name),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
   
   if (existingVm.length > 0) {
     return c.json<ApiResponse<never>>({ success: false, error: 'A VM with this name already exists' }, 400);
   }
 
   const [sourceVm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!sourceVm || sourceVm.userId !== userId) {
+  if (!sourceVm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'Source VM not found' }, 404);
   }
 
   try {
-    // Get a valid access token (either use provided or refresh)
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
@@ -377,6 +376,7 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       machineType: sourceVm.machineType,
       status: 'pending',
       userId,
+      organizationId,
       initScript: body.startupScript || sourceVm.initScript,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -430,26 +430,27 @@ vmRoutes.post('/:id/duplicate', async (c) => {
 });
 
 vmRoutes.delete('/:id', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('id');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
-  
-  if (!accessToken) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'Access token required' }, 401);
-  }
 
   const [vm] = await db.select().from(virtualMachines)
-    .where(eq(virtualMachines.id, vmId));
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
 
-  if (!vm || vm.userId !== userId) {
+  if (!vm) {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
   try {
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+    }
+
     await deleteVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
     await db.delete(virtualMachines).where(eq(virtualMachines.id, vmId));
 
