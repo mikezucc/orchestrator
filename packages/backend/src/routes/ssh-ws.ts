@@ -12,6 +12,29 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
   // Store active SSH connections
   const activeConnections = new Map<any, { sshClient: SSHClient | null; stream: any }>();
 
+  // Add a test endpoint
+  sshWebSocketRoute.get('/test', 
+    upgradeWebSocket((c) => {
+      console.log('Test WebSocket upgrade requested');
+      return {
+        onOpen: (event, ws) => {
+          console.log('Test WebSocket opened');
+          ws.send('Hello from test WebSocket!');
+        },
+        onMessage: (event, ws) => {
+          console.log('Test message received:', event.data);
+          ws.send(`Echo: ${event.data}`);
+        },
+        onClose: () => {
+          console.log('Test WebSocket closed');
+        },
+        onError: (error) => {
+          console.error('Test WebSocket error:', error);
+        }
+      };
+    })
+  );
+
   sshWebSocketRoute.get('/', 
   upgradeWebSocket((c) => {
     // Get query parameters
@@ -28,7 +51,7 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
     let stream: any = null;
 
     return {
-      onOpen: async (event, ws) => {
+      onOpen: (event, ws) => {
         console.log('WebSocket opened');
         
         if (!userId || !vmId) {
@@ -40,7 +63,9 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
         // Initialize connection state
         activeConnections.set(ws, { sshClient: null, stream: null });
 
-        try {
+        // Handle SSH setup asynchronously
+        (async () => {
+          try {
           // Get VM and user details
           console.log('Fetching VM from database:', { vmId, userId });
           const [vm] = await db.select().from(virtualMachines)
@@ -200,13 +225,14 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
           
           sshClient.connect(sshConfig);
 
-        } catch (error: any) {
-          console.error('=== WebSocket SSH setup error ===');
-          console.error('Error:', error.message);
-          console.error('Error stack:', error.stack);
-          ws.send(JSON.stringify({ type: 'error', data: error.message || 'Connection failed' }));
-          ws.close();
-        }
+          } catch (error: any) {
+            console.error('=== WebSocket SSH setup error ===');
+            console.error('Error:', error.message);
+            console.error('Error stack:', error.stack);
+            ws.send(JSON.stringify({ type: 'error', data: error.message || 'Connection failed' }));
+            ws.close();
+          }
+        })(); // Execute the async function
       },
       
       onMessage: async (event: any, ws: any) => {
@@ -260,7 +286,10 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
       },
       
       onError: (event: any, ws: any) => {
-        console.error('WebSocket error:', event);
+        console.error('WebSocket error event:', event);
+        console.error('Error type:', typeof event);
+        console.error('Error details:', JSON.stringify(event, null, 2));
+        
         const connState = activeConnections.get(ws);
         
         if (connState) {

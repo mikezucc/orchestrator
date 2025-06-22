@@ -122,6 +122,8 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       ws.onopen = () => {
         console.log('WebSocket opened successfully');
         console.log('WebSocket readyState:', ws.readyState);
+        console.log('WebSocket protocol:', ws.protocol);
+        console.log('WebSocket extensions:', ws.extensions);
       };
 
       ws.onmessage = (event) => {
@@ -162,13 +164,22 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         console.error('WebSocket error event:', error);
         console.error('WebSocket readyState:', ws.readyState);
         console.error('WebSocket url:', ws.url);
+        console.error('Error type:', error.type);
+        console.error('Full error object:', error);
         term.writeln('\x1b[31m❌ Connection error\x1b[0m');
         showError('Failed to connect to SSH');
         setIsConnecting(false);
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket closed:', { code: event.code, reason: event.reason, wasClean: event.wasClean });
+        console.log('WebSocket closed:', { 
+          code: event.code, 
+          reason: event.reason, 
+          wasClean: event.wasClean,
+          type: event.type,
+          timeStamp: event.timeStamp
+        });
+        console.log('Close event codes: 1000=Normal, 1001=Going Away, 1002=Protocol Error, 1003=Unsupported Data, 1006=Abnormal Closure');
         setIsConnected(false);
         if (!isConnecting) {
           term.writeln('\x1b[33m⚠️  Connection closed\x1b[0m');

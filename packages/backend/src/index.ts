@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createNodeWebSocket } from '@hono/node-ws';
+import { createServer } from 'node:http';
 import * as dotenv from 'dotenv';
 import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
@@ -60,17 +61,36 @@ const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 const sshWebSocketRoute = createSSHWebSocketRoute(upgradeWebSocket);
 app.route('/ssh-ws', sshWebSocketRoute);
 
-// Create and start server
+// Add a debug route to check if routes are registered
+app.get('/debug/routes', (c) => {
+  return c.json({
+    routes: app.routes.map(r => ({
+      method: r.method,
+      path: r.path,
+    }))
+  });
+});
+
+// Create HTTP server
+const httpServer = createServer();
+
+// Add debugging for upgrade requests
+httpServer.on('upgrade', (request, socket, head) => {
+  console.log('=== HTTP Upgrade Request ===');
+  console.log('URL:', request.url);
+  console.log('Upgrade header:', request.headers.upgrade);
+});
+
+// Inject WebSocket handler into the server BEFORE starting it
+injectWebSocket(httpServer);
+
+// Create and start server with the prepared HTTP server
 const server = serve({
   fetch: app.fetch,
   port,
-}, (info) => {
-  console.log(`Server is running on http://localhost:${port}`);
-  console.log(`SSH WebSocket available at ws://localhost:${port}/ssh-ws`);
-  console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
-  
-  // Inject WebSocket into the server
-  if (info.server) {
-    injectWebSocket(info.server);
-  }
+  server: httpServer,
 });
+
+console.log(`Server is running on http://localhost:${port}`);
+console.log(`SSH WebSocket available at ws://localhost:${port}/ssh-ws`);
+console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);

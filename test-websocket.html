@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <button onclick="testWebSocket()">Test WebSocket</button>
+    <div id="output"></div>
+    
+    <script>
+        function testWebSocket() {
+            const output = document.getElementById('output');
+            output.innerHTML = 'Connecting...<br>';
+            
+            const ws = new WebSocket('ws://localhost:3000/ssh-ws/test');
+            
+            ws.onopen = function() {
+                output.innerHTML += 'Connected!<br>';
+                ws.send('Hello Server!');
+            };
+            
+            ws.onmessage = function(event) {
+                output.innerHTML += 'Received: ' + event.data + '<br>';
+            };
+            
+            ws.onerror = function(error) {
+                output.innerHTML += 'Error: ' + error + '<br>';
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onclose = function(event) {
+                output.innerHTML += 'Closed: ' + event.code + ' ' + event.reason + '<br>';
+            };
+        }
+    </script>
+</body>
+</html>
