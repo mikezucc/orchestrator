@@ -42,6 +42,8 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       cursorBlink: true,
       fontSize: 14,
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      allowProposedApi: true,
+      unicode11: true,
       theme: {
         background: '#1a1a1a',
         foreground: '#d4d4d4',
@@ -164,8 +166,21 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
               
             case 'data':
               // Decode base64 data and write to terminal
-              const data = atob(msg.data);
-              term.write(data);
+              // Use proper UTF-8 decoding
+              try {
+                const binaryString = atob(msg.data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+                }
+                const decoder = new TextDecoder('utf-8');
+                const text = decoder.decode(bytes);
+                term.write(text);
+              } catch (e) {
+                console.error('Error decoding terminal data:', e);
+                // Fallback to simple decoding
+                term.write(atob(msg.data));
+              }
               break;
               
             case 'status':
@@ -220,12 +235,27 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         });
         
         if (ws.readyState === WebSocket.OPEN) {
-          // Send input to WebSocket
+          // Send input to WebSocket with proper UTF-8 encoding
           console.log('Sending data to WebSocket:', data);
-          ws.send(JSON.stringify({
-            type: 'data',
-            data: btoa(data)
-          }));
+          try {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(data);
+            let binaryString = '';
+            for (let i = 0; i < bytes.length; i++) {
+              binaryString += String.fromCharCode(bytes[i]);
+            }
+            ws.send(JSON.stringify({
+              type: 'data',
+              data: btoa(binaryString)
+            }));
+          } catch (e) {
+            console.error('Error encoding terminal input:', e);
+            // Fallback to simple encoding
+            ws.send(JSON.stringify({
+              type: 'data',
+              data: btoa(data)
+            }));
+          }
         } else {
           console.warn('WebSocket not open, cannot send data');
         }
