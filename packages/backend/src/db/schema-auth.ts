@@ -77,7 +77,7 @@ export const sessions = pgTable('sessions', {
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   organizationId: text('organization_id').references(() => organizations.id),
-  userId: text('user_id').references(() => authUsers.id).notNull(),
+  userId: text('user_id').references(() => authUsers.id), // Nullable for OAuth callbacks
   action: text('action').notNull(), // e.g., 'member.invited', 'member.removed', 'vm.created', etc.
   resourceType: text('resource_type'), // e.g., 'user', 'vm', 'organization'
   resourceId: text('resource_id'),
