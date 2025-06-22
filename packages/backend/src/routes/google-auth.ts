@@ -28,7 +28,7 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
     scope: [
       'https://www.googleapis.com/auth/compute',
       'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/cloud-platform.read-only'
+      'https://www.googleapis.com/auth/cloudresourcemanager.readonly'
     ],
     prompt: 'consent', // Force consent screen to get new refresh token
   });
@@ -50,7 +50,7 @@ googleAuthRoutes.get('/', flexibleAuth, flexibleRequireOrganization, requireRole
     scope: [
       'https://www.googleapis.com/auth/compute',
       'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/cloud-platform.read-only'
+      'https://www.googleapis.com/auth/cloudresourcemanager.readonly'
     ],
     prompt: 'consent', // Force consent screen to get new refresh token
   });
