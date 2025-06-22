@@ -1,16 +1,27 @@
 import { Hono } from 'hono';
 import { eq, and } from 'drizzle-orm';
-import { db } from '../db';
-import { portDescriptions, virtualMachines } from '../db/schema';
-import { verifyVM } from '../middleware/auth';
+import { db } from '../db/index.js';
+import { portDescriptions, virtualMachines } from '../db/schema.js';
 
 const ports = new Hono();
 
 // Get port descriptions for a VM
-ports.get('/:vmId/ports', verifyVM, async (c) => {
+ports.get('/:vmId/ports', async (c) => {
   const { vmId } = c.req.param();
+  const userId = c.req.header('x-user-id');
+  
+  if (!userId) {
+    return c.json({ success: false, error: 'User ID required' }, 401);
+  }
   
   try {
+    // Verify VM ownership
+    const [vm] = await db.select().from(virtualMachines)
+      .where(eq(virtualMachines.id, vmId));
+    
+    if (!vm || vm.userId !== userId) {
+      return c.json({ success: false, error: 'VM not found' }, 404);
+    }
     const descriptions = await db
       .select()
       .from(portDescriptions)
@@ -24,9 +35,14 @@ ports.get('/:vmId/ports', verifyVM, async (c) => {
 });
 
 // Create or update port description
-ports.put('/:vmId/ports', verifyVM, async (c) => {
+ports.put('/:vmId/ports', async (c) => {
   const { vmId } = c.req.param();
   const userId = c.req.header('x-user-id');
+  
+  if (!userId) {
+    return c.json({ success: false, error: 'User ID required' }, 401);
+  }
+  
   const { port, protocol, name, description, processName } = await c.req.json();
   
   if (!port || !protocol || !name) {
@@ -34,6 +50,13 @@ ports.put('/:vmId/ports', verifyVM, async (c) => {
   }
   
   try {
+    // Verify VM ownership
+    const [vm] = await db.select().from(virtualMachines)
+      .where(eq(virtualMachines.id, vmId));
+    
+    if (!vm || vm.userId !== userId) {
+      return c.json({ success: false, error: 'VM not found' }, 404);
+    }
     // Check if description already exists
     const existing = await db
       .select()
@@ -72,7 +95,7 @@ ports.put('/:vmId/ports', verifyVM, async (c) => {
           name,
           description,
           processName,
-          createdBy: userId!,
+          createdBy: userId,
         })
         .returning();
       
@@ -85,10 +108,22 @@ ports.put('/:vmId/ports', verifyVM, async (c) => {
 });
 
 // Delete port description
-ports.delete('/:vmId/ports/:portId', verifyVM, async (c) => {
+ports.delete('/:vmId/ports/:portId', async (c) => {
   const { vmId, portId } = c.req.param();
+  const userId = c.req.header('x-user-id');
+  
+  if (!userId) {
+    return c.json({ success: false, error: 'User ID required' }, 401);
+  }
   
   try {
+    // Verify VM ownership
+    const [vm] = await db.select().from(virtualMachines)
+      .where(eq(virtualMachines.id, vmId));
+    
+    if (!vm || vm.userId !== userId) {
+      return c.json({ success: false, error: 'VM not found' }, 404);
+    }
     await db
       .delete(portDescriptions)
       .where(
