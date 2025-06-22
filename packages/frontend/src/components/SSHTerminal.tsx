@@ -19,12 +19,11 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const isInitializedRef = useRef(false);
   const { showError, showSuccess } = useToast();
   const { userId, auth } = useAuth();
 
   const _onClose = () => {
-    console.log('Cleaning up terminal and WebSocket connection');
+    console.log('Closing SSH terminal');
     if (wsRef.current) {
       wsRef.current.close();
     }
@@ -33,13 +32,9 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   }
 
   useEffect(() => {
-    if (!terminalRef.current || isInitializedRef.current) return;
+    if (!terminalRef.current) return;
 
     console.log('Initializing SSH terminal for VM:', vm.id, vm.name, vm.publicIp);
-    console.trace('render useEffect');
-    
-    // Mark as initialized to prevent double initialization
-    isInitializedRef.current = true;
 
     // Initialize terminal
     const term = new Terminal({
@@ -78,27 +73,26 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     term.open(terminalRef.current);
     fitAddon.fit();
     fitAddonRef.current = fitAddon;
+    
+    setTerminal(term);
 
     // Handle window resize
     const handleResize = () => fitAddon.fit();
     window.addEventListener('resize', handleResize);
 
-    setTerminal(term);
-
     // Setup WebSocket SSH connection
     setupWebSocketConnection(term);
 
     return () => {
-      console.log('Cleaning up terminal effect');
+      console.log('Cleaning up terminal');
       window.removeEventListener('resize', handleResize);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
       term.dispose();
-      isInitializedRef.current = false;
     };
-  }, []);
+  }, []); // Empty dependency to run only once
 
   const setupWebSocketConnection = async (term: Terminal) => {
     try {
