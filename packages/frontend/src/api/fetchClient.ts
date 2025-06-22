@@ -16,11 +16,11 @@ class FetchClient {
     
     // Check for OTP auth token first
     const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('userData');
+    const userStr = localStorage.getItem('user');
     
-    if (token && userData) {
+    if (token && userStr) {
       try {
-        const user = JSON.parse(userData);
+        const user = JSON.parse(userStr);
         headers['Authorization'] = `Bearer ${token}`;
         headers['x-user-id'] = user.id;
       } catch (e) {

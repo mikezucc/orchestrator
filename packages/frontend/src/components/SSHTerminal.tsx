@@ -21,7 +21,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const isConnectedRef = useRef(false);
   const { showError, showSuccess } = useToast();
-  const { userId, auth } = useAuth();
+  const { userId, auth, currentOrganizationId } = useAuth();
 
   const _onClose = () => {
     console.log('Closing SSH terminal');
@@ -111,11 +111,28 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const setupWebSocketConnection = async (term: Terminal) => {
     try {
       console.log('Setting up WebSocket connection');
-      console.log('Auth state:', { userId, hasAuth: !!auth, hasToken: !!auth?.accessToken });
       
-      if (!userId || !auth) {
+      // Get authentication token - support both OTP and Google auth
+      let token = '';
+      let authUserId = userId;
+      
+      // Check for OTP auth first
+      const otpToken = localStorage.getItem('token');
+      const userStr = localStorage.getItem('user');
+      
+      if (otpToken && userStr) {
+        token = otpToken;
+        const user = JSON.parse(userStr);
+        authUserId = user.id;
+        console.log('Using OTP auth');
+      } else if (auth?.accessToken) {
+        token = auth.accessToken;
+        console.log('Using Google auth');
+      } else {
         throw new Error('User not authenticated');
       }
+      
+      console.log('Auth state:', { authUserId, hasToken: !!token, organizationId: currentOrganizationId });
 
       term.writeln('🔐 Connecting to SSH...');
       
@@ -125,10 +142,11 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       if (host.includes(':5173')) {
         host = host.replace(':5173', ':3000'); // Replace dev port with backend port
       }
-      const wsUrl = `${protocol}//${host}/ssh-ws?userId=${userId}&vmId=${vm.id}&token=${encodeURIComponent(auth.accessToken || '')}`;
+      const wsUrl = `${protocol}//${host}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
       
       console.log('WebSocket URL:', wsUrl);
       console.log('VM details:', { id: vm.id, name: vm.name, publicIp: vm.publicIp });
+      console.log('Organization ID:', currentOrganizationId);
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
