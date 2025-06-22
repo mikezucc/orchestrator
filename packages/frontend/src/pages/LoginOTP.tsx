@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
+import { fetchClient } from '../api/fetchClient';
 
 export default function LoginOTP() {
   const navigate = useNavigate();
@@ -20,16 +21,10 @@ export default function LoginOTP() {
     setError('');
     
     try {
-      const response = await fetch('/api/auth/otp/request-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
+      const response = await fetchClient.post('/auth/otp/request-otp', { email }, { skipAuth: true });
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to send OTP');
       }
 
       setStep('otp');
@@ -48,21 +43,16 @@ export default function LoginOTP() {
     setError('');
     
     try {
-      const response = await fetch('/api/auth/otp/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      const data = await response.json();
+      const response = await fetchClient.post('/auth/otp/verify-otp', { email, otp }, { skipAuth: true });
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to verify OTP');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to verify OTP');
       }
 
       // Store token in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem('userData', JSON.stringify(response.data.user));
       
       // Update auth context
       setIsAuthenticated(true);

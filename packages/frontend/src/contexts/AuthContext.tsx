@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import type { GCPAuthResponse } from '@gce-platform/types';
+import { fetchClient } from '../api/fetchClient';
 
 interface AuthContextType {
   auth: GCPAuthResponse | null;
@@ -44,7 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = () => {
-    window.location.href = 'http://localhost:3000/api/auth/google';
+    const apiURL = process.env.NODE_ENV === 'production' 
+      ? '/api/auth/google'
+      : 'http://localhost:3000/api/auth/google';
+    window.location.href = apiURL;
   };
 
   const logout = async () => {
@@ -53,12 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       // OTP auth logout
       try {
-        await fetch('/api/auth/otp/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        await fetchClient.post('/auth/otp/logout');
       } catch (error) {
         console.error('Logout error:', error);
       }

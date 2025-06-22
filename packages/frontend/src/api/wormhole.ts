@@ -1,4 +1,5 @@
 import { api } from './client';
+import { FetchClient } from './fetchClient';
 import type { 
   ApiResponse, 
   WormholeStatus, 
@@ -45,27 +46,35 @@ export const wormholeApi = {
 
   // Direct API calls to the Wormhole server
   directApi: {
-    getStatus: (publicIp: string) => 
-      fetch(`http://${publicIp}:8080/api/status`).then(r => r.json()),
+    getStatus: async (publicIp: string) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.get('/status', { skipAuth: true });
+    },
     
-    getRepositories: (publicIp: string) => 
-      fetch(`http://${publicIp}:8080/api/repositories`).then(r => r.json()),
+    getRepositories: async (publicIp: string) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.get('/repositories', { skipAuth: true });
+    },
     
-    getPorts: (publicIp: string) => 
-      fetch(`http://${publicIp}:8080/api/ports`).then(r => r.json()),
+    getPorts: async (publicIp: string) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.get('/ports', { skipAuth: true });
+    },
     
-    getDaemons: (publicIp: string) => 
-      fetch(`http://${publicIp}:8080/api/daemons`).then(r => r.json()),
+    getDaemons: async (publicIp: string) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.get('/daemons', { skipAuth: true });
+    },
     
-    switchBranch: (publicIp: string, request: WormholeBranchSwitchRequest) => 
-      fetch(`http://${publicIp}:8080/api/branch-switch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request)
-      }).then(r => r.json()),
+    switchBranch: async (publicIp: string, request: WormholeBranchSwitchRequest) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.post('/branch-switch', request, { skipAuth: true });
+    },
     
-    triggerScan: (publicIp: string) => 
-      fetch(`http://${publicIp}:8080/api/scan`, { method: 'POST' }).then(r => r.json()),
+    triggerScan: async (publicIp: string) => {
+      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      return client.post('/scan', undefined, { skipAuth: true });
+    },
   },
 
   // WebSocket connection helper
