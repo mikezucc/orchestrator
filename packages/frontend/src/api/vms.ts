@@ -3,7 +3,7 @@ import type { VirtualMachine, CreateVMRequest, UpdateVMRequest, ApiResponse } fr
 
 export const vmApi = {
   list: async (syncProjects?: string[]) => {
-    const params = syncProjects?.length ? { sync: syncProjects.join(',') } : {};
+    const params = syncProjects?.length ? { sync: 'true' } : {};
     const { data } = await api.get<ApiResponse<VirtualMachine[]>>('/vms', { params });
     return data;
   },

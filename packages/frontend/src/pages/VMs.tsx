@@ -2,39 +2,47 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { portsApi } from '../api/ports';
+import { organizationApi } from '../api/organizations';
 import { Link } from 'react-router-dom';
 import CreateVMModal from '../components/CreateVMModal';
-import ProjectManager from '../components/ProjectManager';
 import VMStatusBadge from '../components/VMStatusBadge';
 import DuplicateVMModal from '../components/DuplicateVMModal';
-import { useProjects } from '../hooks/useProjects';
 import { useToast } from '../contexts/ToastContext';
 import type { VirtualMachine } from '@gce-platform/types';
 import type { PortDescription } from '../api/ports';
 
 export default function VMs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showProjectManager, setShowProjectManager] = useState(false);
   const [duplicateVM, setDuplicateVM] = useState<VirtualMachine | null>(null);
   const queryClient = useQueryClient();
-  const { projects } = useProjects();
   const { showError, showSuccess } = useToast();
 
-  const { data: vmsResponse, isLoading, refetch } = useQuery({
-    queryKey: ['vms', projects],
+  // Fetch organization data to get configured projects
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: organizationApi.getMyOrganization,
+  });
+
+  const { data: vmsResponse, isLoading, refetch, error } = useQuery({
+    queryKey: ['vms', organization?.gcpProjectIds],
     queryFn: async () => {
-      const response = await vmApi.list(projects);
+      // Only sync if organization has configured projects
+      const shouldSync = organization?.gcpProjectIds && organization.gcpProjectIds.length > 0;
+      const response = await vmApi.list(shouldSync ? organization.gcpProjectIds : undefined);
       // Check if sync had partial errors
       if (response.error) {
         showError(response.error);
       }
       return response;
     },
+    enabled: !!organization,
     refetchOnWindowFocus: true,
-    onError: (error: any) => {
-      showError(error.response?.data?.error || 'Failed to load VMs');
-    },
   });
+
+  // Handle query error
+  if (error) {
+    showError((error as any).response?.data?.error || 'Failed to load VMs');
+  }
 
   const deleteMutation = useMutation({
     mutationFn: vmApi.delete,
@@ -118,7 +126,7 @@ export default function VMs() {
     enabled: vms.length > 0,
   });
 
-  if (isLoading) {
+  if (!organization || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
@@ -138,13 +146,7 @@ export default function VMs() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowProjectManager(true)}
-            className="btn-secondary"
-          >
-            {projects.length === 0 ? 'Configure Projects' : `${projects.length} Project${projects.length !== 1 ? 's' : ''}`}
-          </button>
-          {projects.length > 0 && (
+          {organization.gcpProjectIds && organization.gcpProjectIds.length > 0 && (
             <button
               onClick={() => {
                 refetch().catch((error: any) => {
@@ -181,7 +183,16 @@ export default function VMs() {
             {vms.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-te-gray-600 dark:text-te-gray-500">
-                  No virtual machines found. Create your first VM to get started.
+                  {!organization.gcpProjectIds || organization.gcpProjectIds.length === 0 ? (
+                    <div>
+                      <p className="mb-2">No Google Cloud projects configured.</p>
+                      <Link to="/organization/settings?tab=gcp" className="text-te-yellow hover:underline">
+                        Configure GCP Projects
+                      </Link>
+                    </div>
+                  ) : (
+                    'No virtual machines found. Create your first VM to get started.'
+                  )}
                 </td>
               </tr>
             ) : (
@@ -338,9 +349,6 @@ export default function VMs() {
         />
       )}
 
-      {showProjectManager && (
-        <ProjectManager onClose={() => setShowProjectManager(false)} />
-      )}
 
       {duplicateVM && (
         <DuplicateVMModal

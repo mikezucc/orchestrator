@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
+import { organizationApi } from '../api/organizations';
 import type { CreateVMRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
 
@@ -10,6 +11,14 @@ interface CreateVMModalProps {
 }
 
 export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps) {
+  const { showError, showSuccess } = useToast();
+  
+  // Fetch organization data to get configured projects
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: organizationApi.getMyOrganization,
+  });
+
   const [formData, setFormData] = useState<CreateVMRequest>({
     name: '',
     gcpProjectId: '',
@@ -18,7 +27,6 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
     initScript: '',
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const { showError, showSuccess } = useToast();
 
   const createMutation = useMutation({
     mutationFn: vmApi.create,
@@ -69,17 +77,28 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
 
           <div>
             <label htmlFor="gcpProjectId" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-              GCP Project ID
+              GCP Project
             </label>
-            <input
-              type="text"
-              id="gcpProjectId"
-              required
-              value={formData.gcpProjectId}
-              onChange={(e) => setFormData({ ...formData, gcpProjectId: e.target.value })}
-              className="w-full"
-              placeholder="my-project-123456"
-            />
+            {organization?.gcpProjectIds && organization.gcpProjectIds.length > 0 ? (
+              <select
+                id="gcpProjectId"
+                required
+                value={formData.gcpProjectId}
+                onChange={(e) => setFormData({ ...formData, gcpProjectId: e.target.value })}
+                className="w-full"
+              >
+                <option value="">Select a project</option>
+                {organization.gcpProjectIds.map((projectId) => (
+                  <option key={projectId} value={projectId}>
+                    {projectId}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm text-te-gray-500 dark:text-te-gray-400">
+                No projects configured. Please configure GCP projects in organization settings.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -171,7 +190,7 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
             </button>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || !organization?.gcpProjectIds || organization.gcpProjectIds.length === 0}
               className="btn-primary"
             >
               {createMutation.isPending ? 'Creating...' : 'Create VM'}

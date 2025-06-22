@@ -1,36 +1,62 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { organizations } from '../db/schema-auth.js';
+import { eq, and } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
-import { syncUserVMsFromProjects } from '../services/gcp-sync.js';
+import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getValidAccessToken } from '../services/auth.js';
+import { getOrganizationAccessToken } from '../services/organization-auth.js';
+import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 
 export const vmRoutes = new Hono();
 
+// Apply flexible auth middleware to all routes
+vmRoutes.use('*', flexibleAuth, flexibleRequireOrganization);
+
 vmRoutes.get('/', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const accessToken = c.req.header('authorization')?.replace('Bearer ', '');
-  const syncProjects = c.req.query('sync');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
+  const syncRequested = c.req.query('sync') === 'true';
   
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
+  // Get organization details to check GCP projects
+  const [organization] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  if (!organization) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Organization not found' }, 404);
   }
 
-  // If sync is requested and we have an access token, sync VMs from GCP
+  // If sync is requested and organization has GCP configured
   let syncErrors: string[] = [];
-  if (syncProjects && accessToken) {
+  console.log('Sync requested:', syncRequested);
+  console.log('Organization has GCP refresh token:', !!organization.gcpRefreshToken);
+  console.log('Organization GCP project IDs:', organization.gcpProjectIds);
+  
+  if (syncRequested && organization.gcpRefreshToken && organization.gcpProjectIds && organization.gcpProjectIds.length > 0) {
     try {
-      const projectIds = syncProjects.split(',').filter(Boolean);
-      if (projectIds.length > 0) {
-        const syncResult = await syncUserVMsFromProjects(userId, accessToken, projectIds);
-        console.log(`Synced ${syncResult.synced} VMs for user ${userId}`);
+      const accessToken = await getOrganizationAccessToken(organizationId);
+      console.log('Got access token:', !!accessToken);
+      
+      if (accessToken) {
+        const syncResult = await syncOrganizationVMsFromProjects(
+          organizationId, 
+          accessToken, 
+          organization.gcpProjectIds
+        );
+        console.log(`Synced ${syncResult.synced} VMs for organization ${organizationId}`);
         if (syncResult.errors.length > 0) {
           console.warn('Sync errors:', syncResult.errors);
           syncErrors = syncResult.errors;
         }
+      } else {
+        console.error('Failed to get access token for organization');
+        syncErrors = ['Failed to authenticate with Google Cloud'];
       }
     } catch (error) {
       console.error('Failed to sync VMs:', error);
@@ -41,7 +67,13 @@ vmRoutes.get('/', async (c) => {
     }
   }
 
-  const vms = await db.select().from(virtualMachines).where(eq(virtualMachines.userId, userId));
+  // Get VMs for the organization
+  const vms = await db
+    .select()
+    .from(virtualMachines)
+    .where(eq(virtualMachines.organizationId, organizationId));
+  
+  console.log(`Found ${vms.length} VMs for organization ${organizationId}`);
   
   // If there were sync errors, include them in a successful response but with a warning
   if (syncErrors.length > 0) {
