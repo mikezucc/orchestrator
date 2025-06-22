@@ -366,13 +366,22 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   ]));
 
   // Port Card Component
-  const PortCard = ({ port, description, processName, isEditing, onEdit }: {
+  const PortCard = ({ port, description, processName, isEditing, onEdit, isCompact = false }: {
     port: WormholePort | any;
     description?: PortDescription;
     processName?: string;
     isEditing: boolean;
     onEdit: () => void;
+    isCompact?: boolean;
   }) => {
+    const handleOpenPort = () => {
+      if (publicIp) {
+        const protocol = port.protocol.toLowerCase() === 'tcp' ? 'http' : port.protocol.toLowerCase();
+        const url = `${protocol}://${publicIp}:${port.port}`;
+        window.open(url, '_blank');
+      }
+    };
+
     if (isEditing) {
       return (
         <form
@@ -390,7 +399,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
           }}
           className="space-y-2"
         >
-          <div className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+          <div className="text-xs text-te-gray-600 dark:text-te-gray-400">
             {port.port}/{port.protocol}
           </div>
           <input
@@ -398,7 +407,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
             type="text"
             placeholder="Service name"
             defaultValue={description?.name}
-            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-xs"
+            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-sm"
             required
             autoFocus
           />
@@ -407,7 +416,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
             type="text"
             placeholder="Description (optional)"
             defaultValue={description?.description}
-            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-xs"
+            className="w-full px-2 py-1 rounded bg-white dark:bg-te-gray-700 border border-te-gray-300 dark:border-te-gray-600 text-sm"
           />
           <div className="flex space-x-1">
             <button
@@ -431,44 +440,60 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
 
     return (
       <div className="h-full flex flex-col">
-        {description && (
+        <div className="absolute top-1 right-1 flex items-center space-x-1">
+          {description && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFavorite(port.port, port.protocol, description);
+              }}
+              className={`p-1 rounded hover:bg-te-gray-100 dark:hover:bg-te-gray-700 ${
+                description.isFavorite ? 'text-yellow-500' : 'text-te-gray-400 dark:text-te-gray-600'
+              }`}
+              title={description.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              toggleFavorite(port.port, port.protocol, description);
+              onEdit();
             }}
-            className={`absolute top-1 right-1 p-1 rounded hover:bg-te-gray-100 dark:hover:bg-te-gray-700 ${
-              description.isFavorite ? 'text-yellow-500' : 'text-te-gray-400 dark:text-te-gray-600'
-            }`}
-            title={description.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            className="p-1 rounded hover:bg-te-gray-100 dark:hover:bg-te-gray-700 text-te-gray-400 dark:text-te-gray-600"
+            title="Edit description"
           >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
-        )}
+        </div>
         <div 
-          className="cursor-pointer hover:bg-te-gray-50 dark:hover:bg-te-gray-700 rounded -m-2 p-2 flex-1 flex flex-col"
-          onClick={onEdit}
+          className={`cursor-pointer hover:bg-te-gray-50 dark:hover:bg-te-gray-700 rounded -m-2 ${isCompact ? 'p-2' : 'p-3'} flex-1 flex flex-col`}
+          onClick={handleOpenPort}
         >
           {description ? (
             <>
-              <div className="font-medium text-sm text-te-gray-800 dark:text-te-gray-200 mb-1">
+              <div className={`font-semibold ${isCompact ? 'text-sm' : 'text-base'} text-te-gray-900 dark:text-te-gray-100 mb-1`}>
                 {description.name}
               </div>
-              <div className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+              {description.description && (
+                <div className={`${isCompact ? 'text-xs' : 'text-sm'} text-te-gray-700 dark:text-te-gray-300 mb-1`}>
+                  {description.description}
+                </div>
+              )}
+              <div className="text-xs text-te-gray-500 dark:text-te-gray-400 mt-auto">
                 {port.port}/{port.protocol}
-                {description.description && (
-                  <div className="mt-0.5">{description.description}</div>
-                )}
               </div>
             </>
           ) : (
             <>
-              <div className="text-te-gray-500 dark:text-te-gray-600 italic text-xs">
-                {port.service || 'Click to add'}
+              <div className="text-te-gray-500 dark:text-te-gray-400 italic text-sm mb-1">
+                {port.service || 'Click to add description'}
               </div>
-              <div className="text-2xs text-te-gray-500 dark:text-te-gray-600 mt-1">
+              <div className="text-xs text-te-gray-500 dark:text-te-gray-400">
                 {port.port}/{port.protocol}
               </div>
             </>
@@ -566,6 +591,53 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
 
       {connectionStatus === 'connected' && (
         <>
+          {/* Favorite Ports - Always visible when connected */}
+          {(() => {
+            const favoritePorts = portDescriptions.filter(d => d.isFavorite);
+            if (favoritePorts.length === 0 || !portsData) return null;
+            
+            return (
+              <div className="card">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider flex items-center space-x-2">
+                    <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <span>Quick Access Ports</span>
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {favoritePorts.map((description) => {
+                    const port = portsData.raw?.find((p: any) => 
+                      p.port === description.port && 
+                      p.protocol.toLowerCase() === description.protocol.toLowerCase()
+                    );
+                    
+                    if (!port) return null;
+                    
+                    const isEditing = editingPort?.port === port.port && editingPort?.protocol === port.protocol;
+                    
+                    return (
+                      <div 
+                        key={`${port.port}-${port.protocol}`}
+                        className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 relative shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <PortCard
+                          port={port}
+                          description={description}
+                          processName={description.processName}
+                          isEditing={isEditing}
+                          onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                          isCompact={false}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* System Information */}
           {showSystemInfo && (
             <div className="card bg-te-gray-50 dark:bg-te-gray-900">
@@ -709,52 +781,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
               {portsData.processes.length === 0 ? (
                 <p className="text-sm text-te-gray-600 dark:text-te-gray-500">No active ports detected</p>
               ) : (
-                <div className="space-y-4">
-                  {/* Favorite Ports Section */}
-                  {(() => {
-                    const favoritePorts = portDescriptions.filter(d => d.isFavorite);
-                    if (favoritePorts.length === 0) return null;
-                    
-                    return (
-                      <div>
-                        <h4 className="text-sm font-medium mb-2 flex items-center space-x-2">
-                          <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                          <span>Favorite Ports</span>
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {favoritePorts.map((description) => {
-                            const port = portsData.raw?.find((p: any) => 
-                              p.port === description.port && 
-                              p.protocol.toLowerCase() === description.protocol.toLowerCase()
-                            );
-                            
-                            if (!port) return null;
-                            
-                            const isEditing = editingPort?.port === port.port && editingPort?.protocol === port.protocol;
-                            
-                            return (
-                              <div 
-                                key={`${port.port}-${port.protocol}`}
-                                className="text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-800 rounded p-2 relative"
-                              >
-                                <PortCard
-                                  port={port}
-                                  description={description}
-                                  processName={description.processName}
-                                  isEditing={isEditing}
-                                  onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  
-                  {/* Process Ports Sections */}
+                <div className="space-y-3">
                   {portsData.processes.map((process: WormholeProcess) => {
                     const sortedPorts = [...process.ports].sort((a, b) => a.port - b.port);
                     const isExpanded = expandedProcesses.has(process.processName);
@@ -815,6 +842,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                     processName={process.processName}
                                     isEditing={isEditing}
                                     onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                                    isCompact={true}
                                   />
                                 </div>
                               );
@@ -852,6 +880,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                   processName={undefined}
                                   isEditing={isEditing}
                                   onEdit={() => setEditingPort({ port: port.port, protocol: port.protocol })}
+                                  isCompact={true}
                                 />
                               </div>
                             );
