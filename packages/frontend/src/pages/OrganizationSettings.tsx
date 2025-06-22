@@ -159,23 +159,6 @@ export default function OrganizationSettings() {
   return (
     <div className="min-h-screen bg-te-bg-light dark:bg-te-bg-dark">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 hover:bg-te-gray-100 dark:hover:bg-te-gray-800 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold">Organization Settings</h1>
-              <p className="text-sm text-te-gray-600 dark:text-te-gray-400">{organization.name}</p>
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
-
         {/* Tabs */}
         <div className="border-b border-te-gray-200 dark:border-te-gray-700 mb-8">
           <nav className="-mb-px flex space-x-8">
