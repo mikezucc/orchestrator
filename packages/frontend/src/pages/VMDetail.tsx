@@ -128,9 +128,35 @@ export default function VMDetail() {
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between">
-        <div className="flex items-center space-x-3">
-          <h1 className="text-xl font-bold uppercase tracking-wider">{vm.name}</h1>
-          <VMStatusBadge status={vm.status} />
+        <div>
+          <div className="flex items-center space-x-3 mb-2">
+            <h1 className="text-xl font-bold uppercase tracking-wider">{vm.name}</h1>
+            <VMStatusBadge status={vm.status} />
+          </div>
+          {vm.publicIp && (
+            <div className="flex items-center space-x-3">
+              <p className="font-medium font-mono text-te-gray-700 dark:text-te-gray-300">{vm.publicIp}</p>
+              <button
+                onClick={() => setShowPortSelector(true)}
+                className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                title="Open in browser"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setShowSSHTerminal(true)}
+                className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                title="SSH Terminal"
+                disabled={vm.status !== 'running'}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
         
         <div className="flex items-center space-x-3">
@@ -295,44 +321,6 @@ export default function VMDetail() {
                   Machine Type
                 </p>
                 <p className="font-medium">{vm.machineType}</p>
-              </div>
-              
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Public IP
-                </p>
-                {vm.publicIp ? (
-                  <div className="flex items-center space-x-2">
-                    <p className="font-medium font-mono">{vm.publicIp}</p>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPortSelector(true);
-                      }}
-                      className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-                      title="Open in browser"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowSSHTerminal(true);
-                      }}
-                      className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-                      title="SSH Terminal"
-                      disabled={vm.status !== 'running'}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-te-gray-500 dark:text-te-gray-600">—</p>
-                )}
               </div>
               
               <div>
