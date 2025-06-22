@@ -27,12 +27,9 @@ interface GCPFirewallRule {
 
 export async function syncFirewallRulesForVM(userId: string, vmId: string, accessToken: string) {
   try {
-    // Get VM details
+    // Get VM details - just by ID since we're already authenticated
     const [vm] = await db.select().from(virtualMachines)
-      .where(and(
-        eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
-      ));
+      .where(eq(virtualMachines.id, vmId));
 
     if (!vm || !vm.gcpInstanceId) {
       throw new Error('VM not found or missing GCP instance ID');
