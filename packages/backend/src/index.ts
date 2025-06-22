@@ -10,7 +10,7 @@ import { syncRoutes } from './routes/sync.js';
 import { portLabelRoutes } from './routes/port-labels.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
-import { setupSSHWebSocketServer } from './services/ssh-websocket.js';
+import { setupSSHWebSocketServer, getWebSocketServerStatus } from './services/ssh-websocket.js';
 
 dotenv.config();
 
@@ -19,10 +19,20 @@ const app = new Hono();
 app.use('/*', cors({
   origin: ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
+  allowHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
 }));
 
 app.get('/', (c) => {
   return c.json({ message: 'GCE VM Platform API' });
+});
+
+app.get('/health', (c) => {
+  const wsStatus = getWebSocketServerStatus();
+  return c.json({ 
+    status: 'ok',
+    websocket: wsStatus,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.route('/api/auth', authRoutes);

@@ -13,11 +13,25 @@ interface WebSocketAuth {
   token?: string;
 }
 
+// Global WebSocket server instance
+let globalWSS: WebSocketServer | null = null;
+
 export function setupSSHWebSocketServer(server: Server) {
+  // Check if WebSocket server already exists
+  if (globalWSS) {
+    console.log('WebSocket server already initialized, cleaning up old instance...');
+    globalWSS.close();
+    globalWSS = null;
+  }
+
   const wss = new WebSocketServer({ 
     server,
     path: '/ssh-ws'
   });
+
+  // Store the WebSocket server instance globally
+  globalWSS = wss;
+  console.log('WebSocket server created and stored globally');
 
   wss.on('error', (error) => {
     console.error('WebSocket server error:', error);
@@ -273,4 +287,26 @@ export function setupSSHWebSocketServer(server: Server) {
   });
 
   console.log('SSH WebSocket server initialized');
+  console.log('WebSocket server path:', '/ssh-ws');
+  console.log('WebSocket server listening on HTTP server');
+  
+  // Log server status
+  setInterval(() => {
+    if (globalWSS) {
+      console.log(`WebSocket server status - Clients: ${globalWSS.clients.size}`);
+    }
+  }, 30000); // Log every 30 seconds
+}
+
+// Export function to check WebSocket server status
+export function getWebSocketServerStatus() {
+  if (!globalWSS) {
+    return { initialized: false, clients: 0 };
+  }
+  
+  return {
+    initialized: true,
+    clients: globalWSS.clients.size,
+    path: '/ssh-ws'
+  };
 }
