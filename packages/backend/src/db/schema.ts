@@ -62,7 +62,7 @@ export const portDescriptions = pgTable('port_descriptions', {
   description: text('description'),
   processName: text('process_name'),
   isFavorite: boolean('is_favorite').default(false).notNull(),
-  createdBy: text('created_by').references(() => authUsers.id).notNull(),
+  createdBy: text('created_by').references(() => authUsers.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
