@@ -5,6 +5,23 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  // Check for OTP auth token first
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+    const user = localStorage.getItem('user');
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        config.headers['x-user-id'] = userData.id;
+      } catch (error) {
+        console.error('Failed to parse user data:', error);
+      }
+    }
+    return config;
+  }
+  
+  // Fall back to Google auth
   const userId = localStorage.getItem('userId');
   const authData = localStorage.getItem('auth');
   

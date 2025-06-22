@@ -8,6 +8,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
+  setIsAuthenticated: (value: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,14 +17,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<GCPAuthResponse | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    const storedAuth = localStorage.getItem('auth');
-    const storedUserId = localStorage.getItem('userId');
+    // Check for OTP auth token first
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
     
-    if (storedAuth && storedUserId) {
-      setAuth(JSON.parse(storedAuth));
-      setUserId(storedUserId);
+    if (token && user) {
+      const userData = JSON.parse(user);
+      setUserId(userData.id);
+      setIsAuthenticated(true);
+    } else {
+      // Fall back to Google auth
+      const storedAuth = localStorage.getItem('auth');
+      const storedUserId = localStorage.getItem('userId');
+      
+      if (storedAuth && storedUserId) {
+        setAuth(JSON.parse(storedAuth));
+        setUserId(storedUserId);
+        setIsAuthenticated(true);
+      }
     }
     
     setIsLoading(false);
@@ -33,9 +47,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = 'http://localhost:3000/api/auth/google';
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const token = localStorage.getItem('token');
+    
+    if (token) {
+      // OTP auth logout
+      try {
+        await fetch('/api/auth/otp/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
+    
+    // Clear Google auth
     setAuth(null);
     setUserId(null);
+    setIsAuthenticated(false);
     localStorage.removeItem('auth');
     localStorage.removeItem('userId');
   };
@@ -46,8 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId,
       login,
       logout,
-      isAuthenticated: !!auth,
+      isAuthenticated,
       isLoading,
+      setIsAuthenticated,
     }}>
       {children}
     </AuthContext.Provider>

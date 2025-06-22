@@ -204,6 +204,63 @@ If you didn't enable two-factor authentication, please contact support immediate
 
     await this.sendEmail(email, subject, html, text);
   }
+
+  async sendOTPEmail(email: string, otp: string) {
+    const subject = 'Your Login Code - DevBox Orchestrator';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #f8f9fa; padding: 20px; text-align: center; }
+            .content { padding: 20px; }
+            .otp-code { background-color: #f0f8ff; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; }
+            .otp-code h2 { color: #007bff; letter-spacing: 8px; margin: 0; font-size: 36px; }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>Your Login Code</h1>
+            </div>
+            <div class="content">
+              <p>Use the following code to complete your login to DevBox Orchestrator:</p>
+              <div class="otp-code">
+                <h2>${otp}</h2>
+              </div>
+              <p>This code will expire in <strong>5 minutes</strong>.</p>
+              <p>For security reasons, do not share this code with anyone.</p>
+            </div>
+            <div class="footer">
+              <p>If you didn't request this code, please ignore this email.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const text = `Your Login Code - DevBox Orchestrator
+
+Use the following code to complete your login to DevBox Orchestrator:
+
+${otp}
+
+This code will expire in 5 minutes.
+
+For security reasons, do not share this code with anyone.
+
+If you didn't request this code, please ignore this email.`;
+
+    await this.sendEmail(email, subject, html, text);
+
+    // Log OTP in development for easy testing
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`🔐 OTP for ${email}: ${otp}`);
+    }
+  }
 }
 
 export const emailService = new EmailService();
