@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
+import { portsApi } from '../api/ports';
 import { Link } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useState } from 'react';
 import ProjectManager from '../components/ProjectManager';
 import { useToast } from '../contexts/ToastContext';
+import type { PortDescription } from '../api/ports';
 
 export default function Dashboard() {
   const { projects } = useProjects();
@@ -76,6 +78,27 @@ export default function Dashboard() {
   const vms = vmsResponse?.data || [];
   const runningVMs = vms.filter(vm => vm.status === 'running').length;
   const stoppedVMs = vms.filter(vm => vm.status === 'stopped' || vm.status === 'suspended').length;
+
+  // Fetch favorite ports for recent VMs (first 5)
+  const recentVms = vms.slice(0, 5);
+  const { data: recentPortDescriptions = {} } = useQuery({
+    queryKey: ['recent-port-descriptions', recentVms.map(vm => vm.id)],
+    queryFn: async () => {
+      const portsByVm: Record<string, PortDescription[]> = {};
+      await Promise.all(
+        recentVms.map(async (vm) => {
+          try {
+            const ports = await portsApi.getPortDescriptions(vm.id);
+            portsByVm[vm.id] = ports.filter(p => p.isFavorite);
+          } catch (error) {
+            portsByVm[vm.id] = [];
+          }
+        })
+      );
+      return portsByVm;
+    },
+    enabled: recentVms.length > 0,
+  });
 
   if (isLoading) {
     return (
@@ -212,78 +235,136 @@ export default function Dashboard() {
               <thead>
                 <tr className="table-header">
                   <th className="text-left px-4 py-3">Status</th>
-                  <th className="text-left px-4 py-3">Name</th>
-                  <th className="text-left px-4 py-3">Zone</th>
-                  <th className="text-left px-4 py-3">Type</th>
+                  <th className="text-left px-4 py-3">Machine Name</th>
+                  <th className="text-left px-4 py-3">Public IP</th>
+                  <th className="text-left px-4 py-3">Favorite Ports</th>
                   <th className="text-left px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-te-gray-200 dark:divide-te-gray-800">
-                {vms.slice(0, 5).map((vm) => (
-                  <tr key={vm.id} className="hover:bg-te-gray-50 dark:hover:bg-te-gray-900 transition-colors">
-                    <td className="px-4 py-3">
-                      <span className={`inline-block w-2 h-2 rounded-full ${
-                        vm.status === 'running' 
-                          ? 'bg-green-500 dark:bg-te-yellow' 
-                          : vm.status === 'suspended'
-                          ? 'bg-yellow-500 dark:bg-te-orange'
-                          : 'bg-te-gray-400 dark:bg-te-gray-600'
-                      }`} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link to={`/vms/${vm.id}`} className="link font-medium">
-                        {vm.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
-                      {vm.zone}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-te-gray-600 dark:text-te-gray-400">
-                      {vm.machineType}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        {vm.status === 'stopped' && (
-                          <button
-                            onClick={() => startMutation.mutate(vm.id)}
-                            disabled={startMutation.isPending}
-                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
-                          >
-                            Start
+                {vms.slice(0, 5).map((vm) => {
+                  const favoritePorts = recentPortDescriptions[vm.id] || [];
+                  return (
+                    <tr key={vm.id} className="hover:bg-te-gray-50 dark:hover:bg-te-gray-900 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className={`inline-block w-2 h-2 rounded-full ${
+                          vm.status === 'running' 
+                            ? 'bg-green-500 dark:bg-te-yellow' 
+                            : vm.status === 'suspended'
+                            ? 'bg-yellow-500 dark:bg-te-orange'
+                            : 'bg-te-gray-400 dark:bg-te-gray-600'
+                        }`} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link to={`/vms/${vm.id}`} className="link font-medium">
+                          {vm.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {vm.publicIp ? (
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-mono text-te-gray-900 dark:text-te-gray-100">{vm.publicIp}</span>
+                            {vm.status === 'running' && (
+                              <Link
+                                to={`/vms/${vm.id}`}
+                                className="inline-flex items-center px-2 py-1 bg-green-600 dark:bg-te-yellow text-white dark:text-te-gray-900 text-xs rounded hover:bg-green-700 dark:hover:bg-te-orange transition-colors"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                                Connect
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-te-gray-500 dark:text-te-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {favoritePorts.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {favoritePorts.map((port) => (
+                              <button
+                                key={`${port.port}-${port.protocol}`}
+                                onClick={() => {
+                                  if (vm.publicIp) {
+                                    const protocol = port.protocol.toLowerCase() === 'tcp' ? 'http' : port.protocol.toLowerCase();
+                                    const url = `${protocol}://${vm.publicIp}:${port.port}`;
+                                    window.open(url, '_blank');
+                                  }
+                                }}
+                                className="inline-flex items-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors"
+                                title={port.description || `Open ${port.name}`}
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                {port.name}:{port.port}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-te-gray-500 dark:text-te-gray-600">No favorites</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="relative group">
+                          <button className="btn-secondary text-xs">
+                            Actions
+                            <svg className="w-3 h-3 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                           </button>
-                        )}
-                        {vm.status === 'suspended' && (
-                          <button
-                            onClick={() => startMutation.mutate(vm.id)}
-                            disabled={startMutation.isPending}
-                            className="text-xs uppercase tracking-wider text-green-600 dark:text-te-yellow hover:text-green-700 dark:hover:text-te-orange transition-colors"
-                          >
-                            Resume
-                          </button>
-                        )}
-                        {vm.status === 'running' && (
-                          <>
-                            <button
-                              onClick={() => stopMutation.mutate(vm.id)}
-                              disabled={stopMutation.isPending}
-                              className="text-xs uppercase tracking-wider text-yellow-600 dark:text-te-orange hover:text-yellow-700 dark:hover:text-te-yellow transition-colors"
+                          <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                            {vm.status === 'stopped' && (
+                              <button
+                                onClick={() => startMutation.mutate(vm.id)}
+                                disabled={startMutation.isPending}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-green-600 dark:text-te-yellow"
+                              >
+                                Start VM
+                              </button>
+                            )}
+                            {vm.status === 'suspended' && (
+                              <button
+                                onClick={() => startMutation.mutate(vm.id)}
+                                disabled={startMutation.isPending}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-green-600 dark:text-te-yellow"
+                              >
+                                Resume VM
+                              </button>
+                            )}
+                            {vm.status === 'running' && (
+                              <>
+                                <button
+                                  onClick={() => stopMutation.mutate(vm.id)}
+                                  disabled={stopMutation.isPending}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-yellow-600 dark:text-te-orange"
+                                >
+                                  Stop VM
+                                </button>
+                                <button
+                                  onClick={() => suspendMutation.mutate(vm.id)}
+                                  disabled={suspendMutation.isPending}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-blue-600 dark:text-te-yellow"
+                                >
+                                  Suspend VM
+                                </button>
+                              </>
+                            )}
+                            <div className="border-t border-te-gray-200 dark:border-te-gray-700"></div>
+                            <Link
+                              to={`/vms/${vm.id}`}
+                              className="block px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700"
                             >
-                              Stop
-                            </button>
-                            <span className="text-te-gray-300 dark:text-te-gray-700 mx-1">|</span>
-                            <button
-                              onClick={() => suspendMutation.mutate(vm.id)}
-                              disabled={suspendMutation.isPending}
-                              className="text-xs uppercase tracking-wider text-blue-600 dark:text-te-yellow hover:text-blue-700 dark:hover:text-te-orange transition-colors"
-                            >
-                              Suspend
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                              View Details
+                            </Link>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
