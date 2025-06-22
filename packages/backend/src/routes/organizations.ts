@@ -11,6 +11,62 @@ export const organizationRoutes = new Hono();
 // Apply middleware to all routes except user memberships
 organizationRoutes.use('*', flexibleAuth);
 
+// Create new organization
+organizationRoutes.post('/create', flexibleAuth, async (c) => {
+  try {
+    const userId = (c as any).userId || (c as any).user?.id;
+    
+    if (!userId) {
+      return c.json({ error: 'User not found' }, 401);
+    }
+
+    const { name } = await c.req.json();
+
+    if (!name) {
+      return c.json({ error: 'Organization name is required' }, 400);
+    }
+
+    // Create organization
+    const orgSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const [organization] = await db.insert(organizations).values({
+      name,
+      slug: orgSlug,
+    }).returning();
+
+    // Add user as owner of organization
+    await db.insert(organizationMembers).values({
+      organizationId: organization.id,
+      userId,
+      role: 'owner',
+    });
+
+    // Log the action
+    await db.insert(auditLogs).values({
+      organizationId: organization.id,
+      userId,
+      action: 'organization.created',
+      resourceType: 'organization',
+      resourceId: organization.id,
+      metadata: { name },
+      ipAddress: c.env?.remoteAddr || '',
+      userAgent: c.req.header('user-agent'),
+    });
+
+    return c.json({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      gcpRefreshToken: organization.gcpRefreshToken,
+      gcpProjectIds: organization.gcpProjectIds,
+      createdAt: organization.createdAt,
+      updatedAt: organization.updatedAt,
+    });
+  } catch (error) {
+    console.error('Error creating organization:', error);
+    return c.json({ error: 'Failed to create organization' }, 500);
+  }
+});
+
 // Get user's organization memberships (doesn't require organization)
 organizationRoutes.get('/user/memberships', async (c) => {
   try {

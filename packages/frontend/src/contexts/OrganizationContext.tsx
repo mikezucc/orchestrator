@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { organizationApi } from '../api/organizations';
-import type { Organization, OrganizationMember } from '../api/organizations';
+import type { Organization } from '../api/organizations';
 
 interface OrganizationContextType {
   currentOrganization: Organization | null;

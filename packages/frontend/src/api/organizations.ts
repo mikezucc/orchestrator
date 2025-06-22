@@ -38,6 +38,12 @@ export interface TeamInvitation {
 }
 
 export const organizationApi = {
+  // Create new organization
+  createOrganization: async (name: string): Promise<Organization> => {
+    const { data } = await api.post('/organizations/create', { name });
+    return data;
+  },
+
   // Get current user's organization memberships
   getUserMemberships: async (): Promise<Array<OrganizationMember & { organization: Organization }>> => {
     const { data } = await api.get('/organizations/user/memberships');

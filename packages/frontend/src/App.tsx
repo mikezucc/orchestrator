@@ -12,6 +12,8 @@ import Login from './pages/Login';
 import LoginOTP from './pages/LoginOTP';
 import AuthCallback from './pages/AuthCallback';
 import OrganizationSettings from './pages/OrganizationSettings';
+import CreateOrganization from './pages/CreateOrganization';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const queryClient = new QueryClient();
 
@@ -27,6 +29,7 @@ function App() {
                   <Route path="/login" element={<LoginOTP />} />
                   <Route path="/login-google" element={<Login />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/create-organization" element={<ProtectedRoute><CreateOrganization /></ProtectedRoute>} />
                   <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
                     <Route path="vms" element={<VMs />} />

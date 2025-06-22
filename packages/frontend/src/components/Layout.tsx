@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 
 export default function Layout() {
   const { isAuthenticated, logout, isLoading } = useAuth();
-  const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { organizations, isLoading: orgLoading } = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -16,6 +16,12 @@ export default function Layout() {
       navigate('/login');
     }
   }, [isAuthenticated, isLoading, navigate]);
+
+  useEffect(() => {
+    if (!isLoading && !orgLoading && isAuthenticated && organizations.length === 0) {
+      navigate('/create-organization');
+    }
+  }, [isAuthenticated, isLoading, orgLoading, organizations, navigate]);
 
   if (isLoading || orgLoading) {
     return (
