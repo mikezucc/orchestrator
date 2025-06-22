@@ -1,24 +1,80 @@
 import { Client as SSHClient } from 'ssh2';
 import { db } from '../db/index.js';
-import { virtualMachines, users } from '../db/schema.js';
+import { virtualMachines } from '../db/schema.js';
+import { authUsers, organizationMembers } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import { generateSSHKeys, addSSHKeyToVM } from '../services/gcp-ssh.js';
-import { getValidAccessToken } from '../services/auth.js';
+import { getOrganizationAccessToken } from '../services/organization-auth.js';
+import { verifySessionToken } from '../utils/auth.js';
 
 // Store active SSH connections
 const activeConnections = new Map<any, { sshClient: SSHClient | null; stream: any }>();
 
 export function createSSHWebSocketHandler(upgradeWebSocket: any) {
-  return upgradeWebSocket((c: any) => {
+  return upgradeWebSocket(async (c: any) => {
     // Get query parameters
-    const userId = c.req.query('userId');
     const vmId = c.req.query('vmId');
     const token = c.req.query('token');
+    const organizationId = c.req.query('organizationId');
 
     console.log('=== SSH WebSocket connection request ===');
-    console.log('userId:', userId);
     console.log('vmId:', vmId);
     console.log('token provided:', !!token);
+    console.log('organizationId:', organizationId);
+
+    if (!vmId || !token) {
+      return {
+        onOpen: (event, ws) => {
+          ws.send(JSON.stringify({ type: 'error', data: 'Missing required parameters' }));
+          ws.close();
+        }
+      };
+    }
+
+    // Authenticate the user
+    let userId: string | null = null;
+    
+    // Try to decode the token as JWT first
+    const decoded = verifySessionToken(token);
+    if (decoded) {
+      userId = decoded.userId;
+    } else {
+      // If not a valid JWT, it might be a Google OAuth token
+      // In this case, we need the userId to be passed as a query parameter
+      userId = c.req.query('userId');
+    }
+
+    if (!userId) {
+      return {
+        onOpen: (event, ws) => {
+          ws.send(JSON.stringify({ type: 'error', data: 'Authentication failed' }));
+          ws.close();
+        }
+      };
+    }
+
+    // Verify user has access to the organization
+    if (organizationId) {
+      const [membership] = await db
+        .select()
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.organizationId, organizationId)
+          )
+        )
+        .limit(1);
+
+      if (!membership) {
+        return {
+          onOpen: (event, ws) => {
+            ws.send(JSON.stringify({ type: 'error', data: 'Access denied to organization' }));
+            ws.close();
+          }
+        };
+      }
+    }
 
     let sshClient: SSHClient | null = null;
     let stream: any = null;
@@ -26,12 +82,6 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
     return {
       onOpen: (event, ws) => {
         console.log('WebSocket opened');
-        
-        if (!userId || !vmId) {
-          ws.send(JSON.stringify({ type: 'error', data: 'Missing required parameters' }));
-          ws.close();
-          return;
-        }
 
         // Initialize connection state
         activeConnections.set(ws, { sshClient: null, stream: null });
@@ -40,12 +90,17 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
         (async () => {
           try {
           // Get VM and user details
-          console.log('Fetching VM from database:', { vmId, userId });
+          console.log('Fetching VM from database:', { vmId, organizationId });
+          
+          const vmQuery = organizationId 
+            ? and(
+                eq(virtualMachines.id, vmId),
+                eq(virtualMachines.organizationId, organizationId)
+              )
+            : eq(virtualMachines.id, vmId);
+            
           const [vm] = await db.select().from(virtualMachines)
-            .where(and(
-              eq(virtualMachines.id, vmId),
-              eq(virtualMachines.userId, userId)
-            ));
+            .where(vmQuery);
 
           console.log('VM lookup result:', vm ? { id: vm.id, name: vm.name, publicIp: vm.publicIp, status: vm.status } : 'not found');
 
@@ -57,8 +112,8 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
           }
 
           console.log('Fetching user from database:', userId);
-          const [user] = await db.select().from(users)
-            .where(eq(users.id, userId));
+          const [user] = await db.select().from(authUsers)
+            .where(eq(authUsers.id, userId));
 
           console.log('User lookup result:', user ? { id: user.id, email: user.email } : 'not found');
 
@@ -73,13 +128,13 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
           const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
           console.log('Generated SSH username:', username);
 
-          // Get access token
-          console.log('Getting valid access token for user:', userId);
-          const accessToken = await getValidAccessToken(userId, token);
+          // Get organization access token
+          console.log('Getting organization access token:', vm.organizationId);
+          const accessToken = await getOrganizationAccessToken(vm.organizationId!);
           console.log('Access token result:', accessToken ? 'obtained' : 'failed');
           
           if (!accessToken) {
-            console.error('Failed to get valid access token');
+            console.error('Failed to get organization access token');
             ws.send(JSON.stringify({ type: 'error', data: 'Failed to authenticate with Google Cloud' }));
             ws.close();
             return;

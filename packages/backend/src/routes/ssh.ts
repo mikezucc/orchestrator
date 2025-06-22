@@ -1,37 +1,38 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
-import { virtualMachines, users } from '../db/schema.js';
+import { virtualMachines } from '../db/schema.js';
+import { authUsers } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import type { ApiResponse } from '@gce-platform/types';
 import { generateSSHKeys, addSSHKeyToVM, getSSHConnectionInfo } from '../services/gcp-ssh.js';
-import { getValidAccessToken } from '../services/auth.js';
+import { getOrganizationAccessToken } from '../services/organization-auth.js';
+import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 
 export const sshRoutes = new Hono();
 
+// Apply flexible auth middleware to all routes
+sshRoutes.use('*', flexibleAuth, flexibleRequireOrganization);
+
 // Generate SSH keys and add to VM
 sshRoutes.post('/:vmId/setup', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('vmId');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   try {
     // Get VM and user details
     const [vm] = await db.select().from(virtualMachines)
       .where(and(
         eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
+        eq(virtualMachines.organizationId, organizationId)
       ));
 
     if (!vm) {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
     }
 
-    const [user] = await db.select().from(users)
-      .where(eq(users.id, userId));
+    const [user] = await db.select().from(authUsers)
+      .where(eq(authUsers.id, userId));
 
     if (!user) {
       return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
@@ -40,8 +41,8 @@ sshRoutes.post('/:vmId/setup', async (c) => {
     // Generate username from email
     const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // Get valid access token
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
@@ -102,20 +103,16 @@ sshRoutes.post('/:vmId/setup', async (c) => {
 
 // Get SSH connection info
 sshRoutes.get('/:vmId/info', async (c) => {
-  const userId = c.req.header('x-user-id');
-  const providedToken = c.req.header('authorization')?.replace('Bearer ', '');
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
   const vmId = c.req.param('vmId');
-  
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID required' }, 401);
-  }
 
   try {
     // Get VM details
     const [vm] = await db.select().from(virtualMachines)
       .where(and(
         eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
+        eq(virtualMachines.organizationId, organizationId)
       ));
 
     if (!vm) {
@@ -126,8 +123,8 @@ sshRoutes.get('/:vmId/info', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM does not have a public IP' }, 400);
     }
 
-    const [user] = await db.select().from(users)
-      .where(eq(users.id, userId));
+    const [user] = await db.select().from(authUsers)
+      .where(eq(authUsers.id, userId));
 
     if (!user) {
       return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
@@ -136,8 +133,8 @@ sshRoutes.get('/:vmId/info', async (c) => {
     // Generate username from email
     const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // Get valid access token
-    const accessToken = await getValidAccessToken(userId, providedToken);
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
