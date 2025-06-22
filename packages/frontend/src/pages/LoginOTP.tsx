@@ -23,7 +23,7 @@ export default function LoginOTP() {
     try {
       const response = await fetchClient.post('/auth/otp/request-otp', { email }, { skipAuth: true });
       
-      if (!response.success) {
+      if (!response || response.error) {
         throw new Error(response.error || 'Failed to send OTP');
       }
 
@@ -45,7 +45,7 @@ export default function LoginOTP() {
     try {
       const response = await fetchClient.post('/auth/otp/verify-otp', { email, otp }, { skipAuth: true });
       
-      if (!response.success) {
+      if (!response || response.error) {
         throw new Error(response.error || 'Failed to verify OTP');
       }
 

@@ -19,7 +19,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const response = await vmApi.list(projects);
       // Check if sync had partial errors
-      if (response.success && response.error) {
+      if (response.error) {
         showError(response.error);
       }
       return response;

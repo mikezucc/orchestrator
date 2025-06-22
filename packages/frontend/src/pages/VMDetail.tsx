@@ -39,7 +39,7 @@ export default function VMDetail() {
       // Sync firewall rules from GCP on page load
       const response = await firewallApi.listByVM(id!, true);
       // Check if sync had partial errors
-      if (response.success && response.error) {
+      if (response.error) {
         showError(response.error);
       }
       return response;

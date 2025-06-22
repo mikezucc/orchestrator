@@ -292,7 +292,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
         message: { type: 'API_RESPONSE', endpoint: 'switchBranch', response }
       }]);
 
-      if (response.success) {
+      if (response && !response.error) {
         showSuccess(`Switched to branch ${targetBranch}`);
         // Immediately refetch to get updated state
         await Promise.all([
@@ -326,7 +326,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
     
     try {
       const response = await wormholeApi.directApi.triggerScan(publicIp);
-      if (response.success) {
+      if (response && !response.error) {
         showSuccess('Repository scan initiated');
         // Refresh daemons after a delay
         setTimeout(() => {
