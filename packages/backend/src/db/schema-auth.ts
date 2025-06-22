@@ -8,6 +8,7 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').unique().notNull(),
   // Google Cloud credentials for the organization
   gcpRefreshToken: text('gcp_refresh_token'),
+  gcpEmail: text('gcp_email'), // Email of the Google Cloud account
   gcpProjectIds: jsonb('gcp_project_ids').$type<string[]>().default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

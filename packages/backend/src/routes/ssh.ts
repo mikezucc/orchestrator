@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
-import { authUsers } from '../db/schema-auth.js';
+import { authUsers, organizations } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import type { ApiResponse } from '@gce-platform/types';
 import { generateSSHKeys, addSSHKeyToVM, getSSHConnectionInfo } from '../services/gcp-ssh.js';
@@ -31,15 +31,16 @@ sshRoutes.post('/:vmId/setup', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
     }
 
-    const [user] = await db.select().from(authUsers)
-      .where(eq(authUsers.id, userId));
+    // Get organization to get GCP email
+    const [organization] = await db.select().from(organizations)
+      .where(eq(organizations.id, organizationId));
 
-    if (!user) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
+    if (!organization || !organization.gcpEmail) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Organization does not have Google Cloud credentials configured' }, 400);
     }
 
-    // Generate username from email
-    const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Generate username from organization's Google Cloud email
+    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);
@@ -123,15 +124,16 @@ sshRoutes.get('/:vmId/info', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM does not have a public IP' }, 400);
     }
 
-    const [user] = await db.select().from(authUsers)
-      .where(eq(authUsers.id, userId));
+    // Get organization to get GCP email
+    const [organization] = await db.select().from(organizations)
+      .where(eq(organizations.id, organizationId));
 
-    if (!user) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
+    if (!organization || !organization.gcpEmail) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Organization does not have Google Cloud credentials configured' }, 400);
     }
 
-    // Generate username from email
-    const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Generate username from organization's Google Cloud email
+    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);

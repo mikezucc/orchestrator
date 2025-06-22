@@ -1,7 +1,7 @@
 import { Client as SSHClient } from 'ssh2';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
-import { authUsers, organizationMembers } from '../db/schema-auth.js';
+import { authUsers, organizationMembers, organizations } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import { generateSSHKeys, addSSHKeyToVM } from '../services/gcp-ssh.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
@@ -111,22 +111,23 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
             return;
           }
 
-          console.log('Fetching user from database:', userId);
-          const [user] = await db.select().from(authUsers)
-            .where(eq(authUsers.id, userId));
+          // Get organization to get GCP email
+          console.log('Fetching organization from database:', vm.organizationId);
+          const [organization] = await db.select().from(organizations)
+            .where(eq(organizations.id, vm.organizationId!));
 
-          console.log('User lookup result:', user ? { id: user.id, email: user.email } : 'not found');
+          console.log('Organization lookup result:', organization ? { id: organization.id, gcpEmail: organization.gcpEmail } : 'not found');
 
-          if (!user) {
-            console.error('User not found:', userId);
-            ws.send(JSON.stringify({ type: 'error', data: 'User not found' }));
+          if (!organization || !organization.gcpEmail) {
+            console.error('Organization does not have Google Cloud credentials configured');
+            ws.send(JSON.stringify({ type: 'error', data: 'Organization does not have Google Cloud credentials configured' }));
             ws.close();
             return;
           }
 
-          // Generate username from email
-          const username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-          console.log('Generated SSH username:', username);
+          // Generate username from organization's Google Cloud email
+          const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+          console.log('Generated SSH username from GCP email:', username);
 
           // Get organization access token
           console.log('Getting organization access token:', vm.organizationId);
