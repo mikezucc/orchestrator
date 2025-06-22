@@ -1,6 +1,8 @@
 import { pgTable, text, timestamp, integer, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
+import { organizations, authUsers } from './schema-auth';
 
+// Legacy users table - will be migrated to authUsers
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   email: text('email').unique().notNull(),
@@ -11,7 +13,9 @@ export const users = pgTable('users', {
 
 export const virtualMachines = pgTable('virtual_machines', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  userId: text('user_id').references(() => users.id).notNull(),
+  userId: text('user_id').references(() => users.id), // Keep for backward compatibility
+  organizationId: text('organization_id').references(() => organizations.id), // New field
+  createdBy: text('created_by').references(() => authUsers.id), // Track who created it
   name: text('name').notNull(),
   gcpProjectId: text('gcp_project_id').notNull(),
   zone: text('zone').notNull(),
@@ -24,9 +28,12 @@ export const virtualMachines = pgTable('virtual_machines', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
   return {
+    gcpInstanceOrgUnique: uniqueIndex('virtual_machines_gcp_instance_org_unique')
+      .on(table.gcpInstanceId, table.organizationId)
+      .where('gcp_instance_id IS NOT NULL AND organization_id IS NOT NULL'),
     gcpInstanceUserUnique: uniqueIndex('virtual_machines_gcp_instance_user_unique')
       .on(table.gcpInstanceId, table.userId)
-      .where('gcp_instance_id IS NOT NULL'),
+      .where('gcp_instance_id IS NOT NULL AND user_id IS NOT NULL'),
   };
 });
 
@@ -55,7 +62,7 @@ export const portDescriptions = pgTable('port_descriptions', {
   description: text('description'),
   processName: text('process_name'),
   isFavorite: boolean('is_favorite').default(false).notNull(),
-  createdBy: text('created_by').references(() => users.id).notNull(),
+  createdBy: text('created_by').references(() => authUsers.id).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
