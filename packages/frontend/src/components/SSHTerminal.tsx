@@ -22,6 +22,15 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const { showError, showSuccess } = useToast();
   const { userId, auth } = useAuth();
 
+  const _onClose = () => {
+    console.log('Cleaning up terminal and WebSocket connection');
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    terminal?.dispose();
+    onClose();
+  }
+
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -74,10 +83,6 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      term.dispose();
     };
   }, []);
 
@@ -218,7 +223,9 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   };
 
   const reconnect = () => {
+    console.log('Reconnecting to SSH...');
     if (terminal && wsRef.current) {
+      console.log('Closing existing WebSocket connection');
       wsRef.current.close();
       terminal.clear();
       setIsConnecting(true);
@@ -259,7 +266,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
               </button>
             )}
             <button
-              onClick={onClose}
+              onClick={_onClose}
               className="p-1 hover:text-te-yellow transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
