@@ -155,8 +155,7 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
                 ws.close();
               });
 
-              // Send initial terminal size
-              stream.setWindow(80, 24);
+              // Don't set initial size here, wait for client to send it
             });
           });
 
@@ -229,6 +228,7 @@ export function createSSHWebSocketHandler(upgradeWebSocket: any) {
             case 'resize':
               // Handle terminal resize
               if (connState.stream && msg.cols && msg.rows) {
+                console.log('Setting terminal window size:', { rows: msg.rows, cols: msg.cols });
                 connState.stream.setWindow(msg.rows, msg.cols);
               }
               break;

@@ -78,7 +78,18 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     setTerminal(term);
 
     // Handle window resize
-    const handleResize = () => fitAddon.fit();
+    const handleResize = () => {
+      fitAddon.fit();
+      // Send new size to backend
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const { cols, rows } = term;
+        wsRef.current.send(JSON.stringify({
+          type: 'resize',
+          cols,
+          rows
+        }));
+      }
+    };
     window.addEventListener('resize', handleResize);
 
     // Setup WebSocket SSH connection
@@ -139,6 +150,16 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
               setIsConnecting(false);
               term.clear();
               showSuccess('SSH connection established');
+              // Send terminal size after connection
+              setTimeout(() => {
+                const { cols, rows } = term;
+                console.log('Sending terminal size after connection:', { cols, rows });
+                ws.send(JSON.stringify({
+                  type: 'resize',
+                  cols,
+                  rows
+                }));
+              }, 100);
               break;
               
             case 'data':
@@ -212,7 +233,8 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
       // Handle terminal resize
       term.onResize(({ cols, rows }) => {
-        if (ws.readyState === WebSocket.OPEN && isConnected) {
+        console.log('Terminal resize:', { cols, rows });
+        if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'resize',
             cols,
@@ -221,17 +243,22 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         }
       });
 
-      // Send initial terminal size
-      setTimeout(() => {
+      // Send initial terminal size when connected
+      const sendInitialSize = () => {
         if (ws.readyState === WebSocket.OPEN) {
           const { cols, rows } = term;
+          console.log('Sending initial terminal size:', { cols, rows });
           ws.send(JSON.stringify({
             type: 'resize',
             cols,
             rows
           }));
         }
-      }, 100);
+      };
+      
+      // Try sending size immediately and after a delay
+      sendInitialSize();
+      setTimeout(sendInitialSize, 500);
 
       // Ping to keep connection alive
       const pingInterval = setInterval(() => {
