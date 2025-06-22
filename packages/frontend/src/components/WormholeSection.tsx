@@ -551,9 +551,11 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                 const daemon = getRepoDaemon(repoPath);
                 const repoClients = repo ? getRepoClients(repo.repoPath) : [];
                 const isExpanded = expandedRepos.has(repoPath);
-                const mainBranch = repo?.branches.find((b: string) => b === 'main' || b === 'master') || 
-                                 daemon?.repository.branch || 'main';
+                const mainBranch = daemon?.repository.branch;
                 const isActive = repo && repo.connectedClientCount > 0;
+
+                console.log('daemon', daemon?.repository.branch);
+                console.log('repoClients', repoClients);
                 
                 return (
                   <div key={repoPath} className={`card ${!isActive ? 'opacity-75' : ''}`}>
@@ -738,7 +740,6 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                 
                                 return allBranches.map((branch: string) => {
                                   const isActive = daemon?.repository.branch === branch;
-                                  const isMain = branch === mainBranch;
                                   const isLocal = localBranches.includes(branch);
                                   const isRemote = remoteBranches.includes(branch);
                                   const isRemoteOnly = isRemote && !isLocal;
@@ -751,9 +752,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                         disabled={isActive || !!switchingBranch}
                                         className={`text-xs px-3 py-1 rounded transition-colors ${
                                           isActive
-                                            ? isMain
-                                              ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default'
-                                              : 'bg-green-600 dark:bg-green-500 text-white cursor-default'
+                                            ? 'bg-green-600 dark:bg-green-500 text-white cursor-default'
                                             : isSwitching
                                               ? 'bg-yellow-500 dark:bg-yellow-600 text-white animate-pulse'
                                             : isRemoteOnly
