@@ -93,6 +93,7 @@ export interface WormholeRepository {
   repoPath: string;
   branches: string[];
   activeBranches: string[];
+  availableBranches?: WormholeBranchInfo;
   clientCount: number;
   connectedClientCount: number;
   clients: WormholeClient[];
@@ -142,6 +143,13 @@ export interface WormholePortsInfo {
   }>;
 }
 
+// Branch information types
+export interface WormholeBranchInfo {
+  local: string[];
+  remote: string[];
+  all: string[];
+}
+
 // Daemon information types
 export interface WormholeDaemonRepository {
   path: string;
@@ -149,6 +157,7 @@ export interface WormholeDaemonRepository {
   branch: string;
   hasOrigin: boolean;
   originUrl?: string;
+  branches?: WormholeBranchInfo;
 }
 
 export interface WormholeDaemon {

@@ -447,12 +447,35 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                                 {repoClients.length} connected client{repoClients.length !== 1 ? 's' : ''}
                               </span>
                             )}
-                            {/* Branch count */}
-                            {repo && (
-                              <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
-                                {repo.branches.length} branch{repo.branches.length !== 1 ? 'es' : ''}
-                              </span>
-                            )}
+                            {/* Branch count with details */}
+                            {(() => {
+                              const branchInfo = repo?.availableBranches || daemon?.repository.branches;
+                              if (branchInfo) {
+                                const totalBranches = branchInfo.all.length;
+                                const localOnly = branchInfo.local.filter(b => !branchInfo.remote.includes(b)).length;
+                                const remoteOnly = branchInfo.remote.filter(b => !branchInfo.local.includes(b)).length;
+                                
+                                return (
+                                  <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
+                                    {totalBranches} branch{totalBranches !== 1 ? 'es' : ''}
+                                    {(localOnly > 0 || remoteOnly > 0) && (
+                                      <span className="text-2xs ml-1">
+                                        ({localOnly > 0 && `${localOnly} local`}
+                                        {localOnly > 0 && remoteOnly > 0 && ', '}
+                                        {remoteOnly > 0 && `${remoteOnly} remote`})
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              } else if (repo) {
+                                return (
+                                  <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
+                                    {repo.branches.length} branch{repo.branches.length !== 1 ? 'es' : ''}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -543,38 +566,75 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                         )}
 
                         {/* Branch Management */}
-                        {repo && (
+                        {(repo || daemon) && (
                           <div>
                             <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                               Branch Management
                             </h4>
                             <div className="flex flex-wrap gap-2">
-                              {repo.branches.map((branch: string) => {
-                                const isActive = repo.activeBranches.includes(branch);
-                                const isMain = branch === mainBranch;
+                              {(() => {
+                                // Get all available branches from either repo or daemon
+                                let allBranches: string[] = [];
+                                let localBranches: string[] = [];
+                                let remoteBranches: string[] = [];
                                 
-                                return (
-                                  <button
-                                    key={branch}
-                                    onClick={() => handleBranchSwitch(repo.repoPath, branch)}
-                                    disabled={isActive}
-                                    className={`text-xs px-3 py-1 rounded transition-colors ${
-                                      isActive
-                                        ? isMain
-                                          ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default'
-                                          : 'bg-green-600 dark:bg-green-500 text-white cursor-default'
-                                        : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
-                                    }`}
-                                    title={isActive ? 'Currently active' : 'Click to switch all clients to this branch'}
-                                  >
-                                    {branch}
-                                    {isActive && ' ✓'}
-                                  </button>
-                                );
-                              })}
+                                if (repo?.availableBranches) {
+                                  allBranches = repo.availableBranches.all || repo.branches;
+                                  localBranches = repo.availableBranches.local || [];
+                                  remoteBranches = repo.availableBranches.remote || [];
+                                } else if (daemon?.repository.branches) {
+                                  allBranches = daemon.repository.branches.all;
+                                  localBranches = daemon.repository.branches.local;
+                                  remoteBranches = daemon.repository.branches.remote;
+                                } else if (repo) {
+                                  allBranches = repo.branches;
+                                }
+                                
+                                return allBranches.map((branch: string) => {
+                                  const isActive = repo?.activeBranches.includes(branch) || daemon?.repository.branch === branch;
+                                  const isMain = branch === mainBranch;
+                                  const isLocal = localBranches.includes(branch);
+                                  const isRemote = remoteBranches.includes(branch);
+                                  const isRemoteOnly = isRemote && !isLocal;
+                                  
+                                  return (
+                                    <div key={branch} className="relative group">
+                                      <button
+                                        onClick={() => handleBranchSwitch(repo?.repoPath || daemon?.repository.name || '', branch)}
+                                        disabled={isActive}
+                                        className={`text-xs px-3 py-1 rounded transition-colors ${
+                                          isActive
+                                            ? isMain
+                                              ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default'
+                                              : 'bg-green-600 dark:bg-green-500 text-white cursor-default'
+                                            : isRemoteOnly
+                                              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800'
+                                              : 'bg-te-gray-100 dark:bg-te-gray-800 hover:bg-te-gray-200 dark:hover:bg-te-gray-700'
+                                        }`}
+                                        title={
+                                          isActive ? 'Currently active' : 
+                                          isRemoteOnly ? 'Remote branch - will be created locally on switch' :
+                                          'Click to switch all clients to this branch'
+                                        }
+                                      >
+                                        {branch}
+                                        {isActive && ' ✓'}
+                                        {isRemoteOnly && ' ↓'}
+                                      </button>
+                                      {/* Branch info tooltip */}
+                                      {(isLocal || isRemote) && (
+                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-gray-900 text-white text-2xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                                          {isLocal && isRemote ? 'Local & Remote' : isLocal ? 'Local only' : 'Remote only'}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                });
+                              })()}
                             </div>
                             <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-2">
                               Click any branch to switch all connected clients
+                              {remoteBranches.length > 0 && <span className="ml-1">(↓ = remote branch)</span>}
                             </p>
                           </div>
                         )}
