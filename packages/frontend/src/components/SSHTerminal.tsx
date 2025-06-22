@@ -19,6 +19,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const isConnectedRef = useRef(false);
   const { showError, showSuccess } = useToast();
   const { userId, auth } = useAuth();
 
@@ -134,6 +135,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
           switch (msg.type) {
             case 'connected':
               setIsConnected(true);
+              isConnectedRef.current = true;
               setIsConnecting(false);
               term.clear();
               showSuccess('SSH connection established');
@@ -181,6 +183,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         });
         console.log('Close event codes: 1000=Normal, 1001=Going Away, 1002=Protocol Error, 1003=Unsupported Data, 1006=Abnormal Closure');
         setIsConnected(false);
+        isConnectedRef.current = false;
         if (!isConnecting) {
           term.writeln('\x1b[33m⚠️  Connection closed\x1b[0m');
         }
@@ -188,12 +191,22 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
       // Handle terminal input
       term.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN && isConnected) {
+        console.log('Terminal data event:', {
+          data: data,
+          wsReadyState: ws.readyState,
+          isConnected: isConnectedRef.current,
+          wsOpen: ws.readyState === WebSocket.OPEN
+        });
+        
+        if (ws.readyState === WebSocket.OPEN) {
           // Send input to WebSocket
+          console.log('Sending data to WebSocket:', data);
           ws.send(JSON.stringify({
             type: 'data',
             data: btoa(data)
           }));
+        } else {
+          console.warn('WebSocket not open, cannot send data');
         }
       });
 
