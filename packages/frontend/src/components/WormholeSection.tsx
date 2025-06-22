@@ -359,16 +359,12 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
     );
   };
 
+  console.log('repositories', repositories);
+
   // Combine active repositories with all daemons
-  // Handle both direct array and wrapped response formats
-  const reposList = Array.isArray(repositories) 
-    ? repositories 
-    : (repositories as any)?.repositories || repositories || [];
-  const daemonsList = daemonsData?.daemons || (daemonsData as any)?.data?.daemons || [];
-  
   const allRepositories = Array.from(new Set([
-    ...(Array.isArray(reposList) ? reposList : []).map((r: WormholeRepository) => r.repoPath),
-    ...(Array.isArray(daemonsList) ? daemonsList : []).map((d: WormholeDaemon) => d.repository.name)
+    ...(repositories || []).map((r: WormholeRepository) => r.repoPath),
+    ...(daemonsData?.daemons || []).map((d: WormholeDaemon) => d.repository.name)
   ]));
 
   // Port Card Component
@@ -749,7 +745,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                   <div>
                     <p className="text-te-gray-600 dark:text-te-gray-500">Repositories:</p>
                     <pre className="font-mono text-2xs mt-1 overflow-x-auto">
-                      {JSON.stringify(reposList?.map((r: WormholeRepository) => ({
+                      {JSON.stringify(repositories?.map((r: WormholeRepository) => ({
                         path: r.repoPath,
                         branches: r.branches,
                         activeBranches: r.activeBranches,
@@ -907,7 +903,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
               </div>
             ) : (
               allRepositories.map((repoPath) => {
-                const repo = reposList?.find((r: WormholeRepository) => r.repoPath === repoPath);
+                const repo = repositories?.find((r: WormholeRepository) => r.repoPath === repoPath);
                 const daemon = getRepoDaemon(repoPath);
                 const repoClients = repo ? getRepoClients(repo.repoPath) : [];
                 const isExpanded = expandedRepos.has(repoPath);
