@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { FirewallRule, PortLabel } from '@gce-platform/types';
-import { portLabelApi } from '../api/port-labels';
+import type { FirewallRule } from '@gce-platform/types';
 
 interface PortSelectorModalProps {
   publicIp: string;
@@ -15,14 +13,19 @@ export default function PortSelectorModal({ publicIp, vmId, firewallRules, onClo
   const [customPort, setCustomPort] = useState<string>('');
   const [useCustom, setUseCustom] = useState(false);
 
-  // Fetch port labels for this VM
-  const { data: labelsResponse } = useQuery({
-    queryKey: ['port-labels', vmId],
-    queryFn: () => portLabelApi.listByVM(vmId),
-  });
-
-  const portLabels = labelsResponse?.data || [];
-  const portLabelMap = new Map(portLabels.map(label => [`${label.port}-${label.protocol}`, label]));
+  // Common port descriptions
+  const commonPorts: { [key: string]: string } = {
+    '22': 'SSH',
+    '80': 'HTTP',
+    '443': 'HTTPS',
+    '3000': 'Dev Server',
+    '3306': 'MySQL',
+    '5432': 'PostgreSQL',
+    '6379': 'Redis',
+    '8080': 'Alt HTTP / Wormhole',
+    '8443': 'Alt HTTPS',
+    '9000': 'Dev Server',
+  };
 
   // Extract unique TCP ports from ingress firewall rules
   const availablePorts = new Set<string>();
@@ -92,32 +95,9 @@ export default function PortSelectorModal({ publicIp, vmId, firewallRules, onClo
                       />
                       <span className="text-sm">
                         <span className="font-medium">Port {port}</span>
-                        {(() => {
-                          const label = portLabelMap.get(`${port}-tcp`);
-                          if (label) {
-                            return (
-                              <>
-                                <span className="text-te-gray-600 dark:text-te-gray-400"> — </span>
-                                <span className="font-medium">{label.label}</span>
-                                {label.description && (
-                                  <span className="text-te-gray-500 dark:text-te-gray-600 text-xs block ml-6 mt-1">
-                                    {label.description}
-                                  </span>
-                                )}
-                              </>
-                            );
-                          }
-                          // Default labels for common ports
-                          const defaultLabel = 
-                            port === '80' ? 'HTTP' :
-                            port === '443' ? 'HTTPS' :
-                            port === '22' ? 'SSH' :
-                            port === '3389' ? 'RDP' :
-                            port === '8080' ? 'Wormhole Service' :
-                            port === '8443' ? 'HTTPS Alt' :
-                            null;
-                          return defaultLabel ? <span className="text-te-gray-600 dark:text-te-gray-400"> ({defaultLabel})</span> : null;
-                        })()}
+                        {commonPorts[port] && (
+                          <span className="text-te-gray-600 dark:text-te-gray-400"> ({commonPorts[port]})</span>
+                        )}
                       </span>
                     </label>
                   ))}

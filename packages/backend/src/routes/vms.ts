@@ -372,25 +372,6 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       await db.insert(firewallRules).values(newFirewallRules);
     }
 
-    // Get port labels for the source VM
-    const { portLabels } = await import('../db/schema.js');
-    const sourcePortLabels = await db.select().from(portLabels)
-      .where(eq(portLabels.vmId, vmId));
-
-    // Duplicate port labels for the new VM
-    if (sourcePortLabels.length > 0) {
-      const newPortLabels = sourcePortLabels.map(label => ({
-        vmId: newVm.id,
-        port: label.port,
-        protocol: label.protocol,
-        label: label.label,
-        description: label.description,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-
-      await db.insert(portLabels).values(newPortLabels);
-    }
 
     return c.json<ApiResponse<VirtualMachine>>({ 
       success: true, 

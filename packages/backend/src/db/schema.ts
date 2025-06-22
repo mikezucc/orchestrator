@@ -45,14 +45,3 @@ export const firewallRules = pgTable('firewall_rules', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
-
-export const portLabels = pgTable('port_labels', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  vmId: text('vm_id').references(() => virtualMachines.id).notNull(),
-  port: text('port').notNull(),
-  protocol: text('protocol', { enum: ['tcp', 'udp'] }).notNull().default('tcp'),
-  label: text('label').notNull(),
-  description: text('description'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});

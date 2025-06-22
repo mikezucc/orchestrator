@@ -6,7 +6,6 @@ import { firewallApi } from '../api/firewall';
 import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
-import PortLabels from '../components/PortLabels';
 import WormholeSection from '../components/WormholeSection';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
@@ -317,10 +316,6 @@ export default function VMDetail() {
             </pre>
           </div>
         )}
-      </div>
-
-      <div>
-        <PortLabels vmId={id!} publicIp={vm.publicIp} />
       </div>
 
       <div>

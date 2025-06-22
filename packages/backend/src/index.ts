@@ -7,7 +7,6 @@ import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
 import { authRoutes } from './routes/auth.js';
 import { syncRoutes } from './routes/sync.js';
-import { portLabelRoutes } from './routes/port-labels.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
 import { createSSHWebSocketHandler } from './routes/ssh-ws.js';
@@ -37,7 +36,6 @@ app.route('/api/auth', authRoutes);
 app.route('/api/vms', vmRoutes);
 app.route('/api/firewall', firewallRoutes);
 app.route('/api/sync', syncRoutes);
-app.route('/api/port-labels', portLabelRoutes);
 app.route('/api/wormhole', wormholeRoutes);
 app.route('/api/ssh', sshRoutes);
 

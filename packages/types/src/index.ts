@@ -64,30 +64,6 @@ export interface GCPAuthResponse {
   expiresIn: number;
 }
 
-export interface PortLabel {
-  id: string;
-  vmId: string;
-  port: string;
-  protocol: 'tcp' | 'udp';
-  label: string;
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CreatePortLabelRequest {
-  vmId: string;
-  port: string;
-  protocol: 'tcp' | 'udp';
-  label: string;
-  description?: string;
-}
-
-export interface UpdatePortLabelRequest {
-  label?: string;
-  description?: string;
-}
-
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
