@@ -634,7 +634,11 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                             </div>
                             <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-2">
                               Click any branch to switch all connected clients
-                              {remoteBranches.length > 0 && <span className="ml-1">(↓ = remote branch)</span>}
+                              {(() => {
+                                const remoteBranchCount = repo?.availableBranches?.remote?.length || 
+                                                         daemon?.repository.branches?.remote?.length || 0;
+                                return remoteBranchCount > 0 ? <span className="ml-1">(↓ = remote branch)</span> : null;
+                              })()}
                             </p>
                           </div>
                         )}
