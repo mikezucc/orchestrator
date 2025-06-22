@@ -3,8 +3,8 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
-import { sshApi } from '../api/ssh';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { VirtualMachine } from '@gce-platform/types';
 
 interface SSHTerminalProps {
@@ -16,8 +16,11 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
-  const [sshInfo, setSSHInfo] = useState<any>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const { showError, showSuccess } = useToast();
+  const { user, token } = useAuth();
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -58,6 +61,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     
     term.open(terminalRef.current);
     fitAddon.fit();
+    fitAddonRef.current = fitAddon;
 
     // Handle window resize
     const handleResize = () => fitAddon.fit();
@@ -65,70 +69,131 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
     setTerminal(term);
 
-    // Setup SSH connection
-    setupSSHConnection(term);
+    // Setup WebSocket SSH connection
+    setupWebSocketConnection(term);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
       term.dispose();
     };
   }, []);
 
-  const setupSSHConnection = async (term: Terminal) => {
+  const setupWebSocketConnection = async (term: Terminal) => {
     try {
-      term.writeln('🔐 Setting up SSH connection...');
-      
-      // Get or setup SSH keys
-      const response = await sshApi.setupSSH(vm.id);
-      
-      if (!response.success || !response.data) {
-        throw new Error(response.error || 'Failed to setup SSH');
+      if (!user) {
+        throw new Error('User not authenticated');
       }
 
-      setSSHInfo(response.data);
-      setIsConnecting(false);
+      term.writeln('🔐 Connecting to SSH...');
       
-      term.writeln(`✅ SSH keys configured for ${response.data.username}@${response.data.host}`);
-      term.writeln('');
-      term.writeln('📋 Connection details:');
-      term.writeln(`   Host: ${response.data.host}`);
-      term.writeln(`   Port: ${response.data.port}`);
-      term.writeln(`   Username: ${response.data.username}`);
-      term.writeln('');
-      term.writeln('🔑 Private key has been generated. You can use it with any SSH client.');
-      term.writeln('');
+      // Create WebSocket connection
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.hostname}:3000/ssh-ws?userId=${user.id}&vmId=${vm.id}&token=${encodeURIComponent(token || '')}`;
       
-      // Since we can't directly SSH from the browser, provide instructions
-      term.writeln('To connect via SSH, you have several options:');
-      term.writeln('');
-      term.writeln('1. Copy the private key below and save it to a file (e.g., ~/.ssh/vm-key):');
-      term.writeln('');
-      term.write('\x1b[36m'); // Cyan color
-      term.writeln('-----BEGIN PRIVATE KEY-----');
-      
-      // Split private key into lines for better display
-      const keyLines = response.data.privateKey.split('\n');
-      keyLines.forEach(line => {
-        if (line && !line.includes('BEGIN') && !line.includes('END')) {
-          term.writeln(line);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          
+          switch (msg.type) {
+            case 'connected':
+              setIsConnected(true);
+              setIsConnecting(false);
+              term.clear();
+              showSuccess('SSH connection established');
+              break;
+              
+            case 'data':
+              // Decode base64 data and write to terminal
+              const data = atob(msg.data);
+              term.write(data);
+              break;
+              
+            case 'status':
+              term.writeln(`ℹ️  ${msg.data}`);
+              break;
+              
+            case 'error':
+              term.writeln(`\x1b[31m❌ ${msg.data}\x1b[0m`);
+              showError(msg.data);
+              setIsConnecting(false);
+              break;
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        term.writeln('\x1b[31m❌ Connection error\x1b[0m');
+        showError('Failed to connect to SSH');
+        setIsConnecting(false);
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        setIsConnected(false);
+        if (!isConnecting) {
+          term.writeln('\x1b[33m⚠️  Connection closed\x1b[0m');
+        }
+      };
+
+      // Handle terminal input
+      term.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN && isConnected) {
+          // Send input to WebSocket
+          ws.send(JSON.stringify({
+            type: 'data',
+            data: btoa(data)
+          }));
         }
       });
-      
-      term.writeln('-----END PRIVATE KEY-----');
-      term.write('\x1b[0m'); // Reset color
-      term.writeln('');
-      term.writeln('2. Set proper permissions and connect:');
-      term.writeln('   chmod 600 ~/.ssh/vm-key');
-      term.writeln(`   ssh -i ~/.ssh/vm-key ${response.data.username}@${response.data.host}`);
-      term.writeln('');
-      term.writeln('3. Or use gcloud CLI (if you have it installed):');
-      term.writeln(`   gcloud compute ssh ${response.data.username}@${vm.name} --project=${vm.gcpProjectId} --zone=${vm.zone}`);
-      
-      // Add copy button functionality
-      term.writeln('');
-      term.writeln('Press Ctrl+A (or Cmd+A on Mac) then Ctrl+C to copy all text.');
-      
-      showSuccess('SSH keys have been added to the VM');
+
+      // Handle terminal resize
+      term.onResize(({ cols, rows }) => {
+        if (ws.readyState === WebSocket.OPEN && isConnected) {
+          ws.send(JSON.stringify({
+            type: 'resize',
+            cols,
+            rows
+          }));
+        }
+      });
+
+      // Send initial terminal size
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          const { cols, rows } = term;
+          ws.send(JSON.stringify({
+            type: 'resize',
+            cols,
+            rows
+          }));
+        }
+      }, 100);
+
+      // Ping to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+
+      // Clean up ping interval on close
+      ws.addEventListener('close', () => {
+        clearInterval(pingInterval);
+      });
+
     } catch (error: any) {
       setIsConnecting(false);
       console.error('SSH setup error:', error);
@@ -137,28 +202,14 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     }
   };
 
-  const downloadPrivateKey = () => {
-    if (!sshInfo) return;
-    
-    const blob = new Blob([sshInfo.privateKey], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${vm.name}-ssh-key.pem`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showSuccess('Private key downloaded');
-  };
-
-  const copySSHCommand = () => {
-    if (!sshInfo) return;
-    
-    const command = `ssh -i ~/.ssh/${vm.name}-ssh-key.pem ${sshInfo.username}@${sshInfo.host}`;
-    navigator.clipboard.writeText(command);
-    showSuccess('SSH command copied to clipboard');
+  const reconnect = () => {
+    if (terminal && wsRef.current) {
+      wsRef.current.close();
+      terminal.clear();
+      setIsConnecting(true);
+      setIsConnected(false);
+      setupWebSocketConnection(terminal);
+    }
   };
 
   return (
@@ -174,29 +225,23 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
             </h3>
           </div>
           <div className="flex items-center space-x-2">
-            {sshInfo && (
-              <>
-                <button
-                  onClick={downloadPrivateKey}
-                  className="btn-secondary text-xs flex items-center space-x-1"
-                  title="Download private key"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                  </svg>
-                  <span>Download Key</span>
-                </button>
-                <button
-                  onClick={copySSHCommand}
-                  className="btn-secondary text-xs flex items-center space-x-1"
-                  title="Copy SSH command"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  <span>Copy Command</span>
-                </button>
-              </>
+            {isConnected && (
+              <span className="text-xs uppercase tracking-wider text-green-500 flex items-center space-x-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span>Connected</span>
+              </span>
+            )}
+            {!isConnecting && !isConnected && (
+              <button
+                onClick={reconnect}
+                className="btn-secondary text-xs flex items-center space-x-1"
+                title="Reconnect"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Reconnect</span>
+              </button>
             )}
             <button
               onClick={onClose}
@@ -218,13 +263,13 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         </div>
 
         {isConnecting && (
-          <div className="absolute inset-0 flex items-center justify-center bg-te-gray-900 bg-opacity-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-te-gray-900 bg-opacity-50 rounded-b-lg">
             <div className="flex items-center space-x-2">
               <svg className="animate-spin h-5 w-5 text-te-yellow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-sm uppercase tracking-wider">Setting up SSH...</span>
+              <span className="text-sm uppercase tracking-wider">Connecting to SSH...</span>
             </div>
           </div>
         )}

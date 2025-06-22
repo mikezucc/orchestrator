@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import * as dotenv from 'dotenv';
+import { createServer } from 'http';
 import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
 import { authRoutes } from './routes/auth.js';
@@ -9,6 +10,7 @@ import { syncRoutes } from './routes/sync.js';
 import { portLabelRoutes } from './routes/port-labels.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
+import { setupSSHWebSocketServer } from './services/ssh-websocket.js';
 
 dotenv.config();
 
@@ -43,10 +45,18 @@ if (missingEnvVars.length > 0) {
 
 const port = parseInt(process.env.PORT || '3000');
 
-serve({
+// Create server with Hono
+const server = serve({
   fetch: app.fetch,
   port,
+  createServer,
+}, (info) => {
+  console.log(`Server is running on http://localhost:${port}`);
+  console.log(`SSH WebSocket available at ws://localhost:${port}/ssh-ws`);
+  console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
+  
+  // Setup WebSocket server for SSH after server starts
+  if (info.server) {
+    setupSSHWebSocketServer(info.server);
+  }
 });
-
-console.log(`Server is running on http://localhost:${port}`);
-console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
