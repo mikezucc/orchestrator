@@ -19,25 +19,41 @@ export function setupSSHWebSocketServer(server: Server) {
     path: '/ssh-ws'
   });
 
+  wss.on('error', (error) => {
+    console.error('WebSocket server error:', error);
+  });
+
   wss.on('connection', async (ws: WebSocket, req) => {
-    console.log('New SSH WebSocket connection');
+    console.log('New SSH WebSocket connection from:', req.headers.origin);
+    console.log('URL:', req.url);
     
     let sshClient: SSHClient | null = null;
     let stream: any = null;
 
-    // Parse auth from query string
-    const url = new URL(req.url || '', `http://${req.headers.host}`);
-    const userId = url.searchParams.get('userId');
-    const vmId = url.searchParams.get('vmId');
-    const token = url.searchParams.get('token');
-
-    if (!userId || !vmId) {
-      ws.send(JSON.stringify({ type: 'error', data: 'Missing authentication' }));
-      ws.close();
-      return;
-    }
+    // Handle WebSocket errors early
+    ws.on('error', (error) => {
+      console.error('WebSocket connection error:', error);
+    });
 
     try {
+      // Parse auth from query string
+      if (!req.url) {
+        ws.send(JSON.stringify({ type: 'error', data: 'Invalid request URL' }));
+        ws.close();
+        return;
+      }
+      
+      const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const userId = url.searchParams.get('userId');
+      const vmId = url.searchParams.get('vmId');
+      const token = url.searchParams.get('token');
+
+      if (!userId || !vmId) {
+        ws.send(JSON.stringify({ type: 'error', data: 'Missing authentication' }));
+        ws.close();
+        return;
+      }
+
       // Get VM and user details
       const [vm] = await db.select().from(virtualMachines)
         .where(and(

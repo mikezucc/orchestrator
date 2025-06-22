@@ -45,18 +45,19 @@ if (missingEnvVars.length > 0) {
 
 const port = parseInt(process.env.PORT || '3000');
 
-// Create server with Hono
+// Create HTTP server
+const httpServer = createServer();
+
+// Setup WebSocket server
+setupSSHWebSocketServer(httpServer);
+
+// Create Hono server
 const server = serve({
   fetch: app.fetch,
   port,
-  createServer,
+  server: httpServer,
 }, (info) => {
   console.log(`Server is running on http://localhost:${port}`);
   console.log(`SSH WebSocket available at ws://localhost:${port}/ssh-ws`);
   console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
-  
-  // Setup WebSocket server for SSH after server starts
-  if (info.server) {
-    setupSSHWebSocketServer(info.server);
-  }
 });
