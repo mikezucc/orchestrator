@@ -20,7 +20,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { showError, showSuccess } = useToast();
-  const { user, token } = useAuth();
+  const { userId, auth } = useAuth();
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -83,7 +83,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
   const setupWebSocketConnection = async (term: Terminal) => {
     try {
-      if (!user) {
+      if (!userId || !auth) {
         throw new Error('User not authenticated');
       }
 
@@ -91,7 +91,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       // Create WebSocket connection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:3000/ssh-ws?userId=${user.id}&vmId=${vm.id}&token=${encodeURIComponent(token || '')}`;
+      const wsUrl = `${protocol}//${window.location.hostname}:3000/ssh-ws?userId=${userId}&vmId=${vm.id}&token=${encodeURIComponent(auth.accessToken || '')}`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
