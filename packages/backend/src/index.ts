@@ -48,6 +48,13 @@ const port = parseInt(process.env.PORT || '3000');
 // Create HTTP server
 const httpServer = createServer();
 
+// Add request logging for debugging
+httpServer.on('upgrade', (request, socket, head) => {
+  console.log('=== WebSocket upgrade request ===');
+  console.log('URL:', request.url);
+  console.log('Headers:', request.headers);
+});
+
 // Setup WebSocket server
 setupSSHWebSocketServer(httpServer);
 

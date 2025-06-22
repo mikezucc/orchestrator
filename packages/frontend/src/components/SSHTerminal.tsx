@@ -83,6 +83,9 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
   const setupWebSocketConnection = async (term: Terminal) => {
     try {
+      console.log('Setting up WebSocket connection');
+      console.log('Auth state:', { userId, hasAuth: !!auth, hasToken: !!auth?.accessToken });
+      
       if (!userId || !auth) {
         throw new Error('User not authenticated');
       }
@@ -91,19 +94,27 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       // Create WebSocket connection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host; // This will be the frontend host (localhost:5173 in dev)
+      let host = window.location.host; // This will be the frontend host (localhost:3000 in dev)
+      if (host.includes(':5173')) {
+        host = host.replace(':5173', ':3000'); // Replace dev port with backend port
+      }
       const wsUrl = `${protocol}//${host}/ssh-ws?userId=${userId}&vmId=${vm.id}&token=${encodeURIComponent(auth.accessToken || '')}`;
+      
+      console.log('WebSocket URL:', wsUrl);
+      console.log('VM details:', { id: vm.id, name: vm.name, publicIp: vm.publicIp });
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('WebSocket opened successfully');
+        console.log('WebSocket readyState:', ws.readyState);
       };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          console.log('WebSocket message received:', msg.type, msg.data?.substring ? msg.data.substring(0, 50) + '...' : msg.data);
           
           switch (msg.type) {
             case 'connected':
@@ -135,14 +146,16 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('WebSocket error event:', error);
+        console.error('WebSocket readyState:', ws.readyState);
+        console.error('WebSocket url:', ws.url);
         term.writeln('\x1b[31m❌ Connection error\x1b[0m');
         showError('Failed to connect to SSH');
         setIsConnecting(false);
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket closed');
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', { code: event.code, reason: event.reason, wasClean: event.wasClean });
         setIsConnected(false);
         if (!isConnecting) {
           term.writeln('\x1b[33m⚠️  Connection closed\x1b[0m');
@@ -198,6 +211,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     } catch (error: any) {
       setIsConnecting(false);
       console.error('SSH setup error:', error);
+      console.error('Error stack:', error.stack);
       term.writeln(`\x1b[31m❌ Error: ${error.message || 'Failed to setup SSH connection'}\x1b[0m`);
       showError(error.message || 'Failed to setup SSH connection');
     }

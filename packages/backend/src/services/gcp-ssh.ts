@@ -22,6 +22,9 @@ interface AddSSHKeyParams {
 
 // Generate SSH key pair
 export async function generateSSHKeys(username: string): Promise<SSHKeyPair> {
+  console.log('=== Generating SSH keys ===');
+  console.log('Username:', username);
+  
   const { publicKey, privateKey } = await generateKeyPair('rsa', {
     modulusLength: 2048,
     publicKeyEncoding: {
@@ -33,83 +36,133 @@ export async function generateSSHKeys(username: string): Promise<SSHKeyPair> {
       format: 'pem'
     }
   });
-
-  // Convert public key to OpenSSH format
-  const publicKeyBuffer = Buffer.from(publicKey);
-  const sshPublicKey = crypto.createPublicKey(publicKey).export({
-    type: 'spki',
-    format: 'der'
-  });
   
-  // Format as OpenSSH public key
-  const sshRsaPrefix = Buffer.from([0x00, 0x00, 0x00, 0x07, 0x73, 0x73, 0x68, 0x2d, 0x72, 0x73, 0x61]);
-  const openSSHKey = `ssh-rsa ${Buffer.concat([sshRsaPrefix, sshPublicKey]).toString('base64')} ${username}@orchestrator`;
+  console.log('Key pair generated successfully');
 
-  return {
-    publicKey: openSSHKey,
-    privateKey
-  };
+  // Use ssh2 library's utilities to convert to OpenSSH format
+  try {
+    // ssh2 library can parse the private key and extract the public key in proper format
+    const { utils } = await import('ssh2');
+    const parsedKey = utils.parseKey(privateKey);
+    
+    if (!parsedKey || parsedKey.type !== 'ssh-rsa') {
+      throw new Error('Failed to parse generated key');
+    }
+    
+    // Get the public key in OpenSSH format
+    const openSSHKey = parsedKey.getPublicSSH();
+    const openSSHKeyWithComment = `${openSSHKey} ${username}@orchestrator`;
+    
+    console.log('Successfully converted to OpenSSH format');
+    console.log('Public key preview:', openSSHKeyWithComment.substring(0, 50) + '...');
+    
+    return {
+      publicKey: openSSHKeyWithComment,
+      privateKey
+    };
+  } catch (error: any) {
+    console.error('Error converting to OpenSSH format:', error);
+    console.log('Falling back to manual conversion...');
+    
+    // Fallback: Use node-forge or another method
+    const keyObj = crypto.createPublicKey(publicKey);
+    const derPublicKey = keyObj.export({ type: 'spki', format: 'der' });
+    const openSSHKey = `ssh-rsa ${derPublicKey.toString('base64')} ${username}@orchestrator`;
+    
+    return {
+      publicKey: openSSHKey,
+      privateKey
+    };
+  }
 }
 
 // Add SSH key to VM metadata
 export async function addSSHKeyToVM({ projectId, zone, instanceName, username, publicKey, accessToken }: AddSSHKeyParams) {
+  console.log('=== Adding SSH key to VM ===');
+  console.log('Project:', projectId);
+  console.log('Zone:', zone);
+  console.log('Instance:', instanceName);
+  console.log('Username:', username);
+  console.log('Has access token:', !!accessToken);
+  
   const oauth2Client = new OAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
   google.options({ auth: oauth2Client });
 
-  // Get current instance metadata
-  const instance = await compute.instances.get({
-    project: projectId,
-    zone,
-    instance: instanceName,
-  });
+  try {
+    // Get current instance metadata
+    console.log('Fetching current instance metadata...');
+    const instance = await compute.instances.get({
+      project: projectId,
+      zone,
+      instance: instanceName,
+    });
+    
+    console.log('Instance metadata fetched successfully');
 
-  const metadata = instance.data.metadata || { items: [] };
-  const items = metadata.items || [];
-  
-  // Find or create ssh-keys metadata
-  let sshKeysItem = items.find(item => item.key === 'ssh-keys');
-  
-  if (!sshKeysItem) {
-    sshKeysItem = {
-      key: 'ssh-keys',
-      value: ''
-    };
-    items.push(sshKeysItem);
-  }
-
-  // Parse existing SSH keys
-  const existingKeys = sshKeysItem.value ? sshKeysItem.value.split('\n').filter(Boolean) : [];
-  
-  // Add new key (format: username:ssh-rsa KEY comment)
-  const newKey = `${username}:${publicKey}`;
-  
-  // Check if this user already has a key
-  const userKeyIndex = existingKeys.findIndex(key => key.startsWith(`${username}:`));
-  
-  if (userKeyIndex >= 0) {
-    // Replace existing key
-    existingKeys[userKeyIndex] = newKey;
-  } else {
-    // Add new key
-    existingKeys.push(newKey);
-  }
-  
-  // Update the value
-  sshKeysItem.value = existingKeys.join('\n');
-
-  // Update instance metadata
-  await compute.instances.setMetadata({
-    project: projectId,
-    zone,
-    instance: instanceName,
-    requestBody: {
-      fingerprint: metadata.fingerprint,
-      items: items
+    const metadata = instance.data.metadata || { items: [] };
+    const items = metadata.items || [];
+    
+    console.log('Current metadata items:', items.map(item => item.key));
+    
+    // Find or create ssh-keys metadata
+    let sshKeysItem = items.find(item => item.key === 'ssh-keys');
+    
+    if (!sshKeysItem) {
+      console.log('No existing ssh-keys metadata, creating new one');
+      sshKeysItem = {
+        key: 'ssh-keys',
+        value: ''
+      };
+      items.push(sshKeysItem);
+    } else {
+      console.log('Found existing ssh-keys metadata');
     }
-  });
 
-  return { success: true };
+    // Parse existing SSH keys
+    const existingKeys = sshKeysItem.value ? sshKeysItem.value.split('\n').filter(Boolean) : [];
+    console.log('Existing SSH keys count:', existingKeys.length);
+    
+    // Add new key (format: username:ssh-rsa KEY comment)
+    const newKey = `${username}:${publicKey}`;
+    console.log('New key format:', newKey.substring(0, 100) + '...');
+    
+    // Check if this user already has a key
+    const userKeyIndex = existingKeys.findIndex(key => key.startsWith(`${username}:`));
+    
+    if (userKeyIndex >= 0) {
+      console.log('Replacing existing key for user:', username);
+      existingKeys[userKeyIndex] = newKey;
+    } else {
+      console.log('Adding new key for user:', username);
+      existingKeys.push(newKey);
+    }
+    
+    // Update the value
+    sshKeysItem.value = existingKeys.join('\n');
+    console.log('Total keys after update:', existingKeys.length);
+
+    // Update instance metadata
+    console.log('Updating instance metadata...');
+    await compute.instances.setMetadata({
+      project: projectId,
+      zone,
+      instance: instanceName,
+      requestBody: {
+        fingerprint: metadata.fingerprint,
+        items: items
+      }
+    });
+
+    console.log('SSH key added successfully');
+    return { success: true };
+  } catch (error: any) {
+    console.error('=== Error adding SSH key to VM ===');
+    console.error('Error message:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error details:', error.errors || error);
+    throw error;
+  }
 }
 
 // Get SSH connection info
