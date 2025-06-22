@@ -4,6 +4,7 @@ import { db } from '../db/index.js';
 import { organizations, auditLogs } from '../db/schema-auth.js';
 import { eq } from 'drizzle-orm';
 import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
+import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
 import { listProjects } from '../services/gcp.js';
 
@@ -43,7 +44,7 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
 });
 
 // Initiate Google OAuth for organization (authenticated version)
-googleAuthRoutes.get('/', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (c) => {
+googleAuthRoutes.get('/', flexibleAuth, flexibleRequireOrganization, requireRole('owner', 'admin'), (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
@@ -120,8 +121,8 @@ googleAuthRoutes.get('/callback', async (c) => {
   }
 });
 
-// Disconnect Google auth
-googleAuthRoutes.delete('/', authenticateToken, requireOrganization, requireRole('owner'), async (c) => {
+// Disconnect Google auth  
+googleAuthRoutes.delete('/', flexibleAuth, flexibleRequireOrganization, requireRole('owner'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
 
@@ -154,7 +155,7 @@ googleAuthRoutes.delete('/', authenticateToken, requireOrganization, requireRole
 });
 
 // Update GCP project IDs
-googleAuthRoutes.put('/projects', authenticateToken, requireOrganization, requireRole('owner', 'admin'), async (c) => {
+googleAuthRoutes.put('/projects', flexibleAuth, flexibleRequireOrganization, requireRole('owner', 'admin'), async (c) => {
   try {
     const organizationId = (c as any).organizationId;
     const { projectIds } = await c.req.json();
@@ -192,7 +193,7 @@ googleAuthRoutes.put('/projects', authenticateToken, requireOrganization, requir
 });
 
 // Get available GCP projects
-googleAuthRoutes.get('/projects/available', authenticateToken, requireOrganization, async (c) => {
+googleAuthRoutes.get('/projects/available', flexibleAuth, flexibleRequireOrganization, async (c) => {
   try {
     const organizationId = (c as any).organizationId;
 
