@@ -23,6 +23,17 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   const wsRef = useRef<WebSocket | null>(null);
   const { showError, showSuccess } = useToast();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('WormholeSection mounted/updated:', {
+      vmId,
+      publicIp,
+      autoConnect,
+      connectionStatus,
+      hasAttemptedAutoConnect
+    });
+  }, [vmId, publicIp, autoConnect, connectionStatus, hasAttemptedAutoConnect]);
+
   // Fetch Wormhole status directly from the VM
   const { data: statusData, refetch: refetchStatus } = useQuery({
     queryKey: ['wormhole-status-direct', publicIp],
@@ -61,20 +72,6 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
       }
     };
   }, []);
-
-  // Auto-connect when component mounts if publicIp is available
-  useEffect(() => {
-    if (autoConnect && publicIp && !hasAttemptedAutoConnect && connectionStatus === 'disconnected') {
-      setHasAttemptedAutoConnect(true);
-      // Small delay to ensure the page is fully loaded
-      const timer = setTimeout(() => {
-        console.log('Auto-connecting to Wormhole service...');
-        handleConnect(true);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [publicIp, autoConnect, hasAttemptedAutoConnect, connectionStatus]);
 
   const handleConnect = (isAutoConnect = false) => {
     if (!publicIp) {
@@ -163,6 +160,21 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
     }
     setConnectionStatus('disconnected');
   };
+
+  // Auto-connect when component mounts if publicIp is available
+  useEffect(() => {
+    if (autoConnect && publicIp && !hasAttemptedAutoConnect && connectionStatus === 'disconnected') {
+      console.log('Auto-connect conditions met, attempting connection...');
+      setHasAttemptedAutoConnect(true);
+      // Small delay to ensure the page is fully loaded and network is ready
+      const timer = setTimeout(() => {
+        console.log('Auto-connecting to Wormhole service at:', publicIp);
+        handleConnect(true);
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [publicIp, autoConnect]); // Simplified dependencies
 
   const toggleRepo = (repoPath: string) => {
     setExpandedRepos(prev => {
