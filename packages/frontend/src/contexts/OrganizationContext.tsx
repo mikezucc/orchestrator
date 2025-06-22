@@ -32,25 +32,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       const memberships = await organizationApi.getUserMemberships();
       setOrganizations(memberships.map(m => m.organization));
       
-      // Check if we have a saved organization ID
-      const savedOrgId = localStorage.getItem('selectedOrganizationId');
-      if (savedOrgId) {
-        const savedOrg = memberships.find(m => m.organization.id === savedOrgId)?.organization;
-        if (savedOrg) {
-          setCurrentOrganization(savedOrg);
-          // Update the auth headers to include this organization
-          localStorage.setItem('currentOrganizationId', savedOrg.id);
-        } else if (memberships.length > 0) {
-          // Saved org not found, use first available
-          setCurrentOrganization(memberships[0].organization);
-          localStorage.setItem('selectedOrganizationId', memberships[0].organization.id);
-          localStorage.setItem('currentOrganizationId', memberships[0].organization.id);
+      // Get the current organization ID from localStorage (set by AuthContext)
+      const currentOrgId = localStorage.getItem('currentOrganizationId');
+      if (currentOrgId) {
+        const currentOrg = memberships.find(m => m.organization.id === currentOrgId)?.organization;
+        if (currentOrg) {
+          setCurrentOrganization(currentOrg);
         }
-      } else if (memberships.length > 0) {
-        // No saved org, use first available
-        setCurrentOrganization(memberships[0].organization);
-        localStorage.setItem('selectedOrganizationId', memberships[0].organization.id);
-        localStorage.setItem('currentOrganizationId', memberships[0].organization.id);
       }
     } catch (error) {
       console.error('Failed to fetch organizations:', error);

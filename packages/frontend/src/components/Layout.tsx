@@ -6,8 +6,8 @@ import OrganizationSwitcher from './OrganizationSwitcher';
 import { useEffect } from 'react';
 
 export default function Layout() {
-  const { isAuthenticated, logout, isLoading } = useAuth();
-  const { organizations, isLoading: orgLoading } = useOrganization();
+  const { isAuthenticated, logout, isLoading, hasOrganizations } = useAuth();
+  const { isLoading: orgLoading } = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,10 +18,10 @@ export default function Layout() {
   }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
-    if (!isLoading && !orgLoading && isAuthenticated && organizations.length === 0) {
+    if (!isLoading && isAuthenticated && !hasOrganizations) {
       navigate('/create-organization');
     }
-  }, [isAuthenticated, isLoading, orgLoading, organizations, navigate]);
+  }, [isAuthenticated, isLoading, hasOrganizations, navigate]);
 
   if (isLoading || orgLoading) {
     return (

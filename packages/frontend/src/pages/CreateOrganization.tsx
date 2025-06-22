@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { organizationApi } from '../api/organizations';
 import { useOrganization } from '../contexts/OrganizationContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CreateOrganization() {
   const [organizationName, setOrganizationName] = useState('');
@@ -9,6 +10,13 @@ export default function CreateOrganization() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { refreshOrganizations } = useOrganization();
+  const { hasOrganizations, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && hasOrganizations) {
+      navigate('/');
+    }
+  }, [hasOrganizations, isLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,9 +24,15 @@ export default function CreateOrganization() {
     setIsCreating(true);
 
     try {
-      await organizationApi.createOrganization(organizationName);
+      const org = await organizationApi.createOrganization(organizationName);
+      
+      // Set the new organization as current
+      localStorage.setItem('selectedOrganizationId', org.id);
+      localStorage.setItem('currentOrganizationId', org.id);
+      
+      // Refresh organizations and reload the page to update auth context
       await refreshOrganizations();
-      navigate('/');
+      window.location.href = '/';
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create organization');
     } finally {

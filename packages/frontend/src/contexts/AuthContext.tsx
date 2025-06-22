@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import type { GCPAuthResponse } from '@gce-platform/types';
 import { fetchClient } from '../api/fetchClient';
+import { organizationApi } from '../api/organizations';
 
 interface AuthContextType {
   auth: GCPAuthResponse | null;
@@ -10,6 +11,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   setIsAuthenticated: (value: boolean) => void;
+  currentOrganizationId: string | null;
+  hasOrganizations: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,29 +22,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentOrganizationId, setCurrentOrganizationId] = useState<string | null>(null);
+  const [hasOrganizations, setHasOrganizations] = useState(false);
 
   useEffect(() => {
-    // Check for OTP auth token first
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    
-    if (token && user) {
-      const userData = JSON.parse(user);
-      setUserId(userData.id);
-      setIsAuthenticated(true);
-    } else {
-      // Fall back to Google auth
-      const storedAuth = localStorage.getItem('auth');
-      const storedUserId = localStorage.getItem('userId');
+    const initAuth = async () => {
+      // Check for OTP auth token first
+      const token = localStorage.getItem('token');
+      const user = localStorage.getItem('user');
       
-      if (storedAuth && storedUserId) {
-        setAuth(JSON.parse(storedAuth));
-        setUserId(storedUserId);
+      if (token && user) {
+        const userData = JSON.parse(user);
+        setUserId(userData.id);
         setIsAuthenticated(true);
+        
+        // Fetch user's organizations
+        try {
+          const memberships = await organizationApi.getUserMemberships();
+          if (memberships.length > 0) {
+            setHasOrganizations(true);
+            
+            // Check if we have a saved organization ID
+            const savedOrgId = localStorage.getItem('selectedOrganizationId');
+            if (savedOrgId && memberships.find(m => m.organization.id === savedOrgId)) {
+              setCurrentOrganizationId(savedOrgId);
+              localStorage.setItem('currentOrganizationId', savedOrgId);
+            } else {
+              // Use first organization as default
+              const defaultOrgId = memberships[0].organization.id;
+              setCurrentOrganizationId(defaultOrgId);
+              localStorage.setItem('selectedOrganizationId', defaultOrgId);
+              localStorage.setItem('currentOrganizationId', defaultOrgId);
+            }
+          } else {
+            setHasOrganizations(false);
+          }
+        } catch (error) {
+          console.error('Failed to fetch organizations:', error);
+        }
+      } else {
+        // Fall back to Google auth
+        const storedAuth = localStorage.getItem('auth');
+        const storedUserId = localStorage.getItem('userId');
+        
+        if (storedAuth && storedUserId) {
+          setAuth(JSON.parse(storedAuth));
+          setUserId(storedUserId);
+          setIsAuthenticated(true);
+          
+          // Fetch user's organizations for Google auth too
+          try {
+            const memberships = await organizationApi.getUserMemberships();
+            if (memberships.length > 0) {
+              setHasOrganizations(true);
+              
+              const savedOrgId = localStorage.getItem('selectedOrganizationId');
+              if (savedOrgId && memberships.find(m => m.organization.id === savedOrgId)) {
+                setCurrentOrganizationId(savedOrgId);
+                localStorage.setItem('currentOrganizationId', savedOrgId);
+              } else {
+                const defaultOrgId = memberships[0].organization.id;
+                setCurrentOrganizationId(defaultOrgId);
+                localStorage.setItem('selectedOrganizationId', defaultOrgId);
+                localStorage.setItem('currentOrganizationId', defaultOrgId);
+              }
+            } else {
+              setHasOrganizations(false);
+            }
+          } catch (error) {
+            console.error('Failed to fetch organizations:', error);
+          }
+        }
       }
-    }
-    
-    setIsLoading(false);
+      
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = () => {
@@ -69,8 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuth(null);
     setUserId(null);
     setIsAuthenticated(false);
+    setCurrentOrganizationId(null);
+    setHasOrganizations(false);
     localStorage.removeItem('auth');
     localStorage.removeItem('userId');
+    localStorage.removeItem('selectedOrganizationId');
+    localStorage.removeItem('currentOrganizationId');
   };
 
   return (
@@ -82,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       isLoading,
       setIsAuthenticated,
+      currentOrganizationId,
+      hasOrganizations,
     }}>
       {children}
     </AuthContext.Provider>
