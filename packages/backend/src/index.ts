@@ -23,7 +23,7 @@ const app = new Hono();
 app.use('/*', cors({
   origin: ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
-  allowHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-organization-id'],
 }));
 
 app.get('/', (c) => {
