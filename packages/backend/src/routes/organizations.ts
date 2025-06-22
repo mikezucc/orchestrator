@@ -3,13 +3,14 @@ import { db } from '../db/index.js';
 import { organizations, organizationMembers, authUsers, auditLogs } from '../db/schema-auth.js';
 import { virtualMachines } from '../db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
+import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
+import { requireRole } from '../middleware/auth.js';
 
 export const organizationRoutes = new Hono();
 
 // Apply middleware to all routes
-organizationRoutes.use('*', authenticateToken);
-organizationRoutes.use('*', requireOrganization);
+organizationRoutes.use('*', flexibleAuth);
+organizationRoutes.use('*', flexibleRequireOrganization);
 
 // Get my organization (simplified endpoint for frontend)
 organizationRoutes.get('/my-organization', async (c) => {

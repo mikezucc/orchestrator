@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
-import { db } from '../db';
-import { authUsers, sessions } from '../db/schema-auth';
-import { generateOTP, storeOTP, verifyOTP } from '../services/otp';
-import { emailService } from '../services/email';
+import { db } from '../db/index.js';
+import { authUsers, sessions, organizationMembers } from '../db/schema-auth.js';
+import { generateOTP, storeOTP, verifyOTP } from '../services/otp.js';
+import { emailService } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
 import jwt from 'jsonwebtoken';
+import { generateSessionToken } from '../utils/auth.js';
 
 const authOTP = new Hono();
 
@@ -75,16 +76,18 @@ authOTP.post('/verify-otp', async (c) => {
       ipAddress: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown'
     });
     
-    // Create JWT token
-    const jwtToken = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email,
-        sessionToken 
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '30d' }
-    );
+    // Get user's first organization (if any)
+    const membership = await db.query.organizationMembers.findFirst({
+      where: eq(organizationMembers.userId, user.id)
+    });
+    
+    // Use generateSessionToken from auth utils
+    const jwtToken = generateSessionToken(user.id, membership?.organizationId);
+    
+    // Also store the JWT token in the session for consistency
+    await db.update(sessions)
+      .set({ token: jwtToken })
+      .where(eq(sessions.token, sessionToken));
     
     return c.json({
       token: jwtToken,
@@ -110,10 +113,9 @@ authOTP.post('/logout', async (c) => {
     }
     
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
     
-    // Delete session
-    await db.delete(sessions).where(eq(sessions.token, decoded.sessionToken));
+    // Delete session by token
+    await db.delete(sessions).where(eq(sessions.token, token));
     
     return c.json({ message: 'Logged out successfully' });
   } catch (error) {
@@ -131,11 +133,10 @@ authOTP.get('/me', async (c) => {
     }
     
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
     
     // Verify session exists and is valid
     const session = await db.query.sessions.findFirst({
-      where: eq(sessions.token, decoded.sessionToken)
+      where: eq(sessions.token, token)
     });
     
     if (!session || new Date() > session.expiresAt) {
@@ -144,7 +145,7 @@ authOTP.get('/me', async (c) => {
     
     // Get user
     const user = await db.query.authUsers.findFirst({
-      where: eq(authUsers.id, decoded.userId)
+      where: eq(authUsers.id, session.userId)
     });
     
     if (!user) {
