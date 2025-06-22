@@ -91,7 +91,8 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       // Create WebSocket connection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:3000/ssh-ws?userId=${userId}&vmId=${vm.id}&token=${encodeURIComponent(auth.accessToken || '')}`;
+      const host = window.location.host; // This will be the frontend host (localhost:5173 in dev)
+      const wsUrl = `${protocol}//${host}/ssh-ws?userId=${userId}&vmId=${vm.id}&token=${encodeURIComponent(auth.accessToken || '')}`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
