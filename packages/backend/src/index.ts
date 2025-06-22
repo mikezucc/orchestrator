@@ -2,7 +2,6 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createNodeWebSocket } from '@hono/node-ws';
-import { createServer } from 'node:http';
 import * as dotenv from 'dotenv';
 import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
@@ -11,7 +10,7 @@ import { syncRoutes } from './routes/sync.js';
 import { portLabelRoutes } from './routes/port-labels.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
-import { createSSHWebSocketRoute } from './routes/ssh-ws.js';
+import { createSSHWebSocketHandler } from './routes/ssh-ws.js';
 
 dotenv.config();
 
@@ -57,9 +56,32 @@ const port = parseInt(process.env.PORT || '3000');
 // Create WebSocket upgrade handler
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
-// Add WebSocket route
-const sshWebSocketRoute = createSSHWebSocketRoute(upgradeWebSocket);
-app.route('/ssh-ws', sshWebSocketRoute);
+// Add WebSocket routes directly to the main app
+app.get('/ssh-ws/test',
+  upgradeWebSocket((c) => {
+    console.log('Test WebSocket upgrade requested');
+    return {
+      onOpen: (event, ws) => {
+        console.log('Test WebSocket opened');
+        ws.send('Hello from test WebSocket!');
+      },
+      onMessage: (event, ws) => {
+        console.log('Test message received:', event.data);
+        ws.send(`Echo: ${event.data}`);
+      },
+      onClose: () => {
+        console.log('Test WebSocket closed');
+      },
+      onError: (error) => {
+        console.error('Test WebSocket error:', error);
+      }
+    };
+  })
+);
+
+// Add the main SSH WebSocket route
+const sshWebSocketHandler = createSSHWebSocketHandler(upgradeWebSocket);
+app.get('/ssh-ws', sshWebSocketHandler);
 
 // Add a debug route to check if routes are registered
 app.get('/debug/routes', (c) => {
@@ -71,26 +93,15 @@ app.get('/debug/routes', (c) => {
   });
 });
 
-// Create HTTP server
-const httpServer = createServer();
-
-// Add debugging for upgrade requests
-httpServer.on('upgrade', (request, socket, head) => {
-  console.log('=== HTTP Upgrade Request ===');
-  console.log('URL:', request.url);
-  console.log('Upgrade header:', request.headers.upgrade);
-});
-
-// Inject WebSocket handler into the server BEFORE starting it
-injectWebSocket(httpServer);
-
-// Create and start server with the prepared HTTP server
+// Create and start server
 const server = serve({
   fetch: app.fetch,
   port,
-  server: httpServer,
+}, (info) => {
+  console.log(`Server is running on http://localhost:${info.port}`);
+  console.log(`SSH WebSocket available at ws://localhost:${info.port}/ssh-ws`);
+  console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
 });
 
-console.log(`Server is running on http://localhost:${port}`);
-console.log(`SSH WebSocket available at ws://localhost:${port}/ssh-ws`);
-console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
+// Inject WebSocket into the server AFTER it's created
+injectWebSocket(server);

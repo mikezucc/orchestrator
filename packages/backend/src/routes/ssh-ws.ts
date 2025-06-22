@@ -1,4 +1,3 @@
-import { Hono } from 'hono';
 import { Client as SSHClient } from 'ssh2';
 import { db } from '../db/index.js';
 import { virtualMachines, users } from '../db/schema.js';
@@ -6,37 +5,11 @@ import { eq, and } from 'drizzle-orm';
 import { generateSSHKeys, addSSHKeyToVM } from '../services/gcp-ssh.js';
 import { getValidAccessToken } from '../services/auth.js';
 
-export function createSSHWebSocketRoute(upgradeWebSocket: any) {
-  const sshWebSocketRoute = new Hono();
+// Store active SSH connections
+const activeConnections = new Map<any, { sshClient: SSHClient | null; stream: any }>();
 
-  // Store active SSH connections
-  const activeConnections = new Map<any, { sshClient: SSHClient | null; stream: any }>();
-
-  // Add a test endpoint
-  sshWebSocketRoute.get('/test', 
-    upgradeWebSocket((c) => {
-      console.log('Test WebSocket upgrade requested');
-      return {
-        onOpen: (event, ws) => {
-          console.log('Test WebSocket opened');
-          ws.send('Hello from test WebSocket!');
-        },
-        onMessage: (event, ws) => {
-          console.log('Test message received:', event.data);
-          ws.send(`Echo: ${event.data}`);
-        },
-        onClose: () => {
-          console.log('Test WebSocket closed');
-        },
-        onError: (error) => {
-          console.error('Test WebSocket error:', error);
-        }
-      };
-    })
-  );
-
-  sshWebSocketRoute.get('/', 
-  upgradeWebSocket((c) => {
+export function createSSHWebSocketHandler(upgradeWebSocket: any) {
+  return upgradeWebSocket((c: any) => {
     // Get query parameters
     const userId = c.req.query('userId');
     const vmId = c.req.query('vmId');
@@ -303,8 +276,5 @@ export function createSSHWebSocketRoute(upgradeWebSocket: any) {
         }
       }
     };
-  })
-);
-
-  return sshWebSocketRoute;
+  });
 }
