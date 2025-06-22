@@ -57,17 +57,7 @@ export default function Layout() {
                 <Link
                   to="/"
                   className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
-                    isActive('/') 
-                      ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
-                      : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/vms"
-                  className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
-                    isActive('/vms') 
+                    isActive('/') || isActive('/vms')
                       ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
                       : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
                   }`}

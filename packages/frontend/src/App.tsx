@@ -5,7 +5,6 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { OrganizationProvider } from './contexts/OrganizationContext';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
 import VMs from './pages/VMs';
 import VMDetail from './pages/VMDetail';
 import Login from './pages/Login';
@@ -31,7 +30,7 @@ function App() {
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/create-organization" element={<ProtectedRoute><CreateOrganization /></ProtectedRoute>} />
                   <Route path="/" element={<Layout />}>
-                    <Route index element={<Dashboard />} />
+                    <Route index element={<VMs />} />
                     <Route path="vms" element={<VMs />} />
                     <Route path="vms/:id" element={<VMDetail />} />
                     <Route path="organization/settings" element={<OrganizationSettings />} />
