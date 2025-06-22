@@ -212,17 +212,6 @@ export default function VMs() {
                       {vm.publicIp ? (
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-mono text-te-gray-900 dark:text-te-gray-100">{vm.publicIp}</span>
-                          {vm.status === 'running' && (
-                            <Link
-                              to={`/vms/${vm.id}`}
-                              className="inline-flex items-center px-2 py-1 bg-green-600 dark:bg-te-yellow text-white dark:text-te-gray-900 text-xs rounded hover:bg-green-700 dark:hover:bg-te-orange transition-colors"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                              </svg>
-                              Connect
-                            </Link>
-                          )}
                         </div>
                       ) : (
                         <span className="text-te-gray-500 dark:text-te-gray-600">—</span>
@@ -241,7 +230,7 @@ export default function VMs() {
                                   window.open(url, '_blank');
                                 }
                               }}
-                              className="inline-flex items-center px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs rounded hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors"
+                              className="inline-flex items-center px-2 py-1 bg-green-600 dark:bg-te-yellow text-white dark:text-te-gray-900 text-xs rounded hover:bg-green-700 dark:hover:bg-te-orange transition-colors"
                               title={port.description || `Open ${port.name}`}
                             >
                               <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
