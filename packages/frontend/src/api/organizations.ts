@@ -85,6 +85,29 @@ export const organizationApi = {
   },
 };
 
+export interface GCPProject {
+  projectId: string;
+  name: string;
+  projectNumber: string;
+  state: string;
+  createTime: string;
+  selected: boolean;
+}
+
+export const googleCloudApi = {
+  // Get available GCP projects
+  getAvailableProjects: async (): Promise<{ success: boolean; projects?: GCPProject[]; error?: string }> => {
+    const { data } = await api.get('/auth/google/projects/available');
+    return data;
+  },
+
+  // Update selected GCP projects
+  updateProjects: async (projectIds: string[]): Promise<{ success: boolean; message?: string; error?: string }> => {
+    const { data } = await api.put('/auth/google/projects', { projectIds });
+    return data;
+  },
+};
+
 export const invitationApi = {
   // Get pending invitations
   getPendingInvitations: async (organizationId: string): Promise<TeamInvitation[]> => {

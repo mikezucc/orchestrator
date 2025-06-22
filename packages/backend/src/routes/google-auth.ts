@@ -4,6 +4,8 @@ import { db } from '../db/index.js';
 import { organizations, auditLogs } from '../db/schema-auth.js';
 import { eq } from 'drizzle-orm';
 import { authenticateToken, requireOrganization, requireRole } from '../middleware/auth.js';
+import { getOrganizationAccessToken } from '../services/organization-auth.js';
+import { listProjects } from '../services/gcp.js';
 
 const oauth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
@@ -22,7 +24,11 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
   
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
+    scope: [
+      'https://www.googleapis.com/auth/compute',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/cloud-platform.read-only'
+    ],
     prompt: 'consent', // Force consent screen to get new refresh token
   });
 
@@ -40,7 +46,11 @@ googleAuthRoutes.get('/organization/:orgId', async (c) => {
 googleAuthRoutes.get('/', authenticateToken, requireOrganization, requireRole('owner', 'admin'), (c) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/compute', 'https://www.googleapis.com/auth/userinfo.email'],
+    scope: [
+      'https://www.googleapis.com/auth/compute',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/cloud-platform.read-only'
+    ],
     prompt: 'consent', // Force consent screen to get new refresh token
   });
 
@@ -178,5 +188,43 @@ googleAuthRoutes.put('/projects', authenticateToken, requireOrganization, requir
   } catch (error) {
     console.error('Update GCP projects error:', error);
     return c.json({ success: false, error: 'Failed to update GCP projects' }, 500);
+  }
+});
+
+// Get available GCP projects
+googleAuthRoutes.get('/projects/available', authenticateToken, requireOrganization, async (c) => {
+  try {
+    const organizationId = (c as any).organizationId;
+
+    // Get organization's access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json({ success: false, error: 'Google Cloud account not connected' }, 400);
+    }
+
+    // List projects from GCP
+    const projects = await listProjects(accessToken);
+
+    // Get currently selected projects
+    const [organization] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+
+    return c.json({ 
+      success: true, 
+      projects: projects.map((project: any) => ({
+        projectId: project.projectId,
+        name: project.name,
+        projectNumber: project.projectNumber,
+        state: project.lifecycleState,
+        createTime: project.createTime,
+        selected: organization?.gcpProjectIds?.includes(project.projectId) || false
+      }))
+    });
+  } catch (error) {
+    console.error('Get GCP projects error:', error);
+    return c.json({ success: false, error: 'Failed to get GCP projects' }, 500);
   }
 });

@@ -3,6 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { PortRule } from '@gce-platform/types';
 
 const compute = google.compute('v1');
+const cloudResourceManager = google.cloudresourcemanager('v1');
 
 // Helper function to wait for zone operations to complete
 async function waitForZoneOperation(projectId: string, zone: string, operationName: string, accessToken: string, maxWaitTime = 300000) {
@@ -320,4 +321,21 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
   }
 
   return { id: newName };
+}
+
+export async function listProjects(accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+
+  try {
+    const response = await cloudResourceManager.projects.list({
+      filter: 'lifecycleState:ACTIVE',
+    });
+
+    return response.data.projects || [];
+  } catch (error) {
+    console.error('Failed to list GCP projects:', error);
+    throw error;
+  }
 }

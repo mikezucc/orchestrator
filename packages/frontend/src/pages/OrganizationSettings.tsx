@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { organizationApi, invitationApi } from '../api/organizations';
+import { organizationApi, invitationApi, googleCloudApi, type GCPProject } from '../api/organizations';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import ThemeToggle from '../components/ThemeToggle';
-import { ChevronLeft, Settings, Users, Key, Mail, UserPlus, Shield, Trash2, RefreshCw, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Settings, Users, Key, Mail, UserPlus, Shield, Trash2, RefreshCw, ExternalLink, Cloud, Check } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function OrganizationSettings() {
@@ -17,6 +17,7 @@ export default function OrganizationSettings() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
 
   // Handle Google Cloud connection success
   useEffect(() => {
@@ -55,6 +56,23 @@ export default function OrganizationSettings() {
   // Find current user's role
   const currentUserMember = members.find(m => m.userId === userId);
   const isOwnerOrAdmin = currentUserMember?.role === 'owner' || currentUserMember?.role === 'admin';
+
+  // Fetch GCP projects when organization has GCP connected
+  const { data: gcpProjectsData, isLoading: gcpProjectsLoading, refetch: refetchProjects } = useQuery({
+    queryKey: ['gcp-projects', organization?.id],
+    queryFn: googleCloudApi.getAvailableProjects,
+    enabled: !!organization?.gcpRefreshToken,
+  });
+
+  // Initialize selected projects when data loads
+  useEffect(() => {
+    if (gcpProjectsData?.projects) {
+      const selected = gcpProjectsData.projects
+        .filter(p => p.selected)
+        .map(p => p.projectId);
+      setSelectedProjects(selected);
+    }
+  }, [gcpProjectsData]);
 
   // Configure GCP OAuth mutation
   const configureGoogleMutation = useMutation({
@@ -127,6 +145,19 @@ export default function OrganizationSettings() {
     },
     onError: () => {
       showToast('Failed to resend invitation', 'error');
+    },
+  });
+
+  // Update GCP projects mutation
+  const updateProjectsMutation = useMutation({
+    mutationFn: (projectIds: string[]) => googleCloudApi.updateProjects(projectIds),
+    onSuccess: () => {
+      showToast('GCP projects updated successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      refetchProjects();
+    },
+    onError: () => {
+      showToast('Failed to update GCP projects', 'error');
     },
   });
 
@@ -268,19 +299,86 @@ export default function OrganizationSettings() {
                     </div>
                   </div>
                   
-                  {organization.gcpProjectIds && organization.gcpProjectIds.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Connected Projects</label>
-                      <div className="space-y-2">
-                        {organization.gcpProjectIds.map((projectId) => (
-                          <div key={projectId} className="flex items-center space-x-2 text-sm">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="font-mono">{projectId}</span>
-                          </div>
-                        ))}
-                      </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="block text-sm font-medium">Google Cloud Projects</label>
+                      {gcpProjectsLoading && (
+                        <span className="text-xs text-te-gray-500">Loading projects...</span>
+                      )}
                     </div>
-                  )}
+                    
+                    {gcpProjectsData?.projects && gcpProjectsData.projects.length > 0 ? (
+                      <div className="space-y-4">
+                        <div className="border border-te-gray-300 dark:border-te-gray-700 rounded-lg divide-y divide-te-gray-300 dark:divide-te-gray-700">
+                          {gcpProjectsData.projects.map((project) => (
+                            <div key={project.projectId} className="p-4 hover:bg-te-gray-50 dark:hover:bg-te-gray-900/50 transition-colors">
+                              <div className="flex items-start space-x-3">
+                                <input
+                                  type="checkbox"
+                                  id={`project-${project.projectId}`}
+                                  checked={selectedProjects.includes(project.projectId)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedProjects([...selectedProjects, project.projectId]);
+                                    } else {
+                                      setSelectedProjects(selectedProjects.filter(id => id !== project.projectId));
+                                    }
+                                  }}
+                                  disabled={!isOwnerOrAdmin}
+                                  className="mt-1 rounded border-te-gray-300 dark:border-te-gray-600 text-te-yellow focus:ring-te-yellow disabled:opacity-50 disabled:cursor-not-allowed"
+                                />
+                                <label htmlFor={`project-${project.projectId}`} className="flex-1 cursor-pointer">
+                                  <div className="flex items-center space-x-2">
+                                    <Cloud className="w-4 h-4 text-te-gray-500" />
+                                    <span className="font-medium">{project.name}</span>
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    <p className="text-xs text-te-gray-600 dark:text-te-gray-400 font-mono">{project.projectId}</p>
+                                    <p className="text-xs text-te-gray-500 dark:text-te-gray-500">
+                                      Created: {new Date(project.createTime).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {isOwnerOrAdmin && (
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-te-gray-600 dark:text-te-gray-400">
+                              {selectedProjects.length} project{selectedProjects.length !== 1 ? 's' : ''} selected
+                            </p>
+                            <button
+                              onClick={() => updateProjectsMutation.mutate(selectedProjects)}
+                              disabled={updateProjectsMutation.isPending || 
+                                JSON.stringify(selectedProjects.sort()) === 
+                                JSON.stringify(organization.gcpProjectIds?.sort() || [])}
+                              className="btn-primary text-xs"
+                            >
+                              {updateProjectsMutation.isPending ? (
+                                <>
+                                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Save Selection
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : gcpProjectsData?.projects?.length === 0 ? (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                          No Google Cloud projects found. Create a project in Google Cloud Console first.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
                   
                   {isOwnerOrAdmin && (
                     <button
