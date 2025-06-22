@@ -10,6 +10,7 @@ import { syncRoutes } from './routes/sync.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
 import { createSSHWebSocketHandler } from './routes/ssh-ws.js';
+import portsRoutes from './routes/ports.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.route('/api/firewall', firewallRoutes);
 app.route('/api/sync', syncRoutes);
 app.route('/api/wormhole', wormholeRoutes);
 app.route('/api/ssh', sshRoutes);
+app.route('/api/vms', portsRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

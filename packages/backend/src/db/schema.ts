@@ -45,3 +45,21 @@ export const firewallRules = pgTable('firewall_rules', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
+
+export const portDescriptions = pgTable('port_descriptions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  vmId: text('vm_id').references(() => virtualMachines.id).notNull(),
+  port: integer('port').notNull(),
+  protocol: text('protocol', { enum: ['tcp', 'udp', 'icmp'] }).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  processName: text('process_name'),
+  createdBy: text('created_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    vmPortProtocolUnique: uniqueIndex('port_descriptions_vm_port_protocol_unique')
+      .on(table.vmId, table.port, table.protocol),
+  };
+});
