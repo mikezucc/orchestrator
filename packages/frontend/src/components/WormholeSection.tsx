@@ -21,6 +21,8 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [hasAttemptedAutoConnect, setHasAttemptedAutoConnect] = useState(false);
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
+  const [showDebugView, setShowDebugView] = useState(false);
+  const [wsMessages, setWsMessages] = useState<Array<{ time: string; type: 'sent' | 'received'; message: any }>>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const { showError, showSuccess } = useToast();
 
@@ -108,6 +110,13 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
         };
         ws.send(JSON.stringify(registerMessage));
         
+        // Track sent message
+        setWsMessages(prev => [...prev, { 
+          time: new Date().toLocaleTimeString(), 
+          type: 'sent', 
+          message: registerMessage 
+        }]);
+        
         // Fetch all data
         refetchStatus();
         refetchRepos();
@@ -118,13 +127,38 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as WormholeWebSocketMessage;
+          
+          // Track received message
+          setWsMessages(prev => [...prev.slice(-50), { 
+            time: new Date().toLocaleTimeString(), 
+            type: 'received', 
+            message 
+          }]);
+          
           // Refresh data on relevant messages
-          if (message.type === 'sync' || message.type === 'branch-switch') {
+          if (message.type === 'sync' || message.type === 'branch-switch' || 
+              message.type === 'client-update' || message.type === 'status-update') {
+            console.log('Refreshing data due to message:', message.type);
             refetchStatus();
             refetchRepos();
+            refetchDaemons();
+            
+            // For branch switches, also refetch after a delay
+            if (message.type === 'branch-switch') {
+              setTimeout(() => {
+                refetchStatus();
+                refetchRepos();
+                refetchDaemons();
+              }, 1000);
+            }
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error);
+          setWsMessages(prev => [...prev.slice(-50), { 
+            time: new Date().toLocaleTimeString(), 
+            type: 'received', 
+            message: { error: 'Failed to parse', raw: event.data }
+          }]);
         }
       };
 
@@ -160,6 +194,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
       wsRef.current = null;
     }
     setConnectionStatus('disconnected');
+    setWsMessages([]);
   };
 
   // Auto-connect when component mounts if publicIp is available
@@ -195,10 +230,25 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
     setSwitchingBranch(`${repoPath}:${targetBranch}`);
     
     try {
-      const response = await wormholeApi.directApi.switchBranch(publicIp, {
+      // Track the API call
+      const switchRequest = {
         repoPath,
         targetBranch
-      });
+      };
+      
+      setWsMessages(prev => [...prev.slice(-50), { 
+        time: new Date().toLocaleTimeString(), 
+        type: 'sent', 
+        message: { type: 'API_CALL', endpoint: 'switchBranch', payload: switchRequest }
+      }]);
+      
+      const response = await wormholeApi.directApi.switchBranch(publicIp, switchRequest);
+
+      setWsMessages(prev => [...prev.slice(-50), { 
+        time: new Date().toLocaleTimeString(), 
+        type: 'received', 
+        message: { type: 'API_RESPONSE', endpoint: 'switchBranch', response }
+      }]);
 
       if (response.success) {
         showSuccess(`Switched to branch ${targetBranch}`);
@@ -331,6 +381,15 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                 </svg>
               </button>
               <button
+                onClick={() => setShowDebugView(!showDebugView)}
+                className="btn-secondary text-xs"
+                title="Toggle debug view"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+              </button>
+              <button
                 onClick={handleDisconnect}
                 className="btn-secondary"
               >
@@ -403,6 +462,78 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Debug View */}
+          {showDebugView && (
+            <div className="card bg-te-gray-50 dark:bg-te-gray-900">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider">Debug View - WebSocket Messages</h3>
+                <button
+                  onClick={() => setWsMessages([])}
+                  className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {wsMessages.length === 0 ? (
+                  <p className="text-xs text-te-gray-600 dark:text-te-gray-500">No messages yet...</p>
+                ) : (
+                  wsMessages.map((msg, index) => (
+                    <div 
+                      key={index}
+                      className={`text-xs p-2 rounded ${
+                        msg.type === 'sent' 
+                          ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-800' 
+                          : 'bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`font-semibold ${
+                          msg.type === 'sent' ? 'text-blue-700 dark:text-blue-400' : 'text-green-700 dark:text-green-400'
+                        }`}>
+                          {msg.type === 'sent' ? '→ SENT' : '← RECEIVED'}
+                        </span>
+                        <span className="text-te-gray-600 dark:text-te-gray-500">{msg.time}</span>
+                      </div>
+                      <pre className="font-mono text-2xs overflow-x-auto whitespace-pre-wrap break-all">
+                        {JSON.stringify(msg.message, null, 2)}
+                      </pre>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-3 pt-3 border-t border-te-gray-200 dark:border-te-gray-700">
+                <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                  Current Data State
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <p className="text-te-gray-600 dark:text-te-gray-500">Repositories:</p>
+                    <pre className="font-mono text-2xs mt-1 overflow-x-auto">
+                      {JSON.stringify(repositories?.map((r: WormholeRepository) => ({
+                        path: r.repoPath,
+                        branches: r.branches,
+                        activeBranches: r.activeBranches,
+                        clients: r.connectedClientCount
+                      })), null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="text-te-gray-600 dark:text-te-gray-500">Connected Clients:</p>
+                    <pre className="font-mono text-2xs mt-1 overflow-x-auto">
+                      {JSON.stringify(statusData?.clients?.filter((c: any) => c.connected).map((c: any) => ({
+                        id: c.id,
+                        repo: c.repoPath,
+                        branch: c.branch,
+                        lastActivity: new Date(c.lastActivity).toLocaleTimeString()
+                      })), null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
