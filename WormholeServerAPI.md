@@ -1,6 +1,10 @@
-# Wormhole Server API Documentation V2
+# Wormhole Server API Documentation V3
 
 The Wormhole server has evolved from a simple file synchronization service to a comprehensive system monitoring and management platform. This guide documents all available APIs and features.
+
+**What's New in V3:**
+- Branch discovery: The `/api/daemons` endpoint now returns all available branches (local and remote) for each repository
+- Enhanced `/api/repositories` endpoint with branch availability information
 
 ## Overview
 
@@ -17,10 +21,35 @@ Default port: 8080 (configurable via `WORMHOLE_PORT` environment variable)
 - **WebSocket endpoint**: `ws://localhost:8080`
 - **REST API base URL**: `http://localhost:8080`
 
+## Server Modes
+
+### Full Mode (Default)
+All features enabled: file synchronization, repository management, daemon control, and port monitoring.
+
+```bash
+wormhole server --port 8080
+```
+
+### Monitor-Only Mode
+Lightweight mode that only provides port scanning functionality. Repository scanning and daemon management are disabled.
+
+```bash
+wormhole server --port 8080 --monitor-only
+# or
+wormhole server -p 8080 -m
+```
+
+**Monitor-only mode is ideal for:**
+- System monitoring dashboards
+- Port conflict detection
+- Lightweight system observation
+- Environments where you only need port visibility
+
 ## Environment Variables
 
 - `WORMHOLE_PORT`: Server port (default: 8080)
 - `WORMHOLE_SCAN_INTERVAL`: Repository scan interval in milliseconds (default: 300000 / 5 minutes)
+- `WORMHOLE_MONITOR_ONLY`: Run in monitor-only mode (default: false)
 
 ## REST API Endpoints
 
@@ -37,6 +66,13 @@ GET /api/status
 **Response:**
 ```json
 {
+  "mode": "full",
+  "features": {
+    "portScanning": true,
+    "repositoryManagement": true,
+    "daemonManagement": true,
+    "fileSync": true
+  },
   "clients": [
     {
       "id": "MacBook-Pro-a3f2c8b9",
@@ -52,6 +88,21 @@ GET /api/status
       "clientCount": 2
     }
   ]
+}
+```
+
+**In monitor-only mode:**
+```json
+{
+  "mode": "monitor-only",
+  "features": {
+    "portScanning": true,
+    "repositoryManagement": false,
+    "daemonManagement": false,
+    "fileSync": false
+  },
+  "clients": [],
+  "branches": []
 }
 ```
 
@@ -104,6 +155,8 @@ GET /api/ports
 
 ### 2. Repository Management
 
+**Note:** These endpoints return 503 Service Unavailable in monitor-only mode.
+
 #### Get Repository Information
 Retrieve detailed information about synchronized repositories.
 
@@ -112,13 +165,18 @@ Retrieve detailed information about synchronized repositories.
 GET /api/repositories
 ```
 
-**Response:**
+**Response (V3 - Enhanced with branch availability):**
 ```json
 [
   {
     "repoPath": "organization/repository",
     "branches": ["main", "develop", "feature/xyz"],
     "activeBranches": ["main", "develop"],
+    "availableBranches": {
+      "local": ["main", "develop", "feature/xyz"],
+      "remote": ["main", "develop", "staging", "feature/abc"],
+      "all": ["main", "develop", "staging", "feature/xyz", "feature/abc"]
+    },
     "clientCount": 3,
     "connectedClientCount": 2,
     "clients": [
@@ -133,6 +191,12 @@ GET /api/repositories
 ]
 ```
 
+**New in V3:**
+- `availableBranches`: Object containing all discovered branches for the repository
+  - `local`: Array of branches that exist locally
+  - `remote`: Array of branches that exist on the remote (without local counterpart)
+  - `all`: Array of all unique branch names (union of local and remote)
+
 #### Get Running Daemons
 Monitor all Wormhole daemons managed by the server.
 
@@ -141,7 +205,7 @@ Monitor all Wormhole daemons managed by the server.
 GET /api/daemons
 ```
 
-**Response:**
+**Response (V3 - Enhanced with branch information):**
 ```json
 {
   "count": 3,
@@ -153,7 +217,12 @@ GET /api/daemons
         "name": "organization/myapp",
         "branch": "main",
         "hasOrigin": true,
-        "originUrl": "https://github.com/organization/myapp.git"
+        "originUrl": "https://github.com/organization/myapp.git",
+        "branches": {
+          "local": ["main", "develop", "feature/xyz"],
+          "remote": ["main", "develop", "staging", "feature/abc"],
+          "all": ["main", "develop", "staging", "feature/xyz", "feature/abc"]
+        }
       },
       "pid": 12345,
       "status": "running",
@@ -163,6 +232,12 @@ GET /api/daemons
   ]
 }
 ```
+
+**New in V3:**
+- `repository.branches`: Object containing all branches discovered during repository scan
+  - `local`: Branches that exist in the local repository
+  - `remote`: Branches that exist on the remote (typically origin)
+  - `all`: All unique branch names from both local and remote
 
 #### Trigger Repository Scan
 Manually scan for Git repositories in the home directory.
@@ -185,6 +260,7 @@ POST /api/scan
 - Excludes: node_modules, .cache, .npm, Library, etc.
 - Starts daemons for new repositories
 - Stops daemons for removed repositories
+- **New in V3**: Discovers all branches during scan
 
 ### 3. Remote Control
 
@@ -287,7 +363,7 @@ Content-Type: application/json
 
 ## Integration Examples
 
-### Python
+### Python (V3 - Using Branch Discovery)
 ```python
 import requests
 import websocket
@@ -306,6 +382,9 @@ class WormholeClient:
     def get_daemons(self):
         return requests.get(f"{self.base_url}/api/daemons").json()
     
+    def get_repositories(self):
+        return requests.get(f"{self.base_url}/api/repositories").json()
+    
     def switch_branch(self, repo_name, target_branch):
         return requests.post(
             f"{self.base_url}/api/branch-switch",
@@ -315,193 +394,323 @@ class WormholeClient:
     def trigger_scan(self):
         return requests.post(f"{self.base_url}/api/scan").json()
 
-# Example usage
+# Example usage with V3 features
 client = WormholeClient()
 
-# Monitor system
-ports = client.get_ports()
-for process in ports['processes']:
-    print(f"{process['processName']} (PID: {process['pid']})")
-    for port in process['ports']:
-        print(f"  - {port['port']}/{port['protocol']} ({port['service']})")
-
-# Manage repositories
+# Get all available branches for each repository
 daemons = client.get_daemons()
-print(f"Running daemons: {daemons['runningCount']}/{daemons['count']}")
+for daemon in daemons['daemons']:
+    repo = daemon['repository']
+    print(f"\nRepository: {repo['name']}")
+    print(f"Current branch: {repo['branch']}")
+    print(f"Local branches: {', '.join(repo['branches']['local'])}")
+    print(f"Remote branches: {', '.join(repo['branches']['remote'])}")
+    
+    # Check if a branch exists before switching
+    target_branch = "develop"
+    if target_branch in repo['branches']['all']:
+        client.switch_branch(repo['name'], target_branch)
+        print(f"Switched to {target_branch}")
+    else:
+        print(f"Branch {target_branch} not found")
 
-# Switch branches
-client.switch_branch("myorg/myrepo", "develop")
+# Get repositories with available branches
+repos = client.get_repositories()
+for repo in repos:
+    print(f"\n{repo['repoPath']}:")
+    available = repo.get('availableBranches', {})
+    print(f"  Available branches: {', '.join(available.get('all', []))}")
+    print(f"  Active branches: {', '.join(repo['activeBranches'])}")
 ```
 
-### Node.js
+### Node.js (V3 - Branch Discovery)
 ```javascript
 const axios = require('axios');
-const WebSocket = require('ws');
 
 class WormholeClient {
   constructor(baseUrl = 'http://localhost:8080') {
     this.baseUrl = baseUrl;
   }
   
-  async getSystemInfo() {
-    const [status, ports, daemons] = await Promise.all([
-      axios.get(`${this.baseUrl}/api/status`),
-      axios.get(`${this.baseUrl}/api/ports`),
-      axios.get(`${this.baseUrl}/api/daemons`)
-    ]);
+  async getRepositoryBranches() {
+    const daemons = await axios.get(`${this.baseUrl}/api/daemons`);
     
-    return {
-      status: status.data,
-      ports: ports.data,
-      daemons: daemons.data
-    };
+    return daemons.data.daemons.map(daemon => ({
+      name: daemon.repository.name,
+      currentBranch: daemon.repository.branch,
+      availableBranches: daemon.repository.branches,
+      canSwitchTo: (targetBranch) => 
+        daemon.repository.branches.all.includes(targetBranch)
+    }));
   }
   
-  async monitorChanges(repoName) {
-    const ws = new WebSocket('ws://localhost:8080');
+  async smartBranchSwitch(repoName, targetBranch) {
+    // First check if branch exists
+    const repos = await this.getRepositoryBranches();
+    const repo = repos.find(r => r.name === repoName);
     
-    ws.on('open', () => {
-      ws.send(JSON.stringify({
-        type: 'sync',
-        payload: {
-          clientId: 'monitor-service',
-          branch: 'main',
-          repoPath: repoName,
-          action: 'register'
-        },
-        clientId: 'monitor-service',
-        timestamp: Date.now()
-      }));
-    });
+    if (!repo) {
+      throw new Error(`Repository ${repoName} not found`);
+    }
     
-    ws.on('message', (data) => {
-      const message = JSON.parse(data);
-      if (message.type === 'commit') {
-        console.log('New commit:', message.payload);
-      }
+    if (!repo.canSwitchTo(targetBranch)) {
+      console.log(`Available branches: ${repo.availableBranches.all.join(', ')}`);
+      throw new Error(`Branch ${targetBranch} not available`);
+    }
+    
+    // Perform the switch
+    return axios.post(`${this.baseUrl}/api/branch-switch`, {
+      repoPath: repoName,
+      targetBranch: targetBranch
     });
   }
 }
+
+// Example usage
+const client = new WormholeClient();
+
+// List all branches for all repositories
+client.getRepositoryBranches().then(repos => {
+  repos.forEach(repo => {
+    console.log(`\n${repo.name}:`);
+    console.log(`  Current: ${repo.currentBranch}`);
+    console.log(`  Local: ${repo.availableBranches.local.join(', ')}`);
+    console.log(`  Remote: ${repo.availableBranches.remote.join(', ')}`);
+  });
+});
 ```
 
-### cURL Commands
+### cURL Commands (V3)
 ```bash
-# System monitoring
-curl http://localhost:8080/api/status
-curl http://localhost:8080/api/ports
+# Get daemon information with branch data
+curl http://localhost:8080/api/daemons | jq '.daemons[].repository.branches'
 
-# Repository management
-curl http://localhost:8080/api/repositories
-curl http://localhost:8080/api/daemons
-curl -X POST http://localhost:8080/api/scan
+# Get repositories with available branches
+curl http://localhost:8080/api/repositories | jq '.[].availableBranches'
 
-# Remote control
-curl -X POST http://localhost:8080/api/branch-switch \
-  -H "Content-Type: application/json" \
-  -d '{"repoPath": "org/repo", "targetBranch": "develop"}'
+# Find all repositories with a specific branch
+curl http://localhost:8080/api/daemons | jq '.daemons[] | select(.repository.branches.all[] | contains("develop")) | .repository.name'
 ```
 
-## Use Cases
+## Use Cases (V3 - Enhanced)
 
-### 1. Infrastructure Monitoring Dashboard
+### 1. Branch Availability Checker
 ```python
-# Monitor all development services
-def get_development_services():
+def check_branch_availability(branch_name):
+    """Check which repositories have a specific branch available"""
     client = WormholeClient()
-    ports = client.get_ports()
-    
-    dev_services = {}
-    for process in ports['processes']:
-        if process['processName'] in ['node', 'python', 'ruby']:
-            dev_services[process['processName']] = process['ports']
-    
-    return dev_services
-```
-
-### 2. Automated Repository Management
-```python
-# Ensure all repositories are on correct branch
-def align_branches(target_branch):
-    client = WormholeClient()
-    repos = requests.get(f"{client.base_url}/api/repositories").json()
-    
-    for repo in repos:
-        if target_branch not in repo['activeBranches']:
-            client.switch_branch(repo['repoPath'], target_branch)
-            print(f"Switched {repo['repoPath']} to {target_branch}")
-```
-
-### 3. System Health Check
-```python
-# Check for port conflicts and daemon health
-def health_check():
-    client = WormholeClient()
-    
-    # Check for common port conflicts
-    ports = client.get_ports()
-    common_ports = {80, 443, 3000, 8080, 5432, 3306}
-    
-    conflicts = []
-    for port_info in ports['raw']:
-        if port_info['port'] in common_ports:
-            conflicts.append(port_info)
-    
-    # Check daemon health
     daemons = client.get_daemons()
-    unhealthy = [d for d in daemons['daemons'] if d['status'] != 'running']
     
-    return {
-        'port_conflicts': conflicts,
-        'unhealthy_daemons': unhealthy,
-        'daemon_coverage': f"{daemons['runningCount']}/{daemons['count']}"
-    }
+    repos_with_branch = []
+    for daemon in daemons['daemons']:
+        repo = daemon['repository']
+        if branch_name in repo['branches']['all']:
+            repos_with_branch.append({
+                'name': repo['name'],
+                'has_local': branch_name in repo['branches']['local'],
+                'has_remote': branch_name in repo['branches']['remote']
+            })
+    
+    return repos_with_branch
 ```
 
-## Security Considerations
+### 2. Automated Branch Synchronization
+```python
+def sync_all_to_branch(target_branch):
+    """Switch all repositories to a specific branch if available"""
+    client = WormholeClient()
+    daemons = client.get_daemons()
+    
+    results = []
+    for daemon in daemons['daemons']:
+        repo = daemon['repository']
+        
+        if target_branch in repo['branches']['all']:
+            try:
+                client.switch_branch(repo['name'], target_branch)
+                results.append({
+                    'repo': repo['name'],
+                    'status': 'switched',
+                    'from': repo['branch'],
+                    'to': target_branch
+                })
+            except Exception as e:
+                results.append({
+                    'repo': repo['name'],
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        else:
+            results.append({
+                'repo': repo['name'],
+                'status': 'skipped',
+                'reason': 'branch not available',
+                'available': repo['branches']['all']
+            })
+    
+    return results
+```
 
-1. **Port Scanning**: Requires elevated permissions on Linux
-   - Run with `sudo` for complete visibility
-   - Or configure capabilities: `setcap cap_net_admin+ep /path/to/wormhole`
+### 3. Branch Discovery Report
+```python
+def generate_branch_report():
+    """Generate a comprehensive report of all branches across repositories"""
+    client = WormholeClient()
+    daemons = client.get_daemons()
+    
+    report = {
+        'total_repositories': daemons['count'],
+        'total_branches': set(),
+        'orphaned_local_branches': [],
+        'remote_only_branches': [],
+        'repositories': []
+    }
+    
+    for daemon in daemons['daemons']:
+        repo = daemon['repository']
+        branches = repo['branches']
+        
+        # Add to total branches
+        report['total_branches'].update(branches['all'])
+        
+        # Find orphaned local branches (local but not remote)
+        orphaned = set(branches['local']) - set(branches['remote'])
+        if orphaned:
+            report['orphaned_local_branches'].append({
+                'repo': repo['name'],
+                'branches': list(orphaned)
+            })
+        
+        # Find remote-only branches
+        remote_only = set(branches['remote']) - set(branches['local'])
+        if remote_only:
+            report['remote_only_branches'].append({
+                'repo': repo['name'],
+                'branches': list(remote_only)
+            })
+        
+        report['repositories'].append({
+            'name': repo['name'],
+            'current_branch': repo['branch'],
+            'local_count': len(branches['local']),
+            'remote_count': len(branches['remote']),
+            'total_count': len(branches['all'])
+        })
+    
+    report['total_branches'] = list(report['total_branches'])
+    return report
+```
 
-2. **Authentication**: Currently no authentication implemented
-   - Use firewall rules to restrict access
-   - Consider reverse proxy with authentication
+### 4. Smart Branch Management Dashboard
+```javascript
+// React component example using V3 branch discovery
+const BranchManager = () => {
+  const [repos, setRepos] = useState([]);
+  
+  useEffect(() => {
+    fetchRepositories();
+  }, []);
+  
+  const fetchRepositories = async () => {
+    const response = await fetch('http://localhost:8080/api/daemons');
+    const data = await response.json();
+    setRepos(data.daemons);
+  };
+  
+  const switchBranch = async (repoName, targetBranch) => {
+    await fetch('http://localhost:8080/api/branch-switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repoPath: repoName,
+        targetBranch: targetBranch
+      })
+    });
+    fetchRepositories(); // Refresh
+  };
+  
+  return (
+    <div>
+      {repos.map(daemon => (
+        <div key={daemon.repository.path}>
+          <h3>{daemon.repository.name}</h3>
+          <p>Current: {daemon.repository.branch}</p>
+          <select 
+            onChange={(e) => switchBranch(daemon.repository.name, e.target.value)}
+            value={daemon.repository.branch}
+          >
+            {daemon.repository.branches.all.map(branch => (
+              <option key={branch} value={branch}>
+                {branch}
+                {daemon.repository.branches.local.includes(branch) ? ' (local)' : ''}
+                {daemon.repository.branches.remote.includes(branch) ? ' (remote)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
+  );
+};
+```
 
-3. **CORS**: Enabled for all origins by default
-   - Configure specific origins in production
+## Migration Guide from V2 to V3
+
+### API Changes
+
+1. **Enhanced `/api/daemons` response:**
+   - Added `repository.branches` object with `local`, `remote`, and `all` arrays
+   - Existing fields remain unchanged
+
+2. **Enhanced `/api/repositories` response:**
+   - Added `availableBranches` object (when daemon information is available)
+   - Structure mirrors the branches object from daemons endpoint
+
+### Code Updates
+
+Before (V2):
+```python
+# Simple branch switch without checking availability
+client.switch_branch("org/repo", "develop")
+```
+
+After (V3):
+```python
+# Check branch availability before switching
+daemons = client.get_daemons()
+repo = next((d for d in daemons['daemons'] if d['repository']['name'] == "org/repo"), None)
+
+if repo and "develop" in repo['repository']['branches']['all']:
+    client.switch_branch("org/repo", "develop")
+else:
+    print("Branch not available")
+```
 
 ## Performance Notes
 
-- Repository scanning: O(n) where n is number of directories
-- Port scanning: ~100-500ms depending on method and permissions
-- WebSocket latency: <10ms for local connections
-- Daemon startup: ~1s per repository
+- Branch discovery adds ~100-200ms to repository scan time
+- Branch information is cached until next scan
+- API response size increased by ~20-30% with branch data
 
 ## Troubleshooting
 
-### Port Scan Errors
-```
-Error: Port scan failed
-```
-Solution: Run server with sudo or configure appropriate capabilities
+### Missing Branch Information
+If `branches` object is empty or missing:
+- Ensure git repository has valid configuration
+- Check network connectivity to remote
+- Verify git credentials are properly configured
+- Run manual scan with `/api/scan` endpoint
 
-### Daemon Won't Start
-Check logs in `.wormhole/server.log` for specific errors. Common issues:
-- Repository doesn't have git origin
-- Invalid git configuration
-- Port already in use
-
-### Branch Switch Fails
-Ensure:
-- Remote branch exists
-- No merge conflicts
-- Network connectivity to git remote
+### Branch Switch to Remote-Only Branch
+When switching to a branch that only exists on remote:
+- Daemon will automatically create local branch
+- First switch may take longer due to fetch operation
+- Subsequent switches will be faster
 
 ## Future Enhancements
 
-- OAuth2/JWT authentication
-- Metrics export (Prometheus format)
-- Docker container support
-- Repository grouping and tagging
-- Custom scan directories
-- Webhook notifications
+- Branch creation/deletion via API
+- Branch merge status information
+- Commit ahead/behind tracking
+- Protected branch configuration
+- Branch-specific ignore patterns
