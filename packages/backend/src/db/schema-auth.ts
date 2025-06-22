@@ -1,6 +1,5 @@
 import { pgTable, text, timestamp, boolean, uniqueIndex, jsonb } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
-import { users } from './schema';
 
 // Organizations table
 export const organizations = pgTable('organizations', {
