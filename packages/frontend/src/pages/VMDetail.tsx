@@ -21,6 +21,8 @@ export default function VMDetail() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showSSHTerminal, setShowSSHTerminal] = useState(false);
 
+  console.log('showSSHTerminal', showSSHTerminal);
+
   const { data: vmResponse, isLoading: vmLoading } = useQuery({
     queryKey: ['vm', id],
     queryFn: () => vmApi.get(id!, true), // Sync VM data on load

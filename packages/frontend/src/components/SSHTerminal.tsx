@@ -19,6 +19,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const isInitializedRef = useRef(false);
   const { showError, showSuccess } = useToast();
   const { userId, auth } = useAuth();
 
@@ -32,7 +33,13 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   }
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || isInitializedRef.current) return;
+
+    console.log('Initializing SSH terminal for VM:', vm.id, vm.name, vm.publicIp);
+    console.trace('render useEffect');
+    
+    // Mark as initialized to prevent double initialization
+    isInitializedRef.current = true;
 
     // Initialize terminal
     const term = new Terminal({
@@ -82,7 +89,14 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     setupWebSocketConnection(term);
 
     return () => {
+      console.log('Cleaning up terminal effect');
       window.removeEventListener('resize', handleResize);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      term.dispose();
+      isInitializedRef.current = false;
     };
   }, []);
 
