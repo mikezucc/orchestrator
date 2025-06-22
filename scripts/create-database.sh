@@ -2,17 +2,26 @@
 
 # Script to create the orchestrator database
 # Assumes PostgreSQL is installed and running
-# Assumes the 'orchestrator' user already exists
 
 set -e
 
-echo "Creating orchestrator database..."
+echo "Setting up orchestrator database..."
 
 # Database configuration
 DB_NAME="orchestrator"
 DB_USER="orchestrator"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
+
+# Check if role exists, create if it doesn't
+echo "Checking if role '$DB_USER' exists..."
+if ! psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1; then
+    echo "Creating role '$DB_USER'..."
+    psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -c "CREATE ROLE $DB_USER WITH LOGIN PASSWORD 'orchestrator';"
+    echo "Role '$DB_USER' created successfully!"
+else
+    echo "Role '$DB_USER' already exists."
+fi
 
 # Check if database exists
 if psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -lqt | cut -d \| -f 1 | grep -qw "$DB_NAME"; then
@@ -38,7 +47,11 @@ psql -h "$DB_HOST" -p "$DB_PORT" -U postgres -c "GRANT ALL PRIVILEGES ON DATABAS
 
 echo "Database '$DB_NAME' created successfully!"
 echo ""
-echo "Connection string: postgres://$DB_USER:password@$DB_HOST:$DB_PORT/$DB_NAME"
+echo "Connection string: postgres://$DB_USER:orchestrator@$DB_HOST:$DB_PORT/$DB_NAME"
+echo ""
+echo "Note: The default password for the '$DB_USER' role is 'orchestrator'."
+echo "For production use, please change this password using:"
+echo "  psql -h $DB_HOST -p $DB_PORT -U postgres -c \"ALTER ROLE $DB_USER WITH PASSWORD 'new_secure_password';\""
 echo ""
 echo "Next steps:"
 echo "1. Update the .env file in packages/backend with your database credentials"
