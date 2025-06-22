@@ -62,10 +62,8 @@ class FetchClient {
 
     try {
       const data = await response.json();
-      return {
-        success: true,
-        data: data as ApiResponse<T>
-      };
+      // The server already returns ApiResponse<T>, so we just return it as-is
+      return data as ApiResponse<T>;
     } catch (e) {
       return {
         success: false,
