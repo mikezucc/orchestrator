@@ -506,7 +506,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-end">
         <div className="flex items-center space-x-3">
           <span className={`inline-flex items-center space-x-2 text-xs uppercase tracking-wider ${
             connectionStatus === 'connected' 
