@@ -20,6 +20,7 @@ export default function VMDetail() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showSSHTerminal, setShowSSHTerminal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+  const [showVMInfo, setShowVMInfo] = useState(false);
 
   console.log('showSSHTerminal', showSSHTerminal);
 
@@ -127,8 +128,9 @@ export default function VMDetail() {
   return (
     <div className="space-y-8">
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold uppercase tracking-wider mb-2">{vm.name}</h1>
+        <div className="flex items-center space-x-3">
+          <h1 className="text-xl font-bold uppercase tracking-wider">{vm.name}</h1>
+          <VMStatusBadge status={vm.status} />
         </div>
         
         <div className="flex items-center space-x-3">
@@ -254,95 +256,115 @@ export default function VMDetail() {
       </div>
 
       <div className="card">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Status
-            </p>
-            <VMStatusBadge status={vm.status} />
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Project ID
-            </p>
-            <p className="font-medium">{vm.gcpProjectId}</p>
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Zone
-            </p>
-            <p className="font-medium">{vm.zone}</p>
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Machine Type
-            </p>
-            <p className="font-medium">{vm.machineType}</p>
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Public IP
-            </p>
-            {vm.publicIp ? (
-              <div className="flex items-center space-x-2">
-                <p className="font-medium font-mono">{vm.publicIp}</p>
-                <button
-                  onClick={() => setShowPortSelector(true)}
-                  className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-                  title="Open in browser"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setShowSSHTerminal(true)}
-                  className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-                  title="SSH Terminal"
-                  disabled={vm.status !== 'running'}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <p className="text-te-gray-500 dark:text-te-gray-600">—</p>
-            )}
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Created
-            </p>
-            <p className="font-medium tabular-nums">
-              {new Date(vm.createdAt).toLocaleString()}
-            </p>
-          </div>
-          
-          <div>
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-              Updated
-            </p>
-            <p className="font-medium tabular-nums">
-              {new Date(vm.updatedAt).toLocaleString()}
-            </p>
-          </div>
+        <div 
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setShowVMInfo(!showVMInfo)}
+        >
+          <h3 className="text-sm font-semibold uppercase tracking-wider">VM Information</h3>
+          <svg 
+            className={`w-4 h-4 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
+              showVMInfo ? 'rotate-180' : ''
+            }`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
         
-        {vm.initScript && (
-          <div className="mt-6 pt-6 border-t border-te-gray-200 dark:border-te-gray-800">
-            <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-2">
-              Init Script
-            </p>
-            <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono">
-              {vm.initScript}
-            </pre>
-          </div>
+        {showVMInfo && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4">
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Project ID
+                </p>
+                <p className="font-medium">{vm.gcpProjectId}</p>
+              </div>
+              
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Zone
+                </p>
+                <p className="font-medium">{vm.zone}</p>
+              </div>
+              
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Machine Type
+                </p>
+                <p className="font-medium">{vm.machineType}</p>
+              </div>
+              
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Public IP
+                </p>
+                {vm.publicIp ? (
+                  <div className="flex items-center space-x-2">
+                    <p className="font-medium font-mono">{vm.publicIp}</p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPortSelector(true);
+                      }}
+                      className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                      title="Open in browser"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowSSHTerminal(true);
+                      }}
+                      className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                      title="SSH Terminal"
+                      disabled={vm.status !== 'running'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-te-gray-500 dark:text-te-gray-600">—</p>
+                )}
+              </div>
+              
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Created
+                </p>
+                <p className="font-medium tabular-nums">
+                  {new Date(vm.createdAt).toLocaleString()}
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                  Updated
+                </p>
+                <p className="font-medium tabular-nums">
+                  {new Date(vm.updatedAt).toLocaleString()}
+                </p>
+              </div>
+            </div>
+            
+            {vm.initScript && (
+              <div className="mt-6 pt-6 border-t border-te-gray-200 dark:border-te-gray-800">
+                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-2">
+                  Init Script
+                </p>
+                <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono">
+                  {vm.initScript}
+                </pre>
+              </div>
+            )}
+          </>
         )}
       </div>
 
