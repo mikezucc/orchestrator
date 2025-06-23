@@ -453,21 +453,6 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       accessToken,
     });
 
-    // Create new VM record in database
-    const [newVm] = await db.insert(virtualMachines).values({
-      name: body.name,
-      gcpProjectId: sourceVm.gcpProjectId,
-      gcpInstanceId: body.name,
-      zone: sourceVm.zone,
-      machineType: sourceVm.machineType,
-      status: 'pending',
-      createdBy: userId,
-      organizationId,
-      initScript: body.startupScript || sourceVm.initScript,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning();
-
     return c.json<ApiResponse<VirtualMachine>>({ 
       success: true, 
       data: newVm as VirtualMachine 
