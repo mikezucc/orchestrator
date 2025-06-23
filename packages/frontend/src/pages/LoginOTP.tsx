@@ -35,6 +35,8 @@ export default function LoginOTP() {
     }
   };
 
+  console.log('email', email);
+
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otp || otp.length !== 6) return;
@@ -49,10 +51,12 @@ export default function LoginOTP() {
         throw new Error(response.error || 'Failed to verify OTP');
       }
 
+      console.log('response', response);
+
       // Store token in localStorage
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      localStorage.setItem('userData', JSON.stringify(response.data.user));
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      localStorage.setItem('userData', JSON.stringify(response.user));
       
       // Update auth context
       setIsAuthenticated(true);
