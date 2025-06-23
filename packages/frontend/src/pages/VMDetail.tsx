@@ -9,6 +9,7 @@ import PortSelectorModal from '../components/PortSelectorModal';
 import WormholeSection from '../components/WormholeSection';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
+import ExecuteScriptModal from '../components/ExecuteScriptModal';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -19,6 +20,7 @@ export default function VMDetail() {
   const [showPortSelector, setShowPortSelector] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showSSHTerminal, setShowSSHTerminal] = useState(false);
+  const [showExecuteScriptModal, setShowExecuteScriptModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showVMInfo, setShowVMInfo] = useState(false);
 
@@ -187,15 +189,27 @@ export default function VMDetail() {
             </button>
           )}
           {vm.status === 'running' && vm.publicIp && (
-            <button
-              onClick={() => setShowSSHTerminal(true)}
-              className="btn-secondary flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>Connect SSH</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowSSHTerminal(true)}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Connect SSH</span>
+              </button>
+              <button
+                onClick={() => setShowExecuteScriptModal(true)}
+                className="btn-secondary flex items-center space-x-2"
+                title="Execute bash script on VM"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Run Script</span>
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowDuplicateModal(true)}
@@ -255,6 +269,18 @@ export default function VMDetail() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span>{suspendMutation.isPending ? 'Suspending...' : 'Suspend VM'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowExecuteScriptModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Execute Script</span>
                       </button>
                       <div className="border-t border-te-gray-200 dark:border-te-gray-800 my-1" />
                     </>
@@ -384,6 +410,13 @@ export default function VMDetail() {
         <SSHTerminal
           vm={vm}
           onClose={() => setShowSSHTerminal(false)}
+        />
+      )}
+
+      {showExecuteScriptModal && (
+        <ExecuteScriptModal
+          vm={vm}
+          onClose={() => setShowExecuteScriptModal(false)}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { VirtualMachine, CreateVMRequest, UpdateVMRequest, ApiResponse } from '@gce-platform/types';
+import type { VirtualMachine, CreateVMRequest, UpdateVMRequest, ApiResponse, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 
 export const vmApi = {
   list: async (syncProjects?: string[]) => {
@@ -49,6 +49,11 @@ export const vmApi = {
       name,
       startupScript 
     });
+    return data;
+  },
+
+  executeScript: async (id: string, request: ExecuteScriptRequest) => {
+    const { data } = await api.post<ApiResponse<ExecuteScriptResponse>>(`/vms/${id}/execute`, request);
     return data;
   },
 };
