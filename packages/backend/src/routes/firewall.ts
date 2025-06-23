@@ -92,7 +92,7 @@ firewallRoutes.post('/', async (c) => {
       priority: body.priority,
       sourceRanges: body.sourceRanges,
       allowedPorts: body.allowedPorts,
-      targetTags: [`vm-${vm.gcpInstanceId}`],
+      targetTags: [`vm-${vm.name}`],
       accessToken,
     });
 

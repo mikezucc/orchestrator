@@ -43,6 +43,37 @@ interface CreateVMParams {
   accessToken: string;
 }
 
+export async function updateVMTags(projectId: string, zone: string, instanceName: string, tags: string[], accessToken: string) {
+  const oauth2Client = new OAuth2Client();
+  oauth2Client.setCredentials({ access_token: accessToken });
+  google.options({ auth: oauth2Client });
+
+  // First, get the current instance to obtain the tags fingerprint
+  const instance = await compute.instances.get({
+    project: projectId,
+    zone,
+    instance: instanceName,
+  });
+
+  const fingerprint = instance.data.tags?.fingerprint || '';
+
+  // Update the tags
+  const operation = await compute.instances.setTags({
+    project: projectId,
+    zone,
+    instance: instanceName,
+    requestBody: {
+      items: tags,
+      fingerprint,
+    },
+  });
+
+  // Wait for the operation to complete
+  if (operation.data.name) {
+    await waitForZoneOperation(projectId, zone, operation.data.name, accessToken);
+  }
+}
+
 export async function createVM({ projectId, zone, name, machineType, initScript, accessToken }: CreateVMParams) {
   const oauth2Client = new OAuth2Client();
   oauth2Client.setCredentials({ access_token: accessToken });
@@ -84,6 +115,19 @@ export async function createVM({ projectId, zone, name, machineType, initScript,
     zone,
     requestBody,
   });
+
+  // Wait for the VM creation to complete
+  if (res.data.name) {
+    await waitForZoneOperation(projectId, zone, res.data.name, accessToken);
+    
+    // Explicitly set the tags after VM creation to ensure they're applied
+    try {
+      await updateVMTags(projectId, zone, name, [`vm-${name}`], accessToken);
+    } catch (error) {
+      console.error('Failed to update VM tags after creation:', error);
+      // Don't fail the entire operation if tag update fails
+    }
+  }
 
   return { id: name };
 }
@@ -306,6 +350,14 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
   const createOperationName = createOperation.data.name;
   if (createOperationName) {
     await waitForZoneOperation(sourceProjectId, sourceZone, createOperationName, accessToken);
+    
+    // Explicitly set the tags after VM creation to ensure they're applied
+    try {
+      await updateVMTags(sourceProjectId, sourceZone, newName, [`vm-${newName}`], accessToken);
+    } catch (error) {
+      console.error('Failed to update VM tags after duplication:', error);
+      // Don't fail the entire operation if tag update fails
+    }
   }
 
   // Clean up snapshot after instance creation

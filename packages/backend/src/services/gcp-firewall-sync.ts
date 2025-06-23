@@ -48,7 +48,7 @@ export async function syncFirewallRulesForVM(userId: string, vmId: string, acces
     });
 
     const instanceTags = instanceResponse.data.tags?.items || [];
-    const vmTag = `vm-${vm.gcpInstanceId}`;
+    const vmTag = `vm-${vm.name}`;
 
     // Get all firewall rules for the project
     const firewallsResponse = await compute.firewalls.list({
