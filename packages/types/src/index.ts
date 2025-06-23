@@ -58,6 +58,17 @@ export interface CreateFirewallRuleRequest {
   allowedPorts: PortRule[];
 }
 
+export interface ExecuteScriptRequest {
+  script: string;
+  timeout?: number; // in seconds
+}
+
+export interface ExecuteScriptResponse {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
 export interface GCPAuthResponse {
   accessToken: string;
   refreshToken: string;

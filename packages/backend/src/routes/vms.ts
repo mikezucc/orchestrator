@@ -3,8 +3,9 @@ import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
 import { organizations } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
-import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine } from '@gce-platform/types';
+import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
+import { executeScriptViaSSH } from '../services/gcp-ssh-execute.js';
 import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
@@ -315,6 +316,91 @@ vmRoutes.post('/:id/suspend', async (c) => {
     }
     
     return c.json<ApiResponse<never>>({ success: false, error: error.message || String(error) }, 500);
+  }
+});
+
+vmRoutes.post('/:id/execute', async (c) => {
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
+  const vmId = c.req.param('id');
+
+  const body = await c.req.json<ExecuteScriptRequest>();
+  
+  if (!body.script) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Script is required' }, 400);
+  }
+
+  const [vm] = await db.select().from(virtualMachines)
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
+
+  if (!vm) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+  }
+
+  if (vm.status !== 'running') {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM must be running to execute scripts' }, 400);
+  }
+
+  try {
+    // Get organization to get GCP email for username
+    const [organization] = await db.select().from(organizations)
+      .where(eq(organizations.id, organizationId));
+
+    if (!organization || !organization.gcpEmail) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Organization does not have Google Cloud credentials configured' }, 400);
+    }
+
+    // Generate username from organization's Google Cloud email
+    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+    }
+
+    const result = await executeScriptViaSSH({
+      projectId: vm.gcpProjectId,
+      zone: vm.zone,
+      instanceName: vm.gcpInstanceId!,
+      username,
+      script: body.script,
+      timeout: body.timeout,
+      accessToken,
+    });
+
+    return c.json<ApiResponse<ExecuteScriptResponse>>({ 
+      success: true, 
+      data: result 
+    });
+  } catch (error: any) {
+    console.error('Failed to execute script on VM:', error);
+    
+    // Handle specific errors
+    if (error.code === 403) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Permission denied. Please ensure SSH access is enabled and you have the necessary permissions.' 
+      }, 403);
+    } else if (error.code === 404) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'VM instance not found in Google Cloud.' 
+      }, 404);
+    } else if (error.message?.includes('timed out')) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: error.message 
+      }, 408);
+    }
+    
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: error.message || String(error) 
+    }, 500);
   }
 });
 
