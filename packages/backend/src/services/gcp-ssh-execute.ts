@@ -66,8 +66,8 @@ export async function executeScriptViaSSH({
     sshClient.on('ready', () => {
       console.log('SSH connection established for script execution');
 
-      // Execute the script
-      sshClient.exec(`bash -s`, (err, stream) => {
+      // Execute the script with login shell to get full environment
+      sshClient.exec(`bash -l -s`, (err, stream) => {
         if (err) {
           clearTimeout(timeoutHandle);
           sshClient.end();
