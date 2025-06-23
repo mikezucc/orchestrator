@@ -967,9 +967,6 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                         {/* Daemon Information */}
                         {daemon && (
                           <div>
-                            <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                              Daemon Information
-                            </h4>
                             <div className="bg-te-gray-50 dark:bg-te-gray-900 p-3 rounded text-xs space-y-1">
                               <p>
                                 <span className="text-te-gray-600 dark:text-te-gray-500">Path:</span>{' '}
@@ -1028,7 +1025,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
                         {(repo || daemon) && (
                           <div>
                             <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                              Branch Management
+                              Change Branch
                             </h4>
                             <div className="flex flex-wrap gap-2">
                               {(() => {

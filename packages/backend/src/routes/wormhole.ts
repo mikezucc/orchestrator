@@ -26,15 +26,20 @@ wormholeRoutes.get('/:vmId/status', async (c) => {
   }
 
   const vmId = c.req.param('vmId');
+
+  console.log('Fetching Wormhole status for VM ID:', vmId);
   
   try {
     // Get VM details to find public IP
-    const [vm] = await db.select().from(virtualMachines).where(
-      and(
-        eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
-      )
+    const resp = await db.select().from(virtualMachines).where(
+      eq(virtualMachines.id, vmId)
     );
+
+    console.log('VM details:', resp);
+
+    const [vm] = resp;
+
+    console.log('VM details details:', vm);
 
     if (!vm) {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
@@ -79,10 +84,7 @@ wormholeRoutes.get('/:vmId/repositories', async (c) => {
   try {
     // Get VM details to find public IP
     const [vm] = await db.select().from(virtualMachines).where(
-      and(
-        eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
-      )
+      eq(virtualMachines.id, vmId)
     );
 
     if (!vm) {
