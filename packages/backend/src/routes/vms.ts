@@ -382,29 +382,6 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       updatedAt: new Date(),
     }).returning();
 
-    // Get firewall rules for the source VM
-    const { firewallRules } = await import('../db/schema.js');
-    const sourceFirewallRules = await db.select().from(firewallRules)
-      .where(eq(firewallRules.vmId, vmId));
-
-    // Duplicate firewall rules for the new VM
-    if (sourceFirewallRules.length > 0) {
-      const newFirewallRules = sourceFirewallRules.map(rule => ({
-        vmId: newVm.id,
-        name: rule.name.replace(sourceVm.name, body.name),
-        gcpRuleName: rule.gcpRuleName?.replace(sourceVm.name, body.name),
-        direction: rule.direction,
-        priority: rule.priority,
-        sourceRanges: rule.sourceRanges,
-        allowedPorts: rule.allowedPorts,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-
-      await db.insert(firewallRules).values(newFirewallRules);
-    }
-
-
     return c.json<ApiResponse<VirtualMachine>>({ 
       success: true, 
       data: newVm as VirtualMachine 

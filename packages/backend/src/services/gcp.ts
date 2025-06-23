@@ -333,7 +333,7 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
       ]
     } : sourceInstance.metadata,
     tags: {
-      items: [`vm-${newName}`],
+      items: [`vm-${newName}`, 'http-server', 'services'],
     },
     serviceAccounts: sourceInstance.serviceAccounts,
     scheduling: sourceInstance.scheduling,
@@ -353,7 +353,7 @@ export async function duplicateVM({ sourceProjectId, sourceZone, sourceInstanceN
     
     // Explicitly set the tags after VM creation to ensure they're applied
     try {
-      await updateVMTags(sourceProjectId, sourceZone, newName, [`vm-${newName}`], accessToken);
+      await updateVMTags(sourceProjectId, sourceZone, newName, [`vm-${newName}`, 'http-server', 'services'], accessToken);
     } catch (error) {
       console.error('Failed to update VM tags after duplication:', error);
       // Don't fail the entire operation if tag update fails
