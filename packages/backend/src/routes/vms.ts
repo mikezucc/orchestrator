@@ -147,7 +147,7 @@ vmRoutes.post('/', async (c) => {
     });
 
     const [vm] = await db.insert(virtualMachines).values({
-      userId,
+      createdBy: userId,
       organizationId,
       name: body.name,
       gcpProjectId: body.gcpProjectId,
@@ -375,7 +375,7 @@ vmRoutes.post('/:id/duplicate', async (c) => {
       zone: sourceVm.zone,
       machineType: sourceVm.machineType,
       status: 'pending',
-      userId,
+      createdBy: userId,
       organizationId,
       initScript: body.startupScript || sourceVm.initScript,
       createdAt: new Date(),
