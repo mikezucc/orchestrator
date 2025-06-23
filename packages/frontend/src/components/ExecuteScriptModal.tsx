@@ -13,7 +13,7 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
   const { showError, showSuccess } = useToast();
   const [script, setScript] = useState('');
   const [timeout, setTimeout] = useState('60');
-  const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null);
+  const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode: number; timestamp?: Date } | null>(null);
 
   const executeMutation = useMutation({
     mutationFn: () => {
@@ -25,7 +25,10 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
     },
     onSuccess: (response) => {
       if (response.success && response.data) {
-        setOutput(response.data);
+        setOutput({
+          ...response.data,
+          timestamp: new Date()
+        });
         showSuccess('Script executed successfully');
       } else {
         showError(response.error || 'Failed to execute script');
@@ -106,38 +109,91 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
 
             {output && (
               <div className="space-y-4 pt-4 border-t border-te-gray-200 dark:border-te-gray-800">
-                <div className="flex items-center space-x-4">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider">Output</h3>
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    output.exitCode === 0 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
-                      : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                  }`}>
-                    Exit Code: {output.exitCode}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">Output</h3>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      output.exitCode === 0 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                    }`}>
+                      Exit Code: {output.exitCode}
+                    </span>
+                  </div>
+                  {output.timestamp && (
+                    <span className="text-xs text-te-gray-600 dark:text-te-gray-400">
+                      Executed at {output.timestamp.toLocaleTimeString()}
+                    </span>
+                  )}
                 </div>
 
-                {output.stdout && (
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                      Standard Output
+                {/* Combined Console Output - Always shown */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400">
+                      Console Output
                     </label>
-                    <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono rounded-lg whitespace-pre-wrap">
-                      {output.stdout}
+                    <button
+                      onClick={() => {
+                        const fullOutput = [output.stdout, output.stderr].filter(Boolean).join('\n');
+                        if (fullOutput) {
+                          navigator.clipboard.writeText(fullOutput);
+                          showSuccess('Output copied to clipboard');
+                        }
+                      }}
+                      className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200"
+                      title="Copy output to clipboard"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="bg-gray-900 dark:bg-black p-4 rounded-lg overflow-auto max-h-96">
+                    <pre className="text-xs font-mono whitespace-pre-wrap">
+                      {output.stdout ? (
+                        <span className="text-gray-100">{output.stdout}</span>
+                      ) : null}
+                      {output.stdout && output.stderr ? '\n' : null}
+                      {output.stderr ? (
+                        <span className="text-red-400">{output.stderr}</span>
+                      ) : null}
+                      {!output.stdout && !output.stderr ? (
+                        <span className="text-gray-500 italic">No output produced</span>
+                      ) : null}
                     </pre>
                   </div>
-                )}
+                </div>
 
-                {output.stderr && (
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                      Error Output
-                    </label>
-                    <pre className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/20 p-3 text-xs overflow-x-auto font-mono rounded-lg text-red-700 dark:text-red-400 whitespace-pre-wrap">
-                      {output.stderr}
-                    </pre>
+                {/* Separate stdout/stderr sections for detailed view */}
+                <details className="group">
+                  <summary className="cursor-pointer text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200">
+                    View Separated Output Streams
+                  </summary>
+                  <div className="mt-4 space-y-4">
+                    {output.stdout && (
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                          Standard Output (stdout)
+                        </label>
+                        <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono rounded-lg whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          {output.stdout}
+                        </pre>
+                      </div>
+                    )}
+
+                    {output.stderr && (
+                      <div>
+                        <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                          Error Output (stderr)
+                        </label>
+                        <pre className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/20 p-3 text-xs overflow-x-auto font-mono rounded-lg text-red-700 dark:text-red-400 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          {output.stderr}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                )}
+                </details>
               </div>
             )}
           </div>
