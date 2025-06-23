@@ -13,7 +13,8 @@ export default function CreateOrganization() {
   const { hasOrganizations, isLoading } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && hasOrganizations) {
+    // Only redirect if we've confirmed the user has organizations
+    if (!isLoading && hasOrganizations === true) {
       navigate('/');
     }
   }, [hasOrganizations, isLoading, navigate]);

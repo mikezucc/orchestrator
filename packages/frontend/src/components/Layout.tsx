@@ -18,10 +18,12 @@ export default function Layout() {
   }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated && !hasOrganizations) {
+    // Only redirect to create-organization if we're certain the user has no organizations
+    // hasOrganizations will be null until the check is complete, false if no orgs, true if has orgs
+    if (!isLoading && isAuthenticated && hasOrganizations === false && location.pathname !== '/create-organization') {
       navigate('/create-organization');
     }
-  }, [isAuthenticated, isLoading, hasOrganizations, navigate]);
+  }, [isAuthenticated, isLoading, hasOrganizations, navigate, location.pathname]);
 
   if (isLoading || orgLoading) {
     return (

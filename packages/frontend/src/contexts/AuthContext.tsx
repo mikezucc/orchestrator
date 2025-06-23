@@ -12,7 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   setIsAuthenticated: (value: boolean) => void;
   currentOrganizationId: string | null;
-  hasOrganizations: boolean;
+  hasOrganizations: boolean | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentOrganizationId, setCurrentOrganizationId] = useState<string | null>(null);
-  const [hasOrganizations, setHasOrganizations] = useState(false);
+  const [hasOrganizations, setHasOrganizations] = useState<boolean | null>(null);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserId(null);
     setIsAuthenticated(false);
     setCurrentOrganizationId(null);
-    setHasOrganizations(false);
+    setHasOrganizations(null);
     localStorage.removeItem('auth');
     localStorage.removeItem('userId');
     localStorage.removeItem('selectedOrganizationId');
