@@ -444,18 +444,52 @@ vmRoutes.delete('/:id', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
   }
 
-  try {
-    // Get organization access token
-    const accessToken = await getOrganizationAccessToken(organizationId);
-    if (!accessToken) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+  let gcpDeletionError: string | null = null;
+
+  // Try to delete from GCP if we have credentials
+  const accessToken = await getOrganizationAccessToken(organizationId);
+  if (accessToken && vm.gcpInstanceId) {
+    try {
+      await deleteVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId, accessToken);
+    } catch (error: any) {
+      console.error('Failed to delete VM from GCP:', error);
+      gcpDeletionError = error.message || String(error);
+      // Continue with database deletion even if GCP deletion fails
     }
-
-    await deleteVM(vm.gcpProjectId, vm.zone, vm.gcpInstanceId!, accessToken);
-    await db.delete(virtualMachines).where(eq(virtualMachines.id, vmId));
-
-    return c.json<ApiResponse<{ message: string }>>({ success: true, data: { message: 'VM deleted' } });
-  } catch (error) {
-    return c.json<ApiResponse<never>>({ success: false, error: String(error) }, 500);
   }
+
+  // Delete associated firewall rules from database
+  try {
+    const { firewallRules } = await import('../db/schema.js');
+    await db.delete(firewallRules).where(eq(firewallRules.vmId, vmId));
+  } catch (error) {
+    console.error('Failed to delete associated firewall rules:', error);
+    // Continue with VM deletion even if firewall rule deletion fails
+  }
+
+  // Always delete from our database
+  try {
+    await db.delete(virtualMachines).where(eq(virtualMachines.id, vmId));
+  } catch (error) {
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: `Failed to delete VM from database: ${error}` 
+    }, 500);
+  }
+
+  // Return success with warning if GCP deletion failed
+  if (gcpDeletionError) {
+    return c.json<ApiResponse<{ message: string; warning: string }>>({ 
+      success: true, 
+      data: { 
+        message: 'VM deleted from database', 
+        warning: `Failed to delete from GCP: ${gcpDeletionError}. The VM may still exist in Google Cloud.` 
+      } 
+    });
+  }
+
+  return c.json<ApiResponse<{ message: string }>>({ 
+    success: true, 
+    data: { message: 'VM deleted successfully' } 
+  });
 });

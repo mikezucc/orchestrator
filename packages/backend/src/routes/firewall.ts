@@ -129,17 +129,43 @@ firewallRoutes.delete('/:id', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: 'Firewall rule not found' }, 404);
   }
 
-  try {
-    const accessToken = await getOrganizationAccessToken(organizationId);
-    if (!accessToken) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to get access token' }, 401);
+  let gcpDeletionError: string | null = null;
+
+  // Try to delete from GCP if we have credentials and GCP rule ID
+  const accessToken = await getOrganizationAccessToken(organizationId);
+  if (accessToken && rule.firewall_rules.gcpRuleId) {
+    try {
+      await deleteFirewallRule(rule.virtual_machines.gcpProjectId, rule.firewall_rules.gcpRuleId, accessToken);
+    } catch (error: any) {
+      console.error('Failed to delete firewall rule from GCP:', error);
+      gcpDeletionError = error.message || String(error);
+      // Continue with database deletion even if GCP deletion fails
     }
-
-    await deleteFirewallRule(rule.virtual_machines.gcpProjectId, rule.firewall_rules.gcpRuleId!, accessToken);
-    await db.delete(firewallRules).where(eq(firewallRules.id, ruleId));
-
-    return c.json<ApiResponse<{ message: string }>>({ success: true, data: { message: 'Firewall rule deleted' } });
-  } catch (error) {
-    return c.json<ApiResponse<never>>({ success: false, error: String(error) }, 500);
   }
+
+  // Always delete from our database
+  try {
+    await db.delete(firewallRules).where(eq(firewallRules.id, ruleId));
+  } catch (error) {
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: `Failed to delete firewall rule from database: ${error}` 
+    }, 500);
+  }
+
+  // Return success with warning if GCP deletion failed
+  if (gcpDeletionError) {
+    return c.json<ApiResponse<{ message: string; warning: string }>>({ 
+      success: true, 
+      data: { 
+        message: 'Firewall rule deleted from database', 
+        warning: `Failed to delete from GCP: ${gcpDeletionError}. The rule may still exist in Google Cloud.` 
+      } 
+    });
+  }
+
+  return c.json<ApiResponse<{ message: string }>>({ 
+    success: true, 
+    data: { message: 'Firewall rule deleted successfully' } 
+  });
 });
