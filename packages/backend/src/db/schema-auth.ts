@@ -24,6 +24,11 @@ export const authUsers = pgTable('auth_users', {
   emailVerified: boolean('email_verified').default(false).notNull(),
   emailVerificationToken: text('email_verification_token'),
   emailVerificationExpires: timestamp('email_verification_expires'),
+  // GitHub OAuth credentials
+  githubAccessToken: text('github_access_token'), // Encrypted GitHub access token
+  githubUsername: text('github_username'),
+  githubUserId: text('github_user_id'),
+  githubEmail: text('github_email'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -86,4 +91,25 @@ export const auditLogs = pgTable('audit_logs', {
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// User SSH keys table for storing generated SSH keys
+export const userSSHKeys = pgTable('user_ssh_keys', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').references(() => authUsers.id).notNull(),
+  keyName: text('key_name').notNull(), // e.g., 'github-<username>'
+  publicKey: text('public_key').notNull(),
+  privateKeyEncrypted: text('private_key_encrypted').notNull(), // Encrypted private key
+  fingerprint: text('fingerprint').notNull(),
+  keyType: text('key_type').default('ssh-rsa').notNull(),
+  source: text('source', { enum: ['github', 'manual', 'generated'] }).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userKeyNameUnique: uniqueIndex('user_ssh_keys_user_key_name_unique')
+      .on(table.userId, table.keyName),
+  };
 });

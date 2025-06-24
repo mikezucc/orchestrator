@@ -7,6 +7,7 @@ import type { ApiResponse } from '@gce-platform/types';
 import { generateSSHKeys, addSSHKeyToVM, getSSHConnectionInfo } from '../services/gcp-ssh.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
 import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
+import { getFormattedUserSSHKeys, getUserGitHubSSHKey } from '../services/user-ssh-keys.js';
 
 export const sshRoutes = new Hono();
 
@@ -16,8 +17,9 @@ sshRoutes.use('*', flexibleAuth, flexibleRequireOrganization);
 // Generate SSH keys and add to VM
 sshRoutes.post('/:vmId/setup', async (c) => {
   const organizationId = (c as any).organizationId;
-  const userId = (c as any).userId;
+  const userId = (c as any).userId || (c as any).user?.id;
   const vmId = c.req.param('vmId');
+  const { useGitHubKey = false } = await c.req.json().catch(() => ({}));
 
   try {
     // Get VM and user details
@@ -31,16 +33,21 @@ sshRoutes.post('/:vmId/setup', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
     }
 
-    // Get organization to get GCP email
-    const [organization] = await db.select().from(organizations)
-      .where(eq(organizations.id, organizationId));
+    // Get user details for username
+    const [user] = await db.select().from(authUsers)
+      .where(eq(authUsers.id, userId));
 
-    if (!organization || !organization.gcpEmail) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'Organization does not have Google Cloud credentials configured' }, 400);
+    if (!user) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
     }
 
-    // Generate username from organization's Google Cloud email
-    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Generate username from user email or GitHub username
+    let username: string;
+    if (useGitHubKey && user.githubUsername) {
+      username = user.githubUsername;
+    } else {
+      username = user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
 
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);
@@ -48,8 +55,23 @@ sshRoutes.post('/:vmId/setup', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
 
-    // Generate SSH keys
-    const { publicKey, privateKey } = await generateSSHKeys(username);
+    let publicKey: string;
+    let privateKey: string;
+
+    if (useGitHubKey && user.githubUsername) {
+      // Use existing GitHub SSH key
+      const githubKey = await getUserGitHubSSHKey(userId);
+      if (!githubKey) {
+        return c.json<ApiResponse<never>>({ success: false, error: 'GitHub SSH key not found. Please connect your GitHub account first.' }, 404);
+      }
+      publicKey = githubKey.publicKey;
+      privateKey = githubKey.privateKey;
+    } else {
+      // Generate new SSH keys
+      const keys = await generateSSHKeys(username);
+      publicKey = keys.publicKey;
+      privateKey = keys.privateKey;
+    }
 
     // Add public key to VM metadata
     await addSSHKeyToVM({
@@ -102,10 +124,84 @@ sshRoutes.post('/:vmId/setup', async (c) => {
   }
 });
 
+// Add user's SSH keys to VM
+sshRoutes.post('/:vmId/add-user-keys', async (c) => {
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId || (c as any).user?.id;
+  const vmId = c.req.param('vmId');
+
+  try {
+    // Get VM details
+    const [vm] = await db.select().from(virtualMachines)
+      .where(and(
+        eq(virtualMachines.id, vmId),
+        eq(virtualMachines.organizationId, organizationId)
+      ));
+
+    if (!vm) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+    }
+
+    // Get user details
+    const [user] = await db.select().from(authUsers)
+      .where(eq(authUsers.id, userId));
+
+    if (!user) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
+    }
+
+    // Generate username from user email or GitHub username
+    const username = user.githubUsername || user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
+    }
+
+    // Get all active SSH keys for the user
+    const formattedKeys = await getFormattedUserSSHKeys(userId, username);
+
+    if (formattedKeys.length === 0) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'No active SSH keys found. Please generate or connect GitHub to create SSH keys.' }, 404);
+    }
+
+    // Add each key to the VM
+    for (const formattedKey of formattedKeys) {
+      const [keyUsername, keyData] = formattedKey.split(':', 2);
+      await addSSHKeyToVM({
+        projectId: vm.gcpProjectId,
+        zone: vm.zone,
+        instanceName: vm.gcpInstanceId!,
+        username: keyUsername,
+        publicKey: keyData,
+        accessToken
+      });
+    }
+
+    return c.json<ApiResponse<{
+      username: string;
+      keysAdded: number;
+    }>>({ 
+      success: true, 
+      data: {
+        username,
+        keysAdded: formattedKeys.length
+      }
+    });
+  } catch (error: any) {
+    console.error('Failed to add SSH keys:', error);
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: error.message || 'Failed to add SSH keys to VM' 
+    }, 500);
+  }
+});
+
 // Get SSH connection info
 sshRoutes.get('/:vmId/info', async (c) => {
   const organizationId = (c as any).organizationId;
-  const userId = (c as any).userId;
+  const userId = (c as any).userId || (c as any).user?.id;
   const vmId = c.req.param('vmId');
 
   try {
@@ -124,16 +220,16 @@ sshRoutes.get('/:vmId/info', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM does not have a public IP' }, 400);
     }
 
-    // Get organization to get GCP email
-    const [organization] = await db.select().from(organizations)
-      .where(eq(organizations.id, organizationId));
+    // Get user details
+    const [user] = await db.select().from(authUsers)
+      .where(eq(authUsers.id, userId));
 
-    if (!organization || !organization.gcpEmail) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'Organization does not have Google Cloud credentials configured' }, 400);
+    if (!user) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'User not found' }, 404);
     }
 
-    // Generate username from organization's Google Cloud email
-    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Generate username from user email or GitHub username
+    const username = user.githubUsername || user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);

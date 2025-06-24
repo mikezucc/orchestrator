@@ -74,9 +74,10 @@ googleAuthRoutes.get('/callback', async (c) => {
     return c.redirect(`${process.env.FRONTEND_URL}/organization/settings?error=missing_params`);
   }
 
+  let decodedState: any;
   try {
     // Decode state
-    const decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
+    decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
     const { organizationId, userId, returnUrl } = decodedState;
 
     // Exchange code for tokens
@@ -109,16 +110,16 @@ googleAuthRoutes.get('/callback', async (c) => {
       action: 'google.auth_connected',
       resourceType: 'organization',
       resourceId: organizationId,
-      metadata: { googleEmail: userInfo.email },
-      ipAddress: c.env?.remoteAddr || '',
+      metadata: { googleEmail: (userInfo as any).email },
+      ipAddress: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '',
       userAgent: c.req.header('user-agent'),
     });
 
     // Redirect to frontend success page
-    return c.redirect(`${process.env.FRONTEND_URL}${returnUrl || '/organization/settings'}?gcpConnected=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}${decodedState.returnUrl || '/organization/settings'}?gcpConnected=true`);
   } catch (error) {
     console.error('Google auth error:', error);
-    return c.redirect(`${process.env.FRONTEND_URL}${returnUrl || '/organization/settings'}?error=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}${decodedState?.returnUrl || '/organization/settings'}?error=true`);
   }
 });
 
@@ -145,7 +146,7 @@ googleAuthRoutes.delete('/', flexibleAuth, flexibleRequireOrganization, requireR
       action: 'google.auth_disconnected',
       resourceType: 'organization',
       resourceId: organizationId,
-      ipAddress: c.env?.remoteAddr || '',
+      ipAddress: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '',
       userAgent: c.req.header('user-agent'),
     });
 
@@ -183,7 +184,7 @@ googleAuthRoutes.put('/projects', flexibleAuth, flexibleRequireOrganization, req
       resourceType: 'organization',
       resourceId: organizationId,
       metadata: { projectIds },
-      ipAddress: c.env?.remoteAddr || '',
+      ipAddress: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '',
       userAgent: c.req.header('user-agent'),
     });
 

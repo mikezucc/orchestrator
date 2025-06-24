@@ -17,6 +17,8 @@ import portsRoutes from './routes/ports.js';
 import { organizationRoutes } from './routes/organizations.js';
 import { invitationRoutes } from './routes/invitations.js';
 import { googleAuthRoutes } from './routes/google-auth.js';
+import { githubAuthRoutes } from './routes/github-auth.js';
+import { userSSHKeysRoutes } from './routes/user-ssh-keys.js';
 
 dotenv.config();
 
@@ -47,6 +49,8 @@ app.get('/health', (c) => {
 app.route('/api/auth', authRoutes);
 app.route('/api/auth/otp', authOTP);
 app.route('/api/auth/google', googleAuthRoutes);
+app.route('/api/github-auth', githubAuthRoutes);
+app.route('/api/user/ssh-keys', userSSHKeysRoutes);
 app.route('/api/vms', vmRoutes);
 app.route('/api/firewall', firewallRoutes);
 app.route('/api/sync', syncRoutes);

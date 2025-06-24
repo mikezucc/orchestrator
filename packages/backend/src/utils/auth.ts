@@ -6,6 +6,7 @@ import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const APP_NAME = 'DevBox Orchestrator';
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || JWT_SECRET;
 
 // Generate TOTP secret for a user
 export function generateTOTPSecret(email: string) {
@@ -97,6 +98,41 @@ export function encryptTOTPSecret(secret: string): string {
 
 // Decrypt TOTP secret
 export function decryptTOTPSecret(encryptedData: string): string {
+  const algorithm = 'aes-256-gcm';
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32), 'utf8');
+  
+  const parts = encryptedData.split(':');
+  const iv = Buffer.from(parts[0], 'hex');
+  const authTag = Buffer.from(parts[1], 'hex');
+  const encrypted = parts[2];
+  
+  const decipher = crypto.createDecipheriv(algorithm, key, iv);
+  decipher.setAuthTag(authTag);
+  
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  
+  return decrypted;
+}
+
+// Generic encrypt function for any sensitive data
+export function encrypt(data: string): string {
+  const algorithm = 'aes-256-gcm';
+  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32), 'utf8');
+  const iv = crypto.randomBytes(16);
+  
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  
+  let encrypted = cipher.update(data, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  
+  const authTag = cipher.getAuthTag();
+  
+  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+}
+
+// Generic decrypt function
+export function decrypt(encryptedData: string): string {
   const algorithm = 'aes-256-gcm';
   const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32), 'utf8');
   
