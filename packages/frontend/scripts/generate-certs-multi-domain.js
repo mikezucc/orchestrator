@@ -53,7 +53,7 @@ O = DevBox Orchestrator
 CN = ${allDomains[0]}
 
 [v3_req]
-keyUsage = keyEncipherment, dataEncipherment
+keyUsage = digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth
 subjectAltName = @alt_names
 
