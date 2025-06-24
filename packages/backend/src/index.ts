@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { createNodeWebSocket } from '@hono/node-ws';
 import * as dotenv from 'dotenv';
+import * as https from 'https';
+import * as fs from 'fs';
 import { vmRoutes } from './routes/vms.js';
 import { firewallRoutes } from './routes/firewall.js';
 import { authRoutes } from './routes/auth.js';
@@ -21,7 +23,12 @@ dotenv.config();
 const app = new Hono();
 
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: [
+    'http://localhost:5173',
+    'https://localhost:5173',
+    'http://localhost:3000',
+    'https://localhost:3000'
+  ],
   credentials: true,
   allowHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-organization-id'],
 }));
@@ -60,6 +67,9 @@ if (missingEnvVars.length > 0) {
 }
 
 const port = parseInt(process.env.PORT || '3000');
+const httpsEnabled = process.env.HTTPS_ENABLED === 'true';
+const sslCertPath = process.env.SSL_CERT_PATH || './certs/cert.pem';
+const sslKeyPath = process.env.SSL_KEY_PATH || './certs/key.pem';
 
 // Create WebSocket upgrade handler
 const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
@@ -102,14 +112,47 @@ app.get('/debug/routes', (c) => {
 });
 
 // Create and start server
-const server = serve({
-  fetch: app.fetch,
-  port,
-}, (info) => {
-  console.log(`Server is running on http://localhost:${info.port}`);
-  console.log(`SSH WebSocket available at ws://localhost:${info.port}/ssh-ws`);
-  console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
-});
+let server;
+
+if (httpsEnabled) {
+  try {
+    const sslOptions = {
+      cert: fs.readFileSync(sslCertPath),
+      key: fs.readFileSync(sslKeyPath)
+    };
+    
+    server = serve({
+      fetch: app.fetch,
+      port,
+      createServer: https.createServer.bind(https, sslOptions) as any
+    }, (info) => {
+      console.log(`Server is running on https://localhost:${info.port}`);
+      console.log(`SSH WebSocket available at wss://localhost:${info.port}/ssh-ws`);
+      console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
+    });
+  } catch (error) {
+    console.error('Failed to load SSL certificates:', error);
+    console.error('Running in HTTP mode instead');
+    
+    server = serve({
+      fetch: app.fetch,
+      port,
+    }, (info) => {
+      console.log(`Server is running on http://localhost:${info.port}`);
+      console.log(`SSH WebSocket available at ws://localhost:${info.port}/ssh-ws`);
+      console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
+    });
+  }
+} else {
+  server = serve({
+    fetch: app.fetch,
+    port,
+  }, (info) => {
+    console.log(`Server is running on http://localhost:${info.port}`);
+    console.log(`SSH WebSocket available at ws://localhost:${info.port}/ssh-ws`);
+    console.log(`Google OAuth redirect URI should be set to: ${process.env.GOOGLE_REDIRECT_URI}`);
+  });
+}
 
 // Inject WebSocket into the server AFTER it's created
 injectWebSocket(server);

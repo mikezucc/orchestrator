@@ -7,3 +7,4 @@ dist/
 .vscode/
 .idea/
 drizzle/
+packages/backend/certs/

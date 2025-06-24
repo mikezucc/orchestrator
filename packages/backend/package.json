@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "db:generate": "drizzle-kit generate:pg",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "generate-certs": "node scripts/generate-certs.js"
   },
   "dependencies": {
     "@gce-platform/types": "^1.0.0",
