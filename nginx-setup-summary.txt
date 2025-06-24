@@ -1,0 +1,26 @@
+Nginx Setup Summary
+==================
+Date: Tue Jun 24 23:00:22 UTC 2025
+Domain: api.slopbox.dev
+API Subdomain: api.api.slopbox.dev
+Frontend Port: 80
+Backend Port: 3000
+SSL Enabled: yes
+
+Configuration files created:
+- /etc/nginx/sites-available/orchestrator-frontend
+- /etc/nginx/sites-available/orchestrator-api
+
+Symlinks created:
+- /etc/nginx/sites-enabled/orchestrator-frontend
+- /etc/nginx/sites-enabled/orchestrator-api
+
+Environment variables to set:
+Backend:
+  CORS_ORIGINS=https://api.slopbox.dev,https://www.api.slopbox.dev,https://api.api.slopbox.dev
+  FRONTEND_URL=https://api.slopbox.dev
+  GOOGLE_REDIRECT_URI=https://api.api.slopbox.dev/api/auth/google/callback
+  GITHUB_REDIRECT_URI=https://api.api.slopbox.dev/api/github-auth/callback
+
+Frontend (optional):
+  VITE_API_URL=https://api.api.slopbox.dev/api
