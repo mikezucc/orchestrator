@@ -147,7 +147,26 @@ The application supports serving the API from a subdomain (e.g., api.slopbox.dev
 
 3. **Certificate Requirements**: Ensure your SSL certificate includes api.slopbox.dev (the default multi-domain script includes this)
 
-### 2. Web Server Configuration (Nginx example)
+### 2. Web Server Configuration
+
+#### Automated Setup (Recommended)
+
+We provide scripts to automatically configure nginx:
+
+```bash
+# For API subdomain setup (api.slopbox.dev)
+sudo ./scripts/setup-nginx.sh --domain slopbox.dev
+
+# For simple single-domain setup
+sudo ./scripts/setup-nginx-simple.sh --domain slopbox.dev
+
+# With self-signed certificates
+sudo ./scripts/setup-nginx.sh --domain slopbox.dev --self-signed
+```
+
+See [Nginx Setup Guide](./nginx-setup.md) for detailed instructions.
+
+#### Manual Configuration (Nginx example)
 
 #### Frontend Server (slopbox.dev)
 ```nginx
