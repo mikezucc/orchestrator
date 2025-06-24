@@ -22,6 +22,8 @@ If `CORS_ORIGINS` is not set, the backend defaults to:
 - `https://localhost:5173`
 - `http://localhost:3000`
 - `https://localhost:3000`
+- `http://localhost` (port 80)
+- `https://localhost` (port 443)
 
 ### Examples
 
@@ -31,6 +33,9 @@ CORS_ORIGINS=http://localhost:5173,https://localhost:5173
 
 # Local network access
 CORS_ORIGINS=http://localhost:5173,http://192.168.1.100:5173,http://192.168.1.100:3000
+
+# Production domain (e.g., slopbox.dev)
+CORS_ORIGINS=http://slopbox.dev,https://slopbox.dev,http://localhost:5173
 
 # Multiple environments
 CORS_ORIGINS=http://localhost:5173,https://app.example.com,http://staging.example.com
@@ -113,21 +118,94 @@ To access the application from other devices on your network:
 3. **Firewall**: Ensure your firewall rules allow access only from trusted networks
 4. **OAuth**: Update OAuth app settings to include all valid redirect URLs
 
+## Production Deployment with Custom Domain
+
+When deploying to production with a custom domain (e.g., slopbox.dev):
+
+### 1. Update Environment Variables
+
+```bash
+# CORS configuration for production domain
+CORS_ORIGINS=http://slopbox.dev,https://slopbox.dev,http://www.slopbox.dev,https://www.slopbox.dev
+
+# OAuth configuration
+FRONTEND_URL=https://slopbox.dev
+GOOGLE_REDIRECT_URI=https://slopbox.dev/api/auth/google/callback
+GITHUB_REDIRECT_URI=https://slopbox.dev/api/github-auth/callback
+```
+
+### 2. Web Server Configuration (Nginx example)
+
+```nginx
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name slopbox.dev www.slopbox.dev;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:5173;  # or serve static files in production
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket for SSH
+    location /ssh-ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### 3. Update OAuth Applications
+
+For Google OAuth:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Add authorized redirect URIs:
+   - `https://slopbox.dev/api/auth/google/callback`
+   - `http://slopbox.dev/api/auth/google/callback` (if supporting HTTP)
+
+For GitHub OAuth:
+1. Go to GitHub Settings > Developer settings > OAuth Apps
+2. Update Authorization callback URL:
+   - `https://slopbox.dev/api/github-auth/callback`
+
 ## Troubleshooting
 
 1. **CORS Errors**: 
    - Check that your access URL is in `CORS_ORIGINS`
    - Restart the backend after updating `.env`
+   - Ensure the protocol (http/https) matches exactly
 
 2. **API Connection Failed**:
    - Verify the backend is running and accessible
    - Check firewall settings
    - Ensure the correct port (3000) is open
+   - Check nginx/web server logs
 
 3. **WebSocket Connection Failed**:
    - Check that WebSocket protocol matches (ws/wss)
    - Verify CORS configuration includes your origin
+   - Ensure nginx properly proxies WebSocket connections
 
 4. **OAuth Redirect Errors**:
    - Update OAuth app redirect URLs
    - Ensure `FRONTEND_URL` matches your access URL
+   - Check that all redirect URLs use the correct protocol (http/https)

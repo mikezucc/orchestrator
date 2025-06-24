@@ -31,7 +31,9 @@ const corsOrigins = process.env.CORS_ORIGINS
       'http://localhost:5173',
       'https://localhost:5173',
       'http://localhost:3000',
-      'https://localhost:3000'
+      'https://localhost:3000',
+      'http://localhost',
+      'https://localhost'
     ];
 
 console.log('CORS Origins:', corsOrigins);
