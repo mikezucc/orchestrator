@@ -130,17 +130,34 @@ CORS_ORIGINS=http://slopbox.dev,https://slopbox.dev,http://www.slopbox.dev,https
 
 # OAuth configuration
 FRONTEND_URL=https://slopbox.dev
-GOOGLE_REDIRECT_URI=https://slopbox.dev/api/auth/google/callback
-GITHUB_REDIRECT_URI=https://slopbox.dev/api/github-auth/callback
+GOOGLE_REDIRECT_URI=https://api.slopbox.dev/api/auth/google/callback
+GITHUB_REDIRECT_URI=https://api.slopbox.dev/api/github-auth/callback
+
+# Frontend (optional - only if not using automatic detection)
+VITE_API_URL=https://api.slopbox.dev/api
 ```
+
+### API Subdomain Configuration
+
+The application supports serving the API from a subdomain (e.g., api.slopbox.dev):
+
+1. **Automatic Detection**: The frontend automatically detects when accessed from slopbox.dev and routes API calls to api.slopbox.dev
+
+2. **Manual Configuration**: You can override this by setting `VITE_API_URL` in the frontend's .env file
+
+3. **Certificate Requirements**: Ensure your SSL certificate includes api.slopbox.dev (the default multi-domain script includes this)
 
 ### 2. Web Server Configuration (Nginx example)
 
+#### Frontend Server (slopbox.dev)
 ```nginx
 server {
     listen 80;
     listen 443 ssl;
     server_name slopbox.dev www.slopbox.dev;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
 
     # Frontend
     location / {
@@ -151,6 +168,23 @@ server {
         proxy_set_header Host $host;
         proxy_cache_bypass $http_upgrade;
     }
+
+    # Redirect API calls to api.slopbox.dev (optional if using subdomain)
+    location /api {
+        return 301 https://api.slopbox.dev$request_uri;
+    }
+}
+```
+
+#### API Server (api.slopbox.dev)
+```nginx
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name api.slopbox.dev;
+
+    ssl_certificate /path/to/cert.pem;  # Same cert that includes api.slopbox.dev
+    ssl_certificate_key /path/to/key.pem;
 
     # Backend API
     location /api {
@@ -171,6 +205,41 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
+
+    # Health check endpoint
+    location / {
+        return 200 'API Server Running';
+        add_header Content-Type text/plain;
+    }
+}
+```
+
+#### Alternative: Single Server Configuration
+If you prefer to run everything on one domain without the api subdomain:
+
+```nginx
+server {
+    listen 80;
+    listen 443 ssl;
+    server_name slopbox.dev www.slopbox.dev;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:5173;
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:3000;
+    }
+
+    # WebSocket for SSH
+    location /ssh-ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
 }
 ```
 
@@ -179,13 +248,15 @@ server {
 For Google OAuth:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Add authorized redirect URIs:
-   - `https://slopbox.dev/api/auth/google/callback`
-   - `http://slopbox.dev/api/auth/google/callback` (if supporting HTTP)
+   - `https://api.slopbox.dev/api/auth/google/callback` (if using api subdomain)
+   - `https://slopbox.dev/api/auth/google/callback` (if using single domain)
+   - `http://api.slopbox.dev/api/auth/google/callback` (if supporting HTTP)
 
 For GitHub OAuth:
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Update Authorization callback URL:
-   - `https://slopbox.dev/api/github-auth/callback`
+   - `https://api.slopbox.dev/api/github-auth/callback` (if using api subdomain)
+   - `https://slopbox.dev/api/github-auth/callback` (if using single domain)
 
 ## Troubleshooting
 

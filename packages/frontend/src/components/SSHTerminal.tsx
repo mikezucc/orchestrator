@@ -142,8 +142,14 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       let wsHost: string;
       if (process.env.NODE_ENV === 'production') {
-        // In production, use the same host
-        wsHost = window.location.host;
+        // In production, check if we're on slopbox.dev
+        if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
+          // Use api.slopbox.dev for WebSocket
+          wsHost = 'api.slopbox.dev';
+        } else {
+          // Use the same host
+          wsHost = window.location.host;
+        }
       } else {
         // In development, determine the backend host
         if (hostname === 'localhost' || hostname === '127.0.0.1') {

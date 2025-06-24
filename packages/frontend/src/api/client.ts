@@ -2,20 +2,29 @@ import axios from 'axios';
 
 // Dynamically determine API base URL based on current window location
 const getApiBaseURL = () => {
+  // Check for explicit API URL in environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  const { protocol, hostname } = window.location;
+  
+  // Production mode with specific domain handling
   if (process.env.NODE_ENV === 'production') {
-    // In production, use relative path
+    // If on slopbox.dev or www.slopbox.dev, use api.slopbox.dev
+    if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
+      return `${protocol}//api.slopbox.dev/api`;
+    }
+    // Otherwise use relative path (same domain)
     return '/api';
   }
   
-  // In development, check if we're accessing from a non-localhost address
-  const { protocol, hostname } = window.location;
-  
-  // If accessing from localhost, use the default development URL
+  // Development mode
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:3000/api';
   }
   
-  // Otherwise, use the same hostname with port 3000
+  // Non-localhost development (e.g., accessing via IP)
   return `${protocol}//${hostname}:3000/api`;
 };
 
