@@ -11,7 +11,8 @@
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm run lint --workspaces",
     "db:create": "./scripts/create-database.sh",
-    "db:create:sql": "psql -U postgres -f scripts/create-database.sql"
+    "db:create:sql": "psql -U postgres -f scripts/create-database.sql",
+    "setup-https": "node scripts/setup-https.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
