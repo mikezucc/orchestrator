@@ -26,10 +26,19 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 sudo chmod 600 /etc/nginx/ssl/*.key
 sudo chmod 644 /etc/nginx/ssl/*.crt
 
-# Backup existing nginx configuration
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.backup.$(date +%Y%m%d%H%M%S)
+# Backup and remove ALL existing nginx configurations
+echo "Backing up and removing existing nginx configurations..."
+sudo mkdir -p /etc/nginx/backup-$(date +%Y%m%d%H%M%S)
+if [ -d /etc/nginx/sites-enabled ]; then
+    sudo cp -r /etc/nginx/sites-enabled/* /etc/nginx/backup-$(date +%Y%m%d%H%M%S)/ 2>/dev/null || true
 fi
+if [ -d /etc/nginx/sites-available ]; then
+    sudo cp -r /etc/nginx/sites-available/* /etc/nginx/backup-$(date +%Y%m%d%H%M%S)/ 2>/dev/null || true
+fi
+
+# Remove all existing site configurations
+sudo rm -f /etc/nginx/sites-enabled/*
+sudo rm -f /etc/nginx/sites-available/*
 
 # Create nginx configuration
 echo "Creating nginx configuration..."
@@ -101,8 +110,7 @@ server {
 }
 EOF
 
-# Remove default nginx site if exists
-sudo rm -f /etc/nginx/sites-enabled/default
+# No need to remove default - already cleared above
 
 # Enable the new configuration
 sudo ln -sf /etc/nginx/sites-available/slopbox /etc/nginx/sites-enabled/
