@@ -136,13 +136,25 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
       term.writeln('🔐 Connecting to SSH...');
       
-      // Create WebSocket connection
+      // Create WebSocket connection with dynamic host detection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      let host = window.location.host; // This will be the frontend host (localhost:3000 in dev)
-      if (host.includes(':5173')) {
-        host = host.replace(':5173', ':3000'); // Replace dev port with backend port
+      const { hostname } = window.location;
+      
+      let wsHost: string;
+      if (process.env.NODE_ENV === 'production') {
+        // In production, use the same host
+        wsHost = window.location.host;
+      } else {
+        // In development, determine the backend host
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          wsHost = 'localhost:3000';
+        } else {
+          // Use the same hostname with backend port
+          wsHost = `${hostname}:3000`;
+        }
       }
-      const wsUrl = `${protocol}//${host}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
+      
+      const wsUrl = `${protocol}//${wsHost}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
       
       console.log('WebSocket URL:', wsUrl);
       console.log('VM details:', { id: vm.id, name: vm.name, publicIp: vm.publicIp });

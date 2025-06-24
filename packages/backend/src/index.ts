@@ -24,13 +24,20 @@ dotenv.config();
 
 const app = new Hono();
 
+// Parse CORS origins from environment variable
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : [
+      'http://localhost:5173',
+      'https://localhost:5173',
+      'http://localhost:3000',
+      'https://localhost:3000'
+    ];
+
+console.log('CORS Origins:', corsOrigins);
+
 app.use('/*', cors({
-  origin: [
-    'http://localhost:5173',
-    'https://localhost:5173',
-    'http://localhost:3000',
-    'https://localhost:3000'
-  ],
+  origin: corsOrigins,
   credentials: true,
   allowHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-organization-id'],
 }));

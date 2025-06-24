@@ -1,8 +1,25 @@
 import axios from 'axios';
 
-const apiBaseURL = process.env.NODE_ENV === 'production' 
-  ? '/api' 
-  : 'http://localhost:3000/api';
+// Dynamically determine API base URL based on current window location
+const getApiBaseURL = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // In production, use relative path
+    return '/api';
+  }
+  
+  // In development, check if we're accessing from a non-localhost address
+  const { protocol, hostname } = window.location;
+  
+  // If accessing from localhost, use the default development URL
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:3000/api';
+  }
+  
+  // Otherwise, use the same hostname with port 3000
+  return `${protocol}//${hostname}:3000/api`;
+};
+
+const apiBaseURL = getApiBaseURL();
 
 export const api = axios.create({
   baseURL: apiBaseURL,
