@@ -8,3 +8,4 @@ dist/
 .idea/
 drizzle/
 packages/backend/certs/
+packages/frontend/certs/
