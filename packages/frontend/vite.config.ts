@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       ...httpsConfig,
+      host: true, // Listen on all addresses
+      allowedHosts: ['slopbox.dev', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': {
           target: backendHttpsEnabled ? 'https://localhost:3000' : 'http://localhost:3000',
