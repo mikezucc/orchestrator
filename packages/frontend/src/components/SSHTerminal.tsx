@@ -136,29 +136,15 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
 
       term.writeln('🔐 Connecting to SSH...');
       
-      // Create WebSocket connection with dynamic host detection
-      let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const { hostname } = window.location;
-      
       let wsHost: string;
-      if (process.env.NODE_ENV === 'production') {
+      let protocol: string | undefined;
+      if (process.env.VITE_API_URL === 'https://api.slopbox.dev/api') {
         // In production, check if we're on slopbox.dev
-        if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
-          // Use api.slopbox.dev for WebSocket
-          wsHost = 'api.slopbox.dev';
-          protocol = 'https';
-        } else {
-          // Use the same host
-          wsHost = window.location.host;
-        }
+        wsHost = 'api.slopbox.dev';
+        protocol = 'wss';
       } else {
-        // In development, determine the backend host
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          wsHost = 'localhost:3000';
-        } else {
-          // Use the same hostname with backend port
-          wsHost = `${hostname}`;
-        }
+        wsHost = 'localhost:3000';
+        protocol = 'ws';
       }
       
       const wsUrl = `${protocol}//${wsHost}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
