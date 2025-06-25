@@ -138,7 +138,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       let wsHost: string;
       let protocol: string | undefined;
-      if (process.env.VITE_API_URL === 'https://api.slopbox.dev/api') {
+      if (import.meta.env.VITE_API_URL === 'https://api.slopbox.dev/api') {
         // In production, check if we're on slopbox.dev
         wsHost = 'api.slopbox.dev';
         protocol = 'wss';
@@ -147,7 +147,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         protocol = 'ws';
       }
       
-      const wsUrl = `${protocol}//${wsHost}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
+      const wsUrl = `${protocol}://${wsHost}/ssh-ws?userId=${authUserId}&vmId=${vm.id}&token=${encodeURIComponent(token)}&organizationId=${currentOrganizationId || ''}`;
       
       console.log('WebSocket URL:', wsUrl);
       console.log('VM details:', { id: vm.id, name: vm.name, publicIp: vm.publicIp });
