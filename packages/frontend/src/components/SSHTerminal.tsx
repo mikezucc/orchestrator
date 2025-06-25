@@ -137,7 +137,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       term.writeln('🔐 Connecting to SSH...');
       
       // Create WebSocket connection with dynamic host detection
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const { hostname } = window.location;
       
       let wsHost: string;
@@ -146,6 +146,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
           // Use api.slopbox.dev for WebSocket
           wsHost = 'api.slopbox.dev';
+          protocol = 'https';
         } else {
           // Use the same host
           wsHost = window.location.host;
@@ -156,7 +157,7 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
           wsHost = 'localhost:3000';
         } else {
           // Use the same hostname with backend port
-          wsHost = `${hostname}:3000`;
+          wsHost = `${hostname}`;
         }
       }
       
