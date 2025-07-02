@@ -1,51 +1,56 @@
-import nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 class EmailService {
-  private transporter: Transporter | null = null;
+  private isConfigured: boolean = false;
 
   constructor() {
     this.initializeTransporter();
   }
 
   private initializeTransporter() {
-    if (process.env.SMTP_HOST && process.env.SMTP_PORT) {
-      this.transporter = nodemailer.createTransporter({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
+    const apiKey = process.env.SENDGRID_API_KEY;
+    
+    if (apiKey && apiKey !== 'your-actual-sendgrid-api-key-here') {
+      sgMail.setApiKey(apiKey);
+      this.isConfigured = true;
+      console.log('✅ SendGrid email service configured');
     } else {
-      // Development fallback - console log emails
-      console.warn('Email service not configured. Emails will be logged to console.');
+      console.warn('⚠️ SendGrid not configured. Emails will be logged to console.');
+      console.warn('Please set SENDGRID_API_KEY in your .env file');
     }
   }
 
   async sendEmail(to: string, subject: string, html: string, text?: string) {
-    const from = process.env.SMTP_FROM || 'noreply@devbox-orchestrator.com';
+    const from = {
+      email: process.env.SENDGRID_FROM_EMAIL || 'noreply@slopbox.dev',
+      name: process.env.SENDGRID_FROM_NAME || 'Slopbox'
+    };
 
-    if (!this.transporter) {
+    if (!this.isConfigured) {
       console.log('📧 Email (dev mode):');
       console.log(`To: ${to}`);
+      console.log(`From: ${from.email}`);
       console.log(`Subject: ${subject}`);
       console.log(`Content: ${text || 'HTML email'}`);
+      console.log('---');
       return;
     }
 
     try {
-      await this.transporter.sendMail({
-        from,
+      await sgMail.send({
         to,
+        from,
         subject,
         html,
         text,
       });
-    } catch (error) {
+      console.log(`✅ Email sent successfully to ${to}`);
+    } catch (error: any) {
       console.error('Failed to send email:', error);
+      // Log more details in development
+      if (error.response) {
+        console.error('SendGrid error response:', error.response.body);
+      }
       throw new Error('Failed to send email');
     }
   }
