@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { validator } from 'hono/validator';
+import { zValidator } from '@hono/zod-validator';
 import { eq, and, or, desc, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { scripts, scriptTags } from '../db/schema-scripts';
@@ -172,7 +172,7 @@ scriptsRouter.get('/:id', async (c) => {
 });
 
 // Create new script
-scriptsRouter.post('/', validator('json', createScriptSchema), async (c) => {
+scriptsRouter.post('/', zValidator('json', createScriptSchema), async (c) => {
   try {
     const user = (c as any).user;
     const organizationId = (c as any).organizationId;
@@ -237,7 +237,7 @@ scriptsRouter.post('/', validator('json', createScriptSchema), async (c) => {
 });
 
 // Update script
-scriptsRouter.patch('/:id', validator('json', updateScriptSchema), async (c) => {
+scriptsRouter.patch('/:id', zValidator('json', updateScriptSchema), async (c) => {
   try {
     const user = (c as any).user;
     const scriptId = c.req.param('id');
@@ -356,7 +356,7 @@ scriptsRouter.delete('/:id', async (c) => {
 });
 
 // Add tags to script
-scriptsRouter.post('/:id/tags', validator('json', z.object({ tags: z.array(z.string()) })), async (c) => {
+scriptsRouter.post('/:id/tags', zValidator('json', z.object({ tags: z.array(z.string()) })), async (c) => {
   try {
     const user = (c as any).user;
     const scriptId = c.req.param('id');
