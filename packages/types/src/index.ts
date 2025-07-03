@@ -185,3 +185,36 @@ export interface WormholeDaemonsInfo {
   runningCount: number;
   daemons: WormholeDaemon[];
 }
+
+// Script library types
+export interface Script {
+  id: string;
+  organizationId?: string;
+  createdBy: string;
+  createdByUser?: { email: string; name?: string }; // populated on fetch
+  name: string;
+  description?: string;
+  scriptContent: string;
+  timeout: number;
+  isPublic: boolean;
+  tags?: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateScriptRequest {
+  name: string;
+  description?: string;
+  scriptContent: string;
+  timeout?: number;
+  isPublic?: boolean;
+  tags?: string[];
+}
+
+export interface UpdateScriptRequest {
+  name?: string;
+  description?: string;
+  scriptContent?: string;
+  timeout?: number;
+  isPublic?: boolean;
+}

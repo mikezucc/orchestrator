@@ -23,6 +23,7 @@ export default function VMDetail() {
   const [showExecuteScriptModal, setShowExecuteScriptModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showVMInfo, setShowVMInfo] = useState(false);
+  const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
 
   console.log('showSSHTerminal', showSSHTerminal);
 
@@ -417,6 +418,8 @@ export default function VMDetail() {
         <ExecuteScriptModal
           vm={vm}
           onClose={() => setShowExecuteScriptModal(false)}
+          output={consoleOutput}
+          setOutput={setConsoleOutput}
         />
       )}
     </div>

@@ -19,6 +19,7 @@ import { invitationRoutes } from './routes/invitations.js';
 import { googleAuthRoutes } from './routes/google-auth.js';
 import { githubAuthRoutes } from './routes/github-auth.js';
 import { userSSHKeysRoutes } from './routes/user-ssh-keys.js';
+import scriptsRouter from './routes/scripts.js';
 
 dotenv.config();
 
@@ -72,6 +73,7 @@ app.route('/api/ssh', sshRoutes);
 app.route('/api/vms', portsRoutes);
 app.route('/api/organizations', organizationRoutes);
 app.route('/api/invitations', invitationRoutes);
+app.route('/api/scripts', scriptsRouter);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

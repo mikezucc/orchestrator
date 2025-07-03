@@ -2,21 +2,26 @@ import { useState, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { useToast } from '../contexts/ToastContext';
-import type { VirtualMachine } from '@gce-platform/types';
+import type { VirtualMachine, Script } from '@gce-platform/types';
 import AnsiToHtml from 'ansi-to-html';
+import ScriptLibraryDropdown from './ScriptLibraryDropdown';
+import SaveScriptDialog from './SaveScriptDialog';
 import '../styles/terminal.css';
 
 interface ExecuteScriptModalProps {
   vm: VirtualMachine;
   onClose: () => void;
+  output: { stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null;
+  setOutput: (output: { stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null) => void;
 }
 
-export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalProps) {
+export default function ExecuteScriptModal({ vm, onClose, output, setOutput }: ExecuteScriptModalProps) {
   const { showError, showSuccess } = useToast();
   const [script, setScript] = useState('');
   const [timeout, setTimeout] = useState('60');
-  const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [loadedScript, setLoadedScript] = useState<Script | null>(null);
 
   // Initialize ANSI to HTML converter
   const ansiConverter = useMemo(() => new AnsiToHtml({
@@ -109,7 +114,7 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
       showError('Please enter a script to execute');
       return;
     }
-    setOutput(null);
+    // Don't clear output - preserve it across re-renders
     executeMutation.mutate();
   };
 
@@ -126,6 +131,13 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
       }
     }
     onClose();
+  };
+
+  const handleSelectScript = (selectedScript: Script) => {
+    setScript(selectedScript.scriptContent);
+    setTimeout(selectedScript.timeout.toString());
+    setLoadedScript(selectedScript);
+    showSuccess(`Loaded script: ${selectedScript.name}`);
   };
 
   return (
@@ -147,6 +159,27 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
 
         <div className="flex-1 overflow-auto p-6">
           <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <ScriptLibraryDropdown onSelectScript={handleSelectScript} />
+                <button
+                  onClick={() => setShowSaveDialog(true)}
+                  disabled={!script.trim() || executeMutation.isPending}
+                  className="btn-secondary flex items-center space-x-2"
+                  type="button"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V2" />
+                  </svg>
+                  <span>Save to Library</span>
+                </button>
+              </div>
+              {loadedScript && (
+                <div className="text-sm text-te-gray-600 dark:text-te-gray-400">
+                  Loaded: <span className="font-medium">{loadedScript.name}</span>
+                </div>
+              )}
+            </div>
             <div>
               <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                 Bash Script
@@ -193,7 +226,7 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
                   </div>
                   {output.timestamp && (
                     <span className="text-xs text-te-gray-600 dark:text-te-gray-400">
-                      Executed at {output.timestamp.toLocaleTimeString()}
+                      Executed at {new Date(output.timestamp).toLocaleTimeString()}
                     </span>
                   )}
                 </div>
@@ -204,21 +237,32 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
                     <label className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400">
                       Console Output
                     </label>
-                    <button
-                      onClick={() => {
-                        const fullOutput = [output.stdout, output.stderr].filter(Boolean).join('\n');
-                        if (fullOutput) {
-                          navigator.clipboard.writeText(fullOutput);
-                          showSuccess('Output copied to clipboard');
-                        }
-                      }}
-                      className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200"
-                      title="Copy output to clipboard"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setOutput(null)}
+                        className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200"
+                        title="Clear output"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const fullOutput = [output.stdout, output.stderr].filter(Boolean).join('\n');
+                          if (fullOutput) {
+                            navigator.clipboard.writeText(fullOutput);
+                            showSuccess('Output copied to clipboard');
+                          }
+                        }}
+                        className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-800 dark:hover:text-te-gray-200"
+                        title="Copy output to clipboard"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-gray-900 dark:bg-black p-4 rounded-lg overflow-auto max-h-96">
                     <div className="terminal-output text-xs font-mono whitespace-pre-wrap">
@@ -342,6 +386,18 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
           </button>
         </div>
       </div>
+
+      {showSaveDialog && (
+        <SaveScriptDialog
+          scriptContent={script}
+          defaultTimeout={parseInt(timeout) || 60}
+          onClose={() => setShowSaveDialog(false)}
+          onSaved={() => {
+            setShowSaveDialog(false);
+            showSuccess('Script saved to library');
+          }}
+        />
+      )}
     </div>
   );
 }
