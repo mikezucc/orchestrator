@@ -408,6 +408,55 @@ vmRoutes.post('/:id/execute', async (c) => {
   }
 });
 
+vmRoutes.post('/:id/execute/abort', async (c) => {
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
+  const vmId = c.req.param('id');
+  
+  const body = await c.req.json<{ sessionId: string }>();
+  
+  if (!body.sessionId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Session ID is required' }, 400);
+  }
+
+  // Check if VM exists and belongs to the organization
+  const [vm] = await db.select().from(virtualMachines)
+    .where(and(
+      eq(virtualMachines.id, vmId),
+      eq(virtualMachines.organizationId, organizationId)
+    ));
+
+  if (!vm) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+  }
+
+  // Get the session to verify it belongs to this user/org
+  const session = executionSessionManager.getSession(body.sessionId);
+  
+  if (!session) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Execution session not found' }, 404);
+  }
+  
+  if (session.organizationId !== organizationId || session.userId !== userId || session.vmId !== vmId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'Unauthorized to abort this session' }, 403);
+  }
+
+  // Abort the session
+  const aborted = executionSessionManager.abortSession(body.sessionId);
+  
+  if (aborted) {
+    return c.json<ApiResponse<{ aborted: boolean }>>({ 
+      success: true, 
+      data: { aborted: true } 
+    });
+  } else {
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: 'Failed to abort execution session' 
+    }, 500);
+  }
+});
+
 vmRoutes.post('/:id/duplicate', async (c) => {
   const organizationId = (c as any).organizationId;
   const userId = (c as any).userId;

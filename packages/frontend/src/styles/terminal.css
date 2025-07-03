@@ -1,0 +1,47 @@
+/* Terminal output styles for ANSI color support */
+.terminal-output {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* Override ansi-to-html default styles to match our theme */
+.terminal-output .ansi-black { color: #000000; }
+.terminal-output .ansi-red { color: #ef4444; }
+.terminal-output .ansi-green { color: #10b981; }
+.terminal-output .ansi-yellow { color: #f59e0b; }
+.terminal-output .ansi-blue { color: #3b82f6; }
+.terminal-output .ansi-magenta { color: #a855f7; }
+.terminal-output .ansi-cyan { color: #06b6d4; }
+.terminal-output .ansi-white { color: #e5e7eb; }
+
+.terminal-output .ansi-bright-black { color: #6b7280; }
+.terminal-output .ansi-bright-red { color: #f87171; }
+.terminal-output .ansi-bright-green { color: #34d399; }
+.terminal-output .ansi-bright-yellow { color: #fbbf24; }
+.terminal-output .ansi-bright-blue { color: #60a5fa; }
+.terminal-output .ansi-bright-magenta { color: #c084fc; }
+.terminal-output .ansi-bright-cyan { color: #22d3ee; }
+.terminal-output .ansi-bright-white { color: #f9fafb; }
+
+/* Background colors */
+.terminal-output .ansi-bg-black { background-color: #000000; }
+.terminal-output .ansi-bg-red { background-color: #ef4444; }
+.terminal-output .ansi-bg-green { background-color: #10b981; }
+.terminal-output .ansi-bg-yellow { background-color: #f59e0b; }
+.terminal-output .ansi-bg-blue { background-color: #3b82f6; }
+.terminal-output .ansi-bg-magenta { background-color: #a855f7; }
+.terminal-output .ansi-bg-cyan { background-color: #06b6d4; }
+.terminal-output .ansi-bg-white { background-color: #e5e7eb; }
+
+.terminal-output .ansi-bg-bright-black { background-color: #6b7280; }
+.terminal-output .ansi-bg-bright-red { background-color: #f87171; }
+.terminal-output .ansi-bg-bright-green { background-color: #34d399; }
+.terminal-output .ansi-bg-bright-yellow { background-color: #fbbf24; }
+.terminal-output .ansi-bg-bright-blue { background-color: #60a5fa; }
+.terminal-output .ansi-bg-bright-magenta { background-color: #c084fc; }
+.terminal-output .ansi-bg-bright-cyan { background-color: #22d3ee; }
+.terminal-output .ansi-bg-bright-white { background-color: #f9fafb; }
+
+/* Ensure proper text formatting */
+.terminal-output span {
+  display: inline;
+}

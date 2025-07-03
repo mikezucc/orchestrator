@@ -56,4 +56,9 @@ export const vmApi = {
     const { data } = await api.post<ApiResponse<ExecuteScriptResponse>>(`/vms/${id}/execute`, request);
     return data;
   },
+
+  abortExecution: async (id: string, sessionId: string) => {
+    const { data } = await api.post<ApiResponse<{ aborted: boolean }>>(`/vms/${id}/execute/abort`, { sessionId });
+    return data;
+  },
 };

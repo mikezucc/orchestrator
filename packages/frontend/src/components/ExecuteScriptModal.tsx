@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { useToast } from '../contexts/ToastContext';
 import type { VirtualMachine } from '@gce-platform/types';
+import AnsiToHtml from 'ansi-to-html';
+import '../styles/terminal.css';
 
 interface ExecuteScriptModalProps {
   vm: VirtualMachine;
@@ -13,15 +15,57 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
   const { showError, showSuccess } = useToast();
   const [script, setScript] = useState('');
   const [timeout, setTimeout] = useState('60');
-  const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode: number; timestamp?: Date } | null>(null);
+  const [output, setOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  // Initialize ANSI to HTML converter
+  const ansiConverter = useMemo(() => new AnsiToHtml({
+    fg: '#e5e7eb', // gray-200
+    bg: '#111827', // gray-900
+    newline: true,
+    escapeXML: true,
+    stream: true
+  }), []);
+
+  // Function to clean terminal control sequences
+  const cleanTerminalOutput = (text: string): string => {
+    if (!text) return '';
+    
+    // Remove common terminal control sequences that ansi-to-html doesn't handle
+    /* eslint-disable no-control-regex */
+    return text
+      .replace(/\x1b\[\?2004[lh]/g, '') // Remove bracketed paste mode
+      .replace(/\x1b\[([0-9]+)?[GK]/g, '') // Remove cursor positioning (G: move to column, K: clear line)
+      .replace(/\x1b\[\d*[JH]/g, '') // Remove clear screen and cursor home
+      .replace(/\x1b\[[\d;]*[fl]/g, '') // Remove cursor save/restore
+      .replace(/\x1b\[\?\d+[hl]/g, '') // Remove DEC private mode set/reset
+      .replace(/\x1b\]0;[^\x07]*\x07/g, '') // Remove terminal title sequences
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, (match) => {
+        // Preserve color codes but remove other escape sequences
+        if (match.match(/\x1b\[[0-9;]*m/)) {
+          return match; // Keep color codes
+        }
+        return ''; // Remove other sequences
+      })
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\r/g, '\n'); // Handle carriage returns
+    /* eslint-enable no-control-regex */
+  };
 
   const executeMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const timeoutSeconds = parseInt(timeout) || 60;
-      return vmApi.executeScript(vm.id, { 
+      const response = await vmApi.executeScript(vm.id, { 
         script, 
         timeout: timeoutSeconds 
       });
+      
+      // Store sessionId immediately when we get it
+      if (response.success && response.data?.sessionId) {
+        setCurrentSessionId(response.data.sessionId);
+      }
+      
+      return response;
     },
     onSuccess: (response) => {
       if (response.success && response.data) {
@@ -29,13 +73,34 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
           ...response.data,
           timestamp: new Date()
         });
+        setCurrentSessionId(null); // Clear session ID after completion
         showSuccess('Script executed successfully');
       } else {
         showError(response.error || 'Failed to execute script');
+        setCurrentSessionId(null);
       }
     },
     onError: (error: any) => {
       showError(error.response?.data?.error || 'Failed to execute script');
+      setCurrentSessionId(null);
+    },
+  });
+
+  const abortMutation = useMutation({
+    mutationFn: (sessionId: string) => {
+      return vmApi.abortExecution(vm.id, sessionId);
+    },
+    onSuccess: (response) => {
+      if (response.success) {
+        showSuccess('Execution aborted');
+        setCurrentSessionId(null);
+        executeMutation.reset(); // Reset the execution mutation state
+      } else {
+        showError(response.error || 'Failed to abort execution');
+      }
+    },
+    onError: (error: any) => {
+      showError(error.response?.data?.error || 'Failed to abort execution');
     },
   });
 
@@ -46,6 +111,12 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
     }
     setOutput(null);
     executeMutation.mutate();
+  };
+
+  const handleAbort = () => {
+    if (currentSessionId) {
+      abortMutation.mutate(currentSessionId);
+    }
   };
 
   const handleClose = () => {
@@ -150,18 +221,28 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
                     </button>
                   </div>
                   <div className="bg-gray-900 dark:bg-black p-4 rounded-lg overflow-auto max-h-96">
-                    <pre className="text-xs font-mono whitespace-pre-wrap">
+                    <div className="terminal-output text-xs font-mono whitespace-pre-wrap">
                       {output.stdout ? (
-                        <span className="text-gray-100">{output.stdout}</span>
+                        <div 
+                          className="text-gray-100"
+                          dangerouslySetInnerHTML={{ 
+                            __html: ansiConverter.toHtml(cleanTerminalOutput(output.stdout)) 
+                          }}
+                        />
                       ) : null}
                       {output.stdout && output.stderr ? '\n' : null}
                       {output.stderr ? (
-                        <span className="text-red-400">{output.stderr}</span>
+                        <div 
+                          className="text-red-400"
+                          dangerouslySetInnerHTML={{ 
+                            __html: ansiConverter.toHtml(cleanTerminalOutput(output.stderr)) 
+                          }}
+                        />
                       ) : null}
                       {!output.stdout && !output.stderr ? (
                         <span className="text-gray-500 italic">No output produced</span>
                       ) : null}
-                    </pre>
+                    </div>
                   </div>
                 </div>
 
@@ -176,9 +257,12 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
                         <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                           Standard Output (stdout)
                         </label>
-                        <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono rounded-lg whitespace-pre-wrap max-h-64 overflow-y-auto">
-                          {output.stdout}
-                        </pre>
+                        <div 
+                          className="terminal-output bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono rounded-lg whitespace-pre-wrap max-h-64 overflow-y-auto"
+                          dangerouslySetInnerHTML={{ 
+                            __html: ansiConverter.toHtml(cleanTerminalOutput(output.stdout)) 
+                          }}
+                        />
                       </div>
                     )}
 
@@ -187,9 +271,12 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
                         <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                           Error Output (stderr)
                         </label>
-                        <pre className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/20 p-3 text-xs overflow-x-auto font-mono rounded-lg text-red-700 dark:text-red-400 whitespace-pre-wrap max-h-64 overflow-y-auto">
-                          {output.stderr}
-                        </pre>
+                        <div 
+                          className="terminal-output bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/20 p-3 text-xs overflow-x-auto font-mono rounded-lg text-red-700 dark:text-red-400 whitespace-pre-wrap max-h-64 overflow-y-auto"
+                          dangerouslySetInnerHTML={{ 
+                            __html: ansiConverter.toHtml(cleanTerminalOutput(output.stderr)) 
+                          }}
+                        />
                       </div>
                     )}
                   </div>
@@ -207,6 +294,30 @@ export default function ExecuteScriptModal({ vm, onClose }: ExecuteScriptModalPr
           >
             Close
           </button>
+          {executeMutation.isPending && currentSessionId ? (
+            <button
+              onClick={handleAbort}
+              className="btn-secondary flex items-center space-x-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              disabled={abortMutation.isPending}
+            >
+              {abortMutation.isPending ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Aborting...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span>Abort Execution</span>
+                </>
+              )}
+            </button>
+          ) : null}
           <button
             onClick={handleExecute}
             className="btn-primary flex items-center space-x-2"

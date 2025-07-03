@@ -67,6 +67,7 @@ export interface ExecuteScriptResponse {
   stdout: string;
   stderr: string;
   exitCode: number;
+  sessionId: string;
 }
 
 export interface GCPAuthResponse {
