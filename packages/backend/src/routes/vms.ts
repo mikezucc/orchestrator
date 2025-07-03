@@ -6,6 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
 import { executeScriptViaSSH } from '../services/gcp-ssh-execute.js';
+import { executionSessionManager } from '../services/execution-sessions.js';
 import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
@@ -370,6 +371,9 @@ vmRoutes.post('/:id/execute', async (c) => {
       script: body.script,
       timeout: body.timeout,
       accessToken,
+      vmId: vm.id,
+      organizationId,
+      userId,
     });
 
     return c.json<ApiResponse<ExecuteScriptResponse>>({ 
