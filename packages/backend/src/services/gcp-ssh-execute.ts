@@ -66,8 +66,8 @@ export async function executeScriptViaSSH({
     sshClient.on('ready', () => {
       console.log('SSH connection established for script execution');
 
-      // Execute the script with login shell to get full environment
-      sshClient.exec(`bash -l -s`, (err, stream) => {
+      // Use shell() to get a proper login shell with full environment
+      sshClient.shell((err, stream) => {
         if (err) {
           clearTimeout(timeoutHandle);
           sshClient.end();
@@ -76,6 +76,7 @@ export async function executeScriptViaSSH({
         }
 
         let scriptSent = false;
+        let shellReady = false;
 
         stream.on('close', (code: number) => {
           console.log('Stream closed with code:', code);
@@ -86,22 +87,31 @@ export async function executeScriptViaSSH({
         });
 
         stream.on('data', (data: Buffer) => {
-          stdout += data.toString();
+          const output = data.toString();
+          stdout += output;
+          
+          // Check if shell is ready (looking for prompt)
+          if (!shellReady && (output.includes('$') || output.includes('#') || output.includes('>'))) {
+            shellReady = true;
+            console.log('Shell appears ready, sending script');
+          }
+          
+          // Send script after shell is ready
+          if (shellReady && !scriptSent) {
+            scriptSent = true;
+            // Send the script
+            stream.write(script);
+            if (!script.endsWith('\n')) {
+              stream.write('\n');
+            }
+            // Send exit command to close the shell cleanly
+            stream.write('exit\n');
+          }
         });
 
         stream.stderr.on('data', (data: Buffer) => {
           stderr += data.toString();
         });
-
-        // Send the script content
-        if (!scriptSent) {
-          scriptSent = true;
-          stream.write(script);
-          if (!script.endsWith('\n')) {
-            stream.write('\n');
-          }
-          stream.end();
-        }
       });
     });
 
