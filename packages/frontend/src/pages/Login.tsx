@@ -28,10 +28,10 @@ export default function Login() {
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">
-              GCE<span className="text-te-gray-500 dark:text-te-gray-600">//</span>VM
+              Facet <span className="text-te-gray-500 dark:text-te-gray-600">Build</span>
             </h1>
             <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
-              Google Cloud Virtual Machine Platform
+              Build for the Future
             </p>
           </div>
           
@@ -39,7 +39,7 @@ export default function Login() {
             <div>
               <h2 className="text-lg font-semibold mb-2">Authentication Required</h2>
               <p className="text-sm text-te-gray-600 dark:text-te-gray-400">
-                Sign in with your Google account to manage virtual machines
+                Sign in with your Google account
               </p>
             </div>
             
@@ -67,7 +67,7 @@ export default function Login() {
       
       <footer className="py-4 text-center">
         <p className="text-2xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
-          GCE VM Platform &copy; {new Date().getFullYear()}
+          Facet &copy; {new Date().getFullYear()}
         </p>
       </footer>
     </div>

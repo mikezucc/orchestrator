@@ -25,7 +25,7 @@ This guide will help you set up Google OAuth for the GCE VM Platform.
 3. If prompted, configure the OAuth consent screen:
    - Choose "External" user type
    - Fill in the required fields:
-     - App name: "GCE VM Platform"
+     - App name: "Facet VM Platform"
      - User support email: Your email
      - Developer contact information: Your email
    - Add scopes:

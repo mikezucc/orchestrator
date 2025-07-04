@@ -1,4 +1,4 @@
-# GCE VM Platform
+# Facet
 
 A web platform for creating, connecting to, and managing Google Cloud Engine virtual machines.
 

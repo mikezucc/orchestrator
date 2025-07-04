@@ -88,10 +88,10 @@ export default function LoginOTP() {
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold uppercase tracking-wider mb-2">
-              GCE<span className="text-te-gray-500 dark:text-te-gray-600">//</span>VM
+              Facet <span className="text-te-gray-500 dark:text-te-gray-600">Build</span>
             </h1>
             <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
-              Google Cloud Virtual Machine Platform
+              Fast Teams Only
             </p>
           </div>
           
@@ -226,7 +226,7 @@ export default function LoginOTP() {
       
       <footer className="py-4 text-center">
         <p className="text-2xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600">
-          GCE VM Platform &copy; {new Date().getFullYear()}
+          Facet &copy; {new Date().getFullYear()}
         </p>
       </footer>
     </div>

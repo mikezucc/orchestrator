@@ -50,7 +50,7 @@ app.use('/*', cors({
 }));
 
 app.get('/', (c) => {
-  return c.json({ message: 'GCE VM Platform API' });
+  return c.json({ message: 'Facet Platform API' });
 });
 
 app.get('/health', (c) => {
