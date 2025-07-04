@@ -131,8 +131,7 @@ wormholeRoutes.post('/:vmId/branch-switch', async (c) => {
     // Get VM details to find public IP
     const [vm] = await db.select().from(virtualMachines).where(
       and(
-        eq(virtualMachines.id, vmId),
-        eq(virtualMachines.userId, userId)
+        eq(virtualMachines.id, vmId)
       )
     );
 
