@@ -151,8 +151,16 @@ export async function executeScriptViaSSH({
           return;
         }
 
-        let scriptSent = false;
         let shellReady = false;
+        let currentLineIndex = 0;
+        let lastOutput = '';
+        let lastPromptTime = Date.now();
+        let commandInProgress = false;
+        let promptCheckInterval: NodeJS.Timeout;
+        
+        // Split script into individual lines, filtering out empty lines
+        const scriptLines = script.split('\n').filter(line => line.trim());
+        console.log(`Script has ${scriptLines.length} lines to execute`);
 
         // Check for abort periodically
         const abortCheckInterval = setInterval(() => {
@@ -161,6 +169,7 @@ export async function executeScriptViaSSH({
             if (session && session.aborted) {
               console.log('Execution aborted by user');
               clearInterval(abortCheckInterval);
+              if (promptCheckInterval) clearInterval(promptCheckInterval);
               clearTimeout(timeoutHandle);
               stream.write('\x03'); // Send Ctrl+C
               setTimeout(() => {
@@ -172,11 +181,52 @@ export async function executeScriptViaSSH({
           }
         }, 500);
 
+        // Function to check if we're at a shell prompt
+        const isAtPrompt = (output: string) => {
+          const lines = output.split('\n');
+          const lastLine = lines[lines.length - 1] || lines[lines.length - 2] || '';
+          // Common shell prompt patterns
+          return /[$#>]\s*$/.test(lastLine) || 
+                 /\]\$\s*$/.test(lastLine) || 
+                 /\]#\s*$/.test(lastLine) ||
+                 />>>?\s*$/.test(lastLine); // Python prompts
+        };
+
+        // Function to send the next command
+        const sendNextCommand = () => {
+          if (currentLineIndex < scriptLines.length) {
+            const command = scriptLines[currentLineIndex];
+            console.log(`Executing command ${currentLineIndex + 1}/${scriptLines.length}: ${command.substring(0, 50)}...`);
+            stream.write(command + '\n');
+            currentLineIndex++;
+            commandInProgress = true;
+            lastPromptTime = Date.now();
+          } else if (!commandInProgress) {
+            // All commands executed, send exit
+            console.log('All commands executed, sending exit');
+            if (promptCheckInterval) clearInterval(promptCheckInterval);
+            stream.write('exit\n');
+          }
+        };
+
+        // Periodically check if we're stuck at a prompt
+        promptCheckInterval = setInterval(() => {
+          if (commandInProgress && isAtPrompt(lastOutput)) {
+            const timeSinceLastPrompt = Date.now() - lastPromptTime;
+            if (timeSinceLastPrompt > 1000) { // 1 second at prompt
+              console.log('Detected shell prompt, moving to next command');
+              commandInProgress = false;
+              sendNextCommand();
+            }
+          }
+        }, 500);
+
         stream.on('close', async (code: number) => {
           console.log('Stream closed with code:', code);
           exitCode = code || 0;
           clearTimeout(timeoutHandle);
           clearInterval(abortCheckInterval);
+          if (promptCheckInterval) clearInterval(promptCheckInterval);
           await cleanupSession();
           sshClient.end();
           resolve({ stdout, stderr, exitCode, sessionId: executionSessionId });
@@ -185,28 +235,21 @@ export async function executeScriptViaSSH({
         stream.on('data', (data: Buffer) => {
           const output = data.toString();
           stdout += output;
+          lastOutput = stdout.slice(-500); // Keep last 500 chars for prompt detection
           
           // Call onOutput callback if provided
-          if (onOutput && scriptSent) {
+          if (onOutput && shellReady) {
             onOutput('stdout', output);
           }
           
-          // Check if shell is ready (looking for prompt)
-          if (!shellReady && (output.includes('$') || output.includes('#') || output.includes('>'))) {
+          // Check if shell is ready (looking for initial prompt)
+          if (!shellReady && isAtPrompt(output)) {
             shellReady = true;
-            console.log('Shell appears ready, sending script');
-          }
-          
-          // Send script after shell is ready
-          if (shellReady && !scriptSent) {
-            scriptSent = true;
-            // Send the script
-            stream.write(script);
-            if (!script.endsWith('\n')) {
-              stream.write('\n');
-            }
-            // Send exit command to close the shell cleanly
-            stream.write('exit\n');
+            console.log('Shell ready, starting command execution');
+            sendNextCommand();
+          } else if (shellReady && commandInProgress && isAtPrompt(lastOutput)) {
+            // Command might have completed
+            lastPromptTime = Date.now();
           }
         });
 
@@ -215,7 +258,7 @@ export async function executeScriptViaSSH({
           stderr += output;
           
           // Call onOutput callback if provided
-          if (onOutput && scriptSent) {
+          if (onOutput && shellReady) {
             onOutput('stderr', output);
           }
         });

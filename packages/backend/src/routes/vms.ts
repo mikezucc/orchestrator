@@ -383,12 +383,9 @@ EOF
 chmod 600 ~/.ssh/config
 
 # Display the public key
-echo
 echo "=== GitHub SSH Key ==="
 echo "Add this SSH key to your GitHub account:"
-echo
 cat ~/.ssh/github_devbox.pub
-echo
 echo "=== End of SSH Key ==="
 echo
 exit
@@ -488,7 +485,6 @@ exit
                 );
                 
                 const cloneScript = `
-echo
 echo "=== Cloning Repository ==="
 echo "Repository: ${body.githubRepository.full_name}"
 cd ~
@@ -499,7 +495,6 @@ git clone ${body.githubRepository.ssh_url}
 # Enter the repository directory
 cd $(basename "${body.githubRepository.ssh_url}" .git)
 
-echo
 echo "=== Repository Cloned Successfully ==="
 echo "Location: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
 pwd

@@ -60,7 +60,15 @@ echo "=== Installing Node.js and npm ==="
 sudo apt-get update
 
 # Install Node.js and npm using NodeSource repository
-sudo apt-get install -y nodejs
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install node
+nvm use node
+
+node -v
+npm -v
+
+sudo apt-get remove -y --purge man-db
 
 # Install build essentials for native npm modules
 sudo apt-get install -y build-essential
@@ -73,6 +81,8 @@ echo "=== Installation Complete ==="
 echo "Node.js version: $(node --version)"
 echo "npm version: $(npm --version)"
 echo "PM2 version: $(pm2 --version)"
+
+cd ~/vibespacetestapp
 
 # Install project dependencies if package.json exists
 if [ -f "package.json" ]; then
