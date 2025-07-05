@@ -42,7 +42,8 @@ export default function Layout() {
   const isActive = (path: string) => {
     return location.pathname === path || 
            (path === '/vms' && location.pathname.startsWith('/vms')) ||
-           (path === '/organization/settings' && location.pathname.startsWith('/organization'));
+           (path === '/organization/settings' && location.pathname.startsWith('/organization')) ||
+           (path === '/user/settings' && location.pathname.startsWith('/user'));
   };
 
   return (
@@ -75,6 +76,16 @@ export default function Layout() {
                   }`}
                 >
                   Organization
+                </Link>
+                <Link
+                  to="/user/settings"
+                  className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
+                    isActive('/user/settings') 
+                      ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
+                      : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
+                  }`}
+                >
+                  Account
                 </Link>
               </div>
             </div>

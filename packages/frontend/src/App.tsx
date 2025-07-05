@@ -12,6 +12,7 @@ import LoginOTP from './pages/LoginOTP';
 import AuthCallback from './pages/AuthCallback';
 import OrganizationSettings from './pages/OrganizationSettings';
 import CreateOrganization from './pages/CreateOrganization';
+import UserSettings from './pages/UserSettings';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ function App() {
                     <Route path="vms" element={<VMs />} />
                     <Route path="vms/:id" element={<VMDetail />} />
                     <Route path="organization/settings" element={<OrganizationSettings />} />
+                    <Route path="user/settings" element={<UserSettings />} />
                   </Route>
                 </Routes>
               </Router>
