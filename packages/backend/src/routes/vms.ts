@@ -12,6 +12,7 @@ import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
 import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
 import { GitHubAPIService } from '../services/github-api.js';
+import { vmCreationProgress } from '../services/vm-creation-progress.js';
 
 export const vmRoutes = new Hono();
 
@@ -131,12 +132,18 @@ vmRoutes.post('/', async (c) => {
   const organizationId = (c as any).organizationId;
   const userId = (c as any).userId;
 
-  const body = await c.req.json<CreateVMRequest>();
+  const body = await c.req.json<CreateVMRequest & { trackingId?: string }>();
+  
+  // Generate or use provided tracking ID
+  const trackingId = body.trackingId || vmCreationProgress.generateTrackingId();
   
   try {
+    // Report initial progress
+    vmCreationProgress.reportPreparing(trackingId, 'Validating request and preparing resources...');
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
+      vmCreationProgress.reportError(trackingId, 'Failed to authenticate with Google Cloud');
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
 
@@ -145,6 +152,7 @@ vmRoutes.post('/', async (c) => {
 
     // If GitHub repository is provided, create the repository setup script
     if (body.githubRepository) {
+      vmCreationProgress.reportPreparing(trackingId, 'Preparing GitHub repository configuration...');
       // Get user's GitHub info
       const [authUser] = await db
         .select({ 
@@ -230,6 +238,9 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       completeInitScript = body.userBootScript;
     }
 
+    // Report creating VM
+    vmCreationProgress.reportCreating(trackingId, 'Creating VM instance in Google Cloud...');
+
     const gcpInstance = await createVM({
       projectId: body.gcpProjectId,
       zone: body.zone,
@@ -238,6 +249,9 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       initScript: completeInitScript,
       accessToken,
     });
+
+    // Report configuring VM
+    vmCreationProgress.reportConfiguring(trackingId, 'Configuring VM settings and network...');
 
     const [vm] = await db.insert(virtualMachines).values({
       createdBy: userId,
@@ -251,8 +265,27 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       gcpInstanceId: gcpInstance.id,
     }).returning();
 
-    return c.json<ApiResponse<VirtualMachine>>({ success: true, data: vm as VirtualMachine });
+    // Report installing software
+    if (body.githubRepository || body.userBootScript) {
+      vmCreationProgress.reportInstalling(
+        trackingId, 
+        'VM is booting and running setup scripts...',
+        body.githubRepository ? `Repository: ${body.githubRepository.full_name}` : undefined
+      );
+    }
+
+    // Report finalizing
+    vmCreationProgress.reportFinalizing(trackingId, 'Finalizing VM setup...');
+
+    // Report complete
+    vmCreationProgress.reportComplete(trackingId, vm.id, 'VM created successfully!');
+
+    return c.json<ApiResponse<VirtualMachine & { trackingId: string }>>({ 
+      success: true, 
+      data: { ...vm as VirtualMachine, trackingId } 
+    });
   } catch (error) {
+    vmCreationProgress.reportError(trackingId, String(error));
     return c.json<ApiResponse<never>>({ success: false, error: String(error) }, 500);
   }
 });

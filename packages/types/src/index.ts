@@ -57,6 +57,23 @@ export interface UpdateVMRequest {
   initScript?: string;
 }
 
+export interface VMCreationProgress {
+  vmId?: string;
+  stage: 'preparing' | 'creating' | 'configuring' | 'installing' | 'finalizing' | 'complete' | 'error';
+  message: string;
+  detail?: string;
+  progress: number; // 0-100
+  timestamp: number;
+  error?: string;
+}
+
+export interface VMCreationStage {
+  id: string;
+  name: string;
+  status: 'pending' | 'in-progress' | 'complete' | 'error';
+  message?: string;
+}
+
 export interface CreateFirewallRuleRequest {
   vmId: string;
   name: string;

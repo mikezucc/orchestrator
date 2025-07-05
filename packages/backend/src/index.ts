@@ -13,6 +13,7 @@ import { syncRoutes } from './routes/sync.js';
 import { wormholeRoutes } from './routes/wormhole.js';
 import { sshRoutes } from './routes/ssh.js';
 import { createSSHWebSocketHandler } from './routes/ssh-ws.js';
+import { createVMProgressWebSocketHandler } from './routes/vm-progress-ws.js';
 import portsRoutes from './routes/ports.js';
 import { organizationRoutes } from './routes/organizations.js';
 import { invitationRoutes } from './routes/invitations.js';
@@ -119,6 +120,10 @@ app.get('/ssh-ws/test',
 // Add the main SSH WebSocket route
 const sshWebSocketHandler = createSSHWebSocketHandler(upgradeWebSocket);
 app.get('/ssh-ws', sshWebSocketHandler);
+
+// Add VM progress WebSocket route
+const vmProgressWebSocketHandler = createVMProgressWebSocketHandler(upgradeWebSocket);
+app.get('/vm-progress-ws', vmProgressWebSocketHandler);
 
 // Add a debug route to check if routes are registered
 app.get('/debug/routes', (c) => {

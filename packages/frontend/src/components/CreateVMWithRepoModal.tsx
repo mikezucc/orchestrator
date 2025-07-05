@@ -5,6 +5,8 @@ import { organizationApi } from '../api/organizations';
 import { githubAuthApi, type GitHubRepo } from '../api/github-auth';
 import type { CreateVMRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
+import VMCreationTracker from './VMCreationTracker';
+import { vmCreationProgress } from '../services/vm-creation-progress';
 
 interface CreateVMWithRepoModalProps {
   onClose: () => void;
@@ -41,6 +43,8 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [repoPage, setRepoPage] = useState(1);
   const [selectedScript, setSelectedScript] = useState<string>('');
+  const [showProgressTracker, setShowProgressTracker] = useState(false);
+  const [trackingId, setTrackingId] = useState<string | null>(null);
 
   // Premade scripts
   const premadeScripts = {
@@ -234,8 +238,12 @@ fi`
         throw new Error('Please select a repository');
       }
 
+      // Generate tracking ID for progress tracking
+      const newTrackingId = vmCreationProgress.generateTrackingId();
+      setTrackingId(newTrackingId);
+
       // Create the VM with GitHub repository and user boot script
-      const vmData: CreateVMRequest = {
+      const vmData: CreateVMRequest & { trackingId: string } = {
         ...formData,
         githubRepository: {
           id: selectedRepo.id,
@@ -245,7 +253,11 @@ fi`
           private: selectedRepo.private,
         },
         userBootScript: userStartupScript || undefined,
+        trackingId: newTrackingId,
       };
+
+      // Show progress tracker
+      setShowProgressTracker(true);
 
       const response = await vmApi.create(vmData);
       
@@ -253,8 +265,9 @@ fi`
     },
     onSuccess: (response) => {
       if (response.success) {
-        showSuccess('VM created successfully with repository setup.');
-        onSuccess();
+        // Don't close immediately - let the progress tracker handle completion
+        // showSuccess('VM created successfully with repository setup.');
+        // onSuccess();
       }
     },
     onError: (error: any) => {
@@ -318,10 +331,13 @@ fi`
     <div className="fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-te-gray-200 dark:border-te-gray-800">
-          <h2 className="text-lg font-semibold uppercase tracking-wider">Create VM with Repository</h2>
+          <h2 className="text-lg font-semibold uppercase tracking-wider">
+            {showProgressTracker ? 'Creating VM' : 'Create VM with Repository'}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+            disabled={showProgressTracker && createMutation.isPending}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -329,7 +345,25 @@ fi`
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-6">
+        {showProgressTracker && trackingId ? (
+          <div className="flex-1 overflow-auto p-6">
+            <VMCreationTracker 
+              trackingId={trackingId}
+              onComplete={(vmId) => {
+                showSuccess('VM created successfully!');
+                setTimeout(() => {
+                  onSuccess();
+                  onClose();
+                }, 2000); // Give user time to see the success state
+              }}
+              onError={(error) => {
+                showError(error);
+                setShowProgressTracker(false);
+              }}
+            />
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-6">
           <div className="space-y-6">
             {/* Repository Selection */}
             <div>
@@ -582,23 +616,26 @@ fi`
             )}
           </div>
         </form>
+        )}
 
-        <div className="flex justify-end space-x-3 p-6 border-t border-te-gray-200 dark:border-te-gray-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={createMutation.isPending || !selectedRepo || !organization?.gcpProjectIds || organization.gcpProjectIds.length === 0}
-            className="btn-primary"
-          >
-            {createMutation.isPending ? 'Creating...' : 'Create VM with Repository'}
-          </button>
-        </div>
+        {!showProgressTracker && (
+          <div className="flex justify-end space-x-3 p-6 border-t border-te-gray-200 dark:border-te-gray-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={createMutation.isPending || !selectedRepo || !organization?.gcpProjectIds || organization.gcpProjectIds.length === 0}
+              className="btn-primary"
+            >
+              {createMutation.isPending ? 'Creating...' : 'Create VM with Repository'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
