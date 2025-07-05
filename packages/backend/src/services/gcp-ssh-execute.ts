@@ -205,7 +205,7 @@ export async function executeScriptViaSSH({
             // All commands executed, send exit
             console.log('All commands executed, sending exit');
             if (promptCheckInterval) clearInterval(promptCheckInterval);
-            stream.write('exit\n');
+            stream.write('exit 0\n');
           }
         };
 

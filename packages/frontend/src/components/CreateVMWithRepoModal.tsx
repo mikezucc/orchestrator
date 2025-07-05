@@ -59,6 +59,11 @@ echo "=== Installing Node.js and npm ==="
 # Update package list
 sudo apt-get update
 
+sudo apt-get remove -y --purge man-db
+
+# Install build essentials for native npm modules
+sudo apt-get install -y build-essential
+
 # Install Node.js and npm using NodeSource repository
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 source ~/.nvm/nvm.sh
@@ -68,13 +73,8 @@ nvm use node
 node -v
 npm -v
 
-sudo apt-get remove -y --purge man-db
-
-# Install build essentials for native npm modules
-sudo apt-get install -y build-essential
-
 # Install PM2 globally for process management
-sudo npm install -g pm2
+npm install -g pm2
 
 # Display installed versions
 echo "=== Installation Complete ==="
@@ -108,7 +108,7 @@ sudo apt-get install -y nodejs
 sudo apt-get install -y build-essential
 
 # Install TypeScript and PM2 globally
-sudo npm install -g typescript pm2 ts-node
+npm install -g typescript pm2 ts-node
 
 # Display installed versions
 echo "=== Installation Complete ==="
