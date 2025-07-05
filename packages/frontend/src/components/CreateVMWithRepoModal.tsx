@@ -40,6 +40,156 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [repoPage, setRepoPage] = useState(1);
+  const [selectedScript, setSelectedScript] = useState<string>('');
+
+  // Premade scripts
+  const premadeScripts = {
+    'node-basic': {
+      name: 'Node.js Basic Setup',
+      script: `#!/bin/bash
+# Node.js Basic Setup Script
+set -e
+
+echo "=== Installing Node.js and npm ==="
+
+# Update package list
+sudo apt-get update
+
+# Install Node.js and npm using NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install build essentials for native npm modules
+sudo apt-get install -y build-essential
+
+# Install PM2 globally for process management
+sudo npm install -g pm2
+
+# Display installed versions
+echo "=== Installation Complete ==="
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+echo "PM2 version: $(pm2 --version)"
+
+# Install project dependencies if package.json exists
+if [ -f "package.json" ]; then
+  echo "=== Installing project dependencies ==="
+  npm install
+fi`
+    },
+    'node-typescript': {
+      name: 'Node.js with TypeScript',
+      script: `#!/bin/bash
+# Node.js with TypeScript Setup Script
+set -e
+
+echo "=== Installing Node.js, npm, and TypeScript ==="
+
+# Update package list
+sudo apt-get update
+
+# Install Node.js and npm
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install build essentials
+sudo apt-get install -y build-essential
+
+# Install TypeScript and PM2 globally
+sudo npm install -g typescript pm2 ts-node
+
+# Display installed versions
+echo "=== Installation Complete ==="
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+echo "TypeScript version: $(tsc --version)"
+echo "PM2 version: $(pm2 --version)"
+
+# Install project dependencies if package.json exists
+if [ -f "package.json" ]; then
+  echo "=== Installing project dependencies ==="
+  npm install
+  
+  # Build TypeScript project if tsconfig.json exists
+  if [ -f "tsconfig.json" ]; then
+    echo "=== Building TypeScript project ==="
+    npm run build || tsc
+  fi
+fi`
+    },
+    'node-full': {
+      name: 'Node.js Full Stack Setup',
+      script: `#!/bin/bash
+# Node.js Full Stack Setup Script
+set -e
+
+echo "=== Installing Node.js Full Stack Environment ==="
+
+# Update package list
+sudo apt-get update
+
+# Install Node.js and npm
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Install build essentials
+sudo apt-get install -y build-essential
+
+# Install common global packages
+sudo npm install -g pm2 nodemon typescript ts-node
+
+# Install MongoDB (optional - uncomment if needed)
+# wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+# echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+# sudo apt-get update
+# sudo apt-get install -y mongodb-org
+# sudo systemctl start mongod
+# sudo systemctl enable mongod
+
+# Install Redis (optional - uncomment if needed)
+# sudo apt-get install -y redis-server
+# sudo systemctl start redis-server
+# sudo systemctl enable redis-server
+
+# Display installed versions
+echo "=== Installation Complete ==="
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+echo "PM2 version: $(pm2 --version)"
+
+# Install project dependencies and setup
+if [ -f "package.json" ]; then
+  echo "=== Installing project dependencies ==="
+  npm install
+  
+  # Build project if build script exists
+  if npm run | grep -q "build"; then
+    echo "=== Building project ==="
+    npm run build
+  fi
+  
+  # Setup PM2 if ecosystem file exists
+  if [ -f "ecosystem.config.js" ] || [ -f "pm2.json" ]; then
+    echo "=== Setting up PM2 ==="
+    pm2 start
+    pm2 save
+    sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $USER --hp $HOME
+  fi
+fi`
+    },
+    'custom': {
+      name: 'Custom Script',
+      script: ''
+    }
+  };
+
+  // Handle script selection
+  const handleScriptSelect = (scriptKey: string) => {
+    setSelectedScript(scriptKey);
+    if (scriptKey && scriptKey !== 'custom') {
+      setUserStartupScript(premadeScripts[scriptKey as keyof typeof premadeScripts].script);
+    }
+  };
 
   // Debounce search query
   useEffect(() => {
@@ -430,14 +580,39 @@ echo "Repository to clone: ${selectedRepo.full_name}"
             {showAdvanced && (
               <div className="space-y-4 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
                 <div>
+                  <label htmlFor="scriptTemplate" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                    Script Template
+                  </label>
+                  <select
+                    id="scriptTemplate"
+                    value={selectedScript}
+                    onChange={(e) => handleScriptSelect(e.target.value)}
+                    className="w-full mb-4"
+                  >
+                    <option value="">Select a template...</option>
+                    {Object.entries(premadeScripts).map(([key, script]) => (
+                      <option key={key} value={key}>
+                        {script.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
                   <label htmlFor="userScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                     Post-Clone Startup Script (Optional)
                   </label>
                   <textarea
                     id="userScript"
-                    rows={6}
+                    rows={10}
                     value={userStartupScript}
-                    onChange={(e) => setUserStartupScript(e.target.value)}
+                    onChange={(e) => {
+                      setUserStartupScript(e.target.value);
+                      // If user manually edits, switch to custom
+                      if (selectedScript && selectedScript !== 'custom') {
+                        setSelectedScript('custom');
+                      }
+                    }}
                     className="w-full font-mono text-xs"
                     placeholder="#!/bin/bash\n# This script runs after the repository is cloned\n# Working directory will be the cloned repository\n\n# Example:\n# npm install\n# npm run build"
                     spellCheck={false}
