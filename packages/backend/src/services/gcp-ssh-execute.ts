@@ -63,7 +63,7 @@ export async function executeScriptViaSSH({
         `DevBox VM: ${instanceName} (${new Date().toISOString().split('T')[0]})`;
       
       // Add the key to GitHub
-      const githubKey = await githubAPI.addSSHKey(parseInt(userId), keyTitle, publicKey);
+      const githubKey = await githubAPI.addSSHKey(userId, keyTitle, publicKey);
       
       if (githubKey) {
         githubKeyId = githubKey.id;
@@ -121,7 +121,7 @@ export async function executeScriptViaSSH({
       if (githubSSHKey?.cleanupAfterExecution && githubKeyId && userId) {
         try {
           const githubAPI = new GitHubAPIService();
-          await githubAPI.removeSSHKey(parseInt(userId), githubKeyId);
+          await githubAPI.removeSSHKey(userId, githubKeyId);
           console.log(`Removed SSH key from GitHub (ID: ${githubKeyId})`);
         } catch (error) {
           console.error('Error removing SSH key from GitHub:', error);

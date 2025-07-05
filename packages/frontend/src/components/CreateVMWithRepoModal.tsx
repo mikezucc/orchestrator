@@ -60,7 +60,6 @@ echo "=== Installing Node.js and npm ==="
 sudo apt-get update
 
 # Install Node.js and npm using NodeSource repository
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install build essentials for native npm modules
@@ -93,7 +92,6 @@ echo "=== Installing Node.js, npm, and TypeScript ==="
 sudo apt-get update
 
 # Install Node.js and npm
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install build essentials
@@ -133,7 +131,6 @@ echo "=== Installing Node.js Full Stack Environment ==="
 sudo apt-get update
 
 # Install Node.js and npm
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Install build essentials

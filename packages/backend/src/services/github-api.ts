@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 export class GitHubAPIService {
   constructor() {}
 
-  private async getOctokit(userId: number): Promise<Octokit | null> {
+  private async getOctokit(userId: string): Promise<Octokit | null> {
     try {
       const [user] = await db
         .select({ githubAccessToken: authUsers.githubAccessToken })
@@ -28,7 +28,7 @@ export class GitHubAPIService {
     }
   }
 
-  async addSSHKey(userId: number, title: string, key: string): Promise<{ id: number; key: string } | null> {
+  async addSSHKey(userId: string, title: string, key: string): Promise<{ id: number; key: string } | null> {
     const octokit = await this.getOctokit(userId);
     if (!octokit) return null;
 
@@ -46,7 +46,7 @@ export class GitHubAPIService {
     }
   }
 
-  async removeSSHKey(userId: number, keyId: number): Promise<boolean> {
+  async removeSSHKey(userId: string, keyId: number): Promise<boolean> {
     const octokit = await this.getOctokit(userId);
     if (!octokit) return false;
 
@@ -63,7 +63,7 @@ export class GitHubAPIService {
     }
   }
 
-  async listSSHKeys(userId: number): Promise<Array<{ id: number; key: string; title: string }> | null> {
+  async listSSHKeys(userId: string): Promise<Array<{ id: number; key: string; title: string }> | null> {
     const octokit = await this.getOctokit(userId);
     if (!octokit) return null;
 
@@ -83,7 +83,7 @@ export class GitHubAPIService {
     }
   }
 
-  async validateAccessToken(userId: number): Promise<boolean> {
+  async validateAccessToken(userId: string): Promise<boolean> {
     const octokit = await this.getOctokit(userId);
     if (!octokit) return false;
 
@@ -96,7 +96,7 @@ export class GitHubAPIService {
     }
   }
 
-  async getAuthenticatedUser(userId: number): Promise<{ login: string; name: string | null } | null> {
+  async getAuthenticatedUser(userId: string): Promise<{ login: string; name: string | null } | null> {
     const octokit = await this.getOctokit(userId);
     if (!octokit) return null;
 

@@ -357,7 +357,7 @@ echo "=== Setting up SSH for GitHub ==="
 echo
 
 echo "=== Installing Git cause Debian sucks lol ==="
-sudo apt install git
+sudo apt -y install git < "/dev/null"
 
 # Set up Git configuration
 git config --global user.email "${githubEmail}"
@@ -391,6 +391,7 @@ cat ~/.ssh/github_devbox.pub
 echo
 echo "=== End of SSH Key ==="
 echo
+exit
 `;
 
         const gitSessionId = `vm-git-${vm.id}-${Date.now()}`;
@@ -460,8 +461,13 @@ echo
               
               const githubAPI = new GitHubAPIService();
               const keyTitle = `DevBox VM: ${body.name} (${new Date().toISOString().split('T')[0]})`;
+
+              vmCreationProgress.reportInstalling(
+                trackingId,
+                `SSH key ${capturedSSHKey}`
+              );
               
-              const addedKey = await githubAPI.addSSHKey(parseInt(userId), keyTitle, capturedSSHKey);
+              const addedKey = await githubAPI.addSSHKey(userId, keyTitle, capturedSSHKey);
               
               if (addedKey) {
                 vmCreationProgress.reportInstalling(
@@ -497,6 +503,7 @@ echo
 echo "=== Repository Cloned Successfully ==="
 echo "Location: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
 pwd
+exit
 `;
 
                 const cloneSessionId = `vm-clone-${vm.id}-${Date.now()}`;
