@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { VMCreationProgress, VMCreationStage } from '@gce-platform/types';
 import { getWebSocketBaseURL } from '../utils/api-config';
 
@@ -23,6 +23,19 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [showScriptOutput, setShowScriptOutput] = useState(false);
+  
+  // Use refs to store the latest callback functions
+  const onCompleteRef = useRef(onComplete);
+  const onErrorRef = useRef(onError);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -123,7 +136,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               if (progress.stage === 'error') {
                 newStages[stageIndex].status = 'error';
                 setError(progress.error || progress.message);
-                onError?.(progress.error || progress.message);
+                onErrorRef.current?.(progress.error || progress.message);
               }
             }
             
@@ -134,7 +147,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               });
               setIsComplete(true);
               if (progress.vmId) {
-                onComplete?.(progress.vmId);
+                onCompleteRef.current?.(progress.vmId);
               }
             }
             
@@ -163,7 +176,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         ws.close();
       }
     };
-  }, [trackingId, onComplete, onError]);
+  }, [trackingId]); // Only depend on trackingId
 
   return (
     <div className="bg-te-gray-100 dark:bg-te-gray-900 rounded-lg p-6">
