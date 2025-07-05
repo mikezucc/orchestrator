@@ -352,6 +352,7 @@ fi`
                 trackingId={trackingId}
                 onComplete={(vmId) => {
                   // Just refresh the VM list, no notification
+                  // Don't close the modal - let the user close it manually
                   onSuccess();
                 }}
                 onError={(error) => {

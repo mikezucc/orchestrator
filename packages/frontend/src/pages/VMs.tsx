@@ -403,7 +403,7 @@ export default function VMs() {
         <CreateVMWithRepoModal
           onClose={() => setShowCreateWithRepoModal(false)}
           onSuccess={() => {
-            setShowCreateWithRepoModal(false);
+            // Don't close the modal - let the user close it manually
             queryClient.invalidateQueries({ queryKey: ['vms'] });
             // Refresh after 500ms to get updated state
             setTimeout(() => {
