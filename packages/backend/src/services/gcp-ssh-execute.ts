@@ -22,6 +22,7 @@ interface SSHExecuteParams {
     cleanupAfterExecution?: boolean; // Remove key from GitHub after execution
     keyTitle?: string; // Custom title for the SSH key
   };
+  onOutput?: (type: 'stdout' | 'stderr', data: string) => void; // Optional callback for streaming output
 }
 
 export async function executeScriptViaSSH({
@@ -36,7 +37,8 @@ export async function executeScriptViaSSH({
   vmId,
   organizationId,
   userId,
-  githubSSHKey
+  githubSSHKey,
+  onOutput
 }: SSHExecuteParams): Promise<{ stdout: string; stderr: string; exitCode: number; sessionId: string }> {
   console.log('=== Executing script via SSH ===');
   console.log('Instance:', instanceName);
@@ -184,6 +186,11 @@ export async function executeScriptViaSSH({
           const output = data.toString();
           stdout += output;
           
+          // Call onOutput callback if provided
+          if (onOutput && scriptSent) {
+            onOutput('stdout', output);
+          }
+          
           // Check if shell is ready (looking for prompt)
           if (!shellReady && (output.includes('$') || output.includes('#') || output.includes('>'))) {
             shellReady = true;
@@ -204,7 +211,13 @@ export async function executeScriptViaSSH({
         });
 
         stream.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString();
+          const output = data.toString();
+          stderr += output;
+          
+          // Call onOutput callback if provided
+          if (onOutput && scriptSent) {
+            onOutput('stderr', output);
+          }
         });
       });
     });

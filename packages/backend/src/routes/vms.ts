@@ -136,19 +136,23 @@ vmRoutes.post('/', async (c) => {
   
   // Generate or use provided tracking ID
   const trackingId = body.trackingId || vmCreationProgress.generateTrackingId();
+
+  const userBootScript = body.userBootScript?.trim() || '';
   
   try {
     // Report initial progress
     vmCreationProgress.reportPreparing(trackingId, 'Validating request and preparing resources...');
+    
+    // Initialize script variables
+    let repoSetupScript = '';
+    let completeInitScript = '';
+    
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
       vmCreationProgress.reportError(trackingId, 'Failed to authenticate with Google Cloud');
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
-
-    // Generate the complete init script
-    let completeInitScript = body.initScript || '';
 
     // If GitHub repository is provided, create the repository setup script
     if (body.githubRepository) {
@@ -167,7 +171,7 @@ vmRoutes.post('/', async (c) => {
       const githubEmail = authUser?.githubEmail || 'devbox@example.com';
 
       // Create the repository setup script
-      const repoSetupScript = `#!/bin/bash
+      repoSetupScript = `#!/bin/bash
 set -e
 
 echo "=== DevBox VM Setup with GitHub Repository ==="
@@ -230,12 +234,13 @@ echo
 echo "=== Setup Complete ==="
 echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
 `;
+    }
 
-      // Combine with any existing init script
+    // Combine repository setup script with user boot script
+    if (body.githubRepository) {
       completeInitScript = repoSetupScript;
-    } else if (body.userBootScript) {
-      // If no repository but user boot script is provided
-      completeInitScript = body.userBootScript;
+    } else if (userBootScript) {
+      completeInitScript = userBootScript;
     }
 
     // Report creating VM
@@ -246,7 +251,7 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       zone: body.zone,
       name: body.name,
       machineType: body.machineType,
-      initScript: completeInitScript,
+      initScript: '', // Don't use init script, we'll execute via SSH instead
       accessToken,
     });
 
@@ -265,13 +270,122 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       gcpInstanceId: gcpInstance.id,
     }).returning();
 
-    // Report installing software
+    // Wait for VM to be ready
+    vmCreationProgress.reportConfiguring(trackingId, 'Waiting for VM to be ready...');
+    
+    // Check VM status until it's running
+    let vmReady = false;
+    let retries = 0;
+    const maxRetries = 60; // 5 minutes with 5 second intervals
+    
+    while (!vmReady && retries < maxRetries) {
+      try {
+        const { OAuth2Client } = await import('google-auth-library');
+        const oauth2Client = new OAuth2Client();
+        oauth2Client.setCredentials({ access_token: accessToken });
+        const { google } = await import('googleapis');
+        google.options({ auth: oauth2Client });
+        const compute = google.compute('v1');
+        
+        const instance = await compute.instances.get({
+          project: body.gcpProjectId,
+          zone: body.zone,
+          instance: gcpInstance.id,
+        });
+        
+        if (instance.data.status === 'RUNNING') {
+          vmReady = true;
+          // Update VM status in database
+          await db.update(virtualMachines)
+            .set({ status: 'running', updatedAt: new Date() })
+            .where(eq(virtualMachines.id, vm.id));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+          retries++;
+          
+          if (retries % 6 === 0) { // Every 30 seconds
+            vmCreationProgress.reportConfiguring(
+              trackingId, 
+              `Waiting for VM to be ready... (${Math.floor(retries * 5 / 60)}m ${(retries * 5) % 60}s)`
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error checking VM status:', error);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        retries++;
+      }
+    }
+    
+    if (!vmReady) {
+      throw new Error('VM failed to become ready within 5 minutes');
+    }
+
+    // Wait a bit more for SSH to be ready
+    vmCreationProgress.reportConfiguring(trackingId, 'Waiting for SSH to be ready...');
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds for SSH
+
+    // Now execute scripts via SSH if needed
     if (body.githubRepository || body.userBootScript) {
       vmCreationProgress.reportInstalling(
         trackingId, 
-        'VM is booting and running setup scripts...',
+        'Executing setup scripts via SSH...',
         body.githubRepository ? `Repository: ${body.githubRepository.full_name}` : undefined
       );
+
+      try {
+        // Get organization details for SSH username
+        const [organization] = await db.select().from(organizations)
+          .where(eq(organizations.id, organizationId));
+
+        if (!organization || !organization.gcpEmail) {
+          throw new Error('Organization does not have Google Cloud credentials configured');
+        }
+
+        // Generate username from organization's Google Cloud email
+        const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        // Create a session ID for tracking
+        const sessionId = `vm-creation-${vm.id}-${Date.now()}`;
+
+        // Execute the complete init script via SSH
+        const executePromise = executeScriptViaSSH({
+          projectId: body.gcpProjectId,
+          zone: body.zone,
+          instanceName: gcpInstance.id,
+          username,
+          script: completeInitScript,
+          timeout: 600000, // 10 minutes timeout for setup scripts
+          accessToken,
+          vmId: vm.id,
+          organizationId,
+          userId,
+          githubSSHKey: false, // Don't add GitHub SSH key, script will generate its own
+          sessionId,
+          onOutput: (type: 'stdout' | 'stderr', data: string) => {
+            // Stream output to progress tracker
+            vmCreationProgress.reportScriptOutput(trackingId, type, data);
+          },
+        });
+
+        const result = await executePromise;
+
+        if (result.exitCode !== 0) {
+          throw new Error(`Script execution failed with exit code ${result.exitCode}: ${result.stderr}`);
+        }
+
+        vmCreationProgress.reportInstalling(
+          trackingId,
+          'Setup scripts completed successfully!'
+        );
+      } catch (error) {
+        console.error('Failed to execute setup scripts:', error);
+        vmCreationProgress.reportError(
+          trackingId, 
+          `Failed to execute setup scripts: ${error instanceof Error ? error.message : String(error)}`
+        );
+        // Don't fail the entire VM creation, just report the error
+      }
     }
 
     // Report finalizing
