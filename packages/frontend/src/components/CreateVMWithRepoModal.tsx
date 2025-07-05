@@ -346,22 +346,30 @@ fi`
         </div>
         
         {showProgressTracker && trackingId ? (
-          <div className="flex-1 overflow-auto p-6">
-            <VMCreationTracker 
-              trackingId={trackingId}
-              onComplete={(vmId) => {
-                showSuccess('VM created successfully!');
-                setTimeout(() => {
+          <>
+            <div className="flex-1 overflow-auto p-6">
+              <VMCreationTracker 
+                trackingId={trackingId}
+                onComplete={(vmId) => {
+                  // Just refresh the VM list, no notification
                   onSuccess();
-                  onClose();
-                }, 2000); // Give user time to see the success state
-              }}
-              onError={(error) => {
-                showError(error);
-                setShowProgressTracker(false);
-              }}
-            />
-          </div>
+                }}
+                onError={(error) => {
+                  // Error is already shown in the tracker
+                  // Don't show a toast notification
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-3 p-6 border-t border-te-gray-200 dark:border-te-gray-800">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-primary"
+              >
+                Close
+              </button>
+            </div>
+          </>
         ) : (
           <form onSubmit={handleSubmit} className="flex-1 overflow-auto p-6">
           <div className="space-y-6">

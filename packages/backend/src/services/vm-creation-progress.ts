@@ -131,6 +131,18 @@ class VMCreationProgressService extends EventEmitter {
       progress: 0,
     });
   }
+
+  reportScriptOutput(trackingId: string, type: 'stdout' | 'stderr', data: string): void {
+    this.addProgress(trackingId, {
+      stage: 'script-output',
+      message: 'Script output',
+      scriptOutput: {
+        type,
+        data,
+      },
+      progress: -1, // Don't affect progress
+    });
+  }
 }
 
 // Export a singleton instance

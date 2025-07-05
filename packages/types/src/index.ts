@@ -59,12 +59,16 @@ export interface UpdateVMRequest {
 
 export interface VMCreationProgress {
   vmId?: string;
-  stage: 'preparing' | 'creating' | 'configuring' | 'installing' | 'finalizing' | 'complete' | 'error';
+  stage: 'preparing' | 'creating' | 'configuring' | 'installing' | 'finalizing' | 'complete' | 'error' | 'script-output';
   message: string;
   detail?: string;
   progress: number; // 0-100
   timestamp: number;
   error?: string;
+  scriptOutput?: {
+    type: 'stdout' | 'stderr';
+    data: string;
+  };
 }
 
 export interface VMCreationStage {

@@ -17,8 +17,12 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     { id: 'finalizing', name: 'Finalizing', status: 'pending' },
   ]);
   const [currentProgress, setCurrentProgress] = useState<VMCreationProgress | null>(null);
+  const [progressHistory, setProgressHistory] = useState<VMCreationProgress[]>([]);
+  const [scriptOutput, setScriptOutput] = useState<string[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isComplete, setIsComplete] = useState(false);
+  const [showScriptOutput, setShowScriptOutput] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -66,7 +70,26 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
           console.log('WebSocket connection confirmed for tracking ID:', message.trackingId);
         } else if (message.type === 'progress') {
           const progress: VMCreationProgress = message.data;
+          
+          // Handle script output separately
+          if (progress.stage === 'script-output' && progress.scriptOutput) {
+            // Batch script outputs to avoid overwhelming the UI
+            setScriptOutput(prev => {
+              // Limit to last 1000 lines to prevent memory issues
+              const newOutput = [...prev, progress.scriptOutput!.data];
+              if (newOutput.length > 1000) {
+                return newOutput.slice(-1000);
+              }
+              return newOutput;
+            });
+            setShowScriptOutput(true);
+            return; // Don't add to progress history
+          }
+          
           setCurrentProgress(progress);
+          
+          // Only add non-script-output to progress history
+          setProgressHistory(prev => [...prev, progress]);
           
           // Update stages based on progress
           setStages(prevStages => {
@@ -109,6 +132,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               newStages.forEach(stage => {
                 stage.status = 'complete';
               });
+              setIsComplete(true);
               if (progress.vmId) {
                 onComplete?.(progress.vmId);
               }
@@ -228,33 +252,123 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         </div>
       </div>
 
-      {/* Current Status Message */}
-      {currentProgress && (
-        <div className="mt-8 text-center">
-          <div className="text-sm font-medium text-te-gray-900 dark:text-te-gray-100">
-            {currentProgress.message}
+      {/* Progress History */}
+      <div className="mt-8">
+        <h4 className="text-sm font-semibold text-te-gray-700 dark:text-te-gray-300 mb-3">Progress Log</h4>
+        <div className="bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4 max-h-48 overflow-y-auto">
+          {progressHistory.length === 0 && !isConnected && (
+            <div className="text-xs text-te-gray-500 text-center py-4">
+              Connecting to progress tracker...
+            </div>
+          )}
+          {progressHistory.length === 0 && isConnected && (
+            <div className="text-xs text-te-gray-500 text-center py-4">
+              Waiting for progress updates...
+            </div>
+          )}
+          <div className="space-y-2">
+            {progressHistory.map((progress, index) => {
+              const isLatest = index === progressHistory.length - 1;
+              const isError = progress.stage === 'error';
+              const isComplete = progress.stage === 'complete';
+              
+              return (
+                <div
+                  key={`${progress.timestamp}-${index}`}
+                  className={`
+                    text-xs p-2 rounded transition-all duration-300
+                    ${isLatest && !isComplete && !isError ? 'bg-te-yellow/20 border border-te-yellow/40 animate-pulse' : ''}
+                    ${isError ? 'bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700' : ''}
+                    ${isComplete ? 'bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700' : ''}
+                    ${!isLatest && !isError && !isComplete ? 'bg-te-gray-50 dark:bg-te-gray-900/50' : ''}
+                  `}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-te-gray-500 dark:text-te-gray-400 whitespace-nowrap">
+                      {new Date(progress.timestamp).toLocaleTimeString()}
+                    </span>
+                    <div className="flex-1">
+                      <span className={`
+                        font-medium
+                        ${isError ? 'text-red-700 dark:text-red-400' : ''}
+                        ${isComplete ? 'text-green-700 dark:text-green-400' : ''}
+                        ${!isError && !isComplete ? 'text-te-gray-900 dark:text-te-gray-100' : ''}
+                      `}>
+                        {progress.message}
+                      </span>
+                      {progress.detail && (
+                        <div className="text-te-gray-600 dark:text-te-gray-400 mt-0.5">
+                          {progress.detail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          {currentProgress.detail && (
-            <div className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1">
-              {currentProgress.detail}
+          {/* Auto-scroll to bottom */}
+          <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
+        </div>
+      </div>
+
+      {/* Script Output Section */}
+      {scriptOutput.length > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-te-gray-700 dark:text-te-gray-300">
+              Script Output ({scriptOutput.length} lines)
+            </h4>
+            <button
+              type="button"
+              onClick={() => setShowScriptOutput(!showScriptOutput)}
+              className="text-xs text-te-gray-500 hover:text-te-gray-700 dark:hover:text-te-gray-300 transition-colors"
+            >
+              {showScriptOutput ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showScriptOutput && (
+            <div className="bg-te-gray-900 dark:bg-black border border-te-gray-700 rounded-lg p-4 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                {scriptOutput.join('')}
+              </pre>
+              {/* Auto-scroll to bottom */}
+              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
           )}
         </div>
       )}
 
-      {/* Error Message */}
-      {error && (
-        <div className="mt-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
-          <div className="text-sm text-red-700 dark:text-red-400">
-            <span className="font-medium">Error:</span> {error}
+      {/* Completion Status - More subtle */}
+      {isComplete && (
+        <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+              VM creation process completed
+            </span>
           </div>
         </div>
       )}
 
-      {/* Connection Status */}
-      {!isConnected && !error && (
-        <div className="mt-4 text-center text-xs text-te-gray-500">
-          Connecting to progress tracker...
+      {/* Error Status */}
+      {error && (
+        <div className="mt-6 p-4 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+          <div className="flex items-start space-x-2">
+            <svg className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <div className="text-sm font-medium text-red-700 dark:text-red-400">
+                VM Creation Failed
+              </div>
+              <div className="text-sm text-red-600 dark:text-red-300 mt-1">
+                {error}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
