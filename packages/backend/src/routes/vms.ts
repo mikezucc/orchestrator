@@ -230,9 +230,89 @@ vmRoutes.post('/', async (c) => {
       throw new Error('VM failed to become ready within 5 minutes');
     }
 
-    // Wait a bit more for SSH to be ready
+    // Get the VM's public IP address
+    let publicIp = '';
+    try {
+      const { OAuth2Client } = await import('google-auth-library');
+      const oauth2Client = new OAuth2Client();
+      oauth2Client.setCredentials({ access_token: accessToken });
+      const { google } = await import('googleapis');
+      google.options({ auth: oauth2Client });
+      const compute = google.compute('v1');
+      
+      const instance = await compute.instances.get({
+        project: body.gcpProjectId,
+        zone: body.zone,
+        instance: gcpInstance.id,
+      });
+      
+      // Extract public IP from network interfaces
+      const networkInterface = instance.data.networkInterfaces?.[0];
+      const accessConfig = networkInterface?.accessConfigs?.[0];
+      publicIp = accessConfig?.natIP || '';
+      
+      if (publicIp) {
+        // Update VM with public IP
+        await db.update(virtualMachines)
+          .set({ publicIp, updatedAt: new Date() })
+          .where(eq(virtualMachines.id, vm.id));
+      }
+    } catch (error) {
+      console.error('Error getting VM public IP:', error);
+    }
+
+    // Wait for SSH to be ready and test reachability
     vmCreationProgress.reportConfiguring(trackingId, 'Waiting for SSH to be ready...');
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds for SSH
+    
+    // Import net module for TCP connection testing
+    const net = await import('net');
+    
+    let sshReady = false;
+    let sshRetries = 0;
+    const maxSshRetries = 30; // 30 attempts, 2 seconds each = 1 minute
+    
+    while (!sshReady && sshRetries < maxSshRetries && publicIp) {
+      try {
+        // Test TCP connection to SSH port
+        await new Promise<void>((resolve, reject) => {
+          const socket = net.createConnection({ port: 22, host: publicIp }, () => {
+            socket.end();
+            resolve();
+          });
+          
+          socket.on('error', (err) => {
+            reject(err);
+          });
+          
+          socket.setTimeout(5000, () => {
+            socket.destroy();
+            reject(new Error('Connection timeout'));
+          });
+        });
+        
+        sshReady = true;
+        vmCreationProgress.reportConfiguring(trackingId, 'SSH is ready!');
+      } catch (error) {
+        sshRetries++;
+        if (sshRetries % 5 === 0) { // Every 10 seconds
+          vmCreationProgress.reportConfiguring(
+            trackingId, 
+            `Testing SSH connectivity... (attempt ${sshRetries}/${maxSshRetries})`
+          );
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+      }
+    }
+    
+    if (!sshReady) {
+      vmCreationProgress.reportConfiguring(
+        trackingId, 
+        'SSH connectivity could not be verified, but proceeding anyway...'
+      );
+    }
+    
+    // Additional wait for SSH daemon to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
 
     // Get organization details for SSH username (needed for both scripts)
     let username = '';
@@ -272,11 +352,12 @@ vmRoutes.post('/', async (c) => {
         const githubEmail = authUser?.githubEmail || 'devbox@example.com';
 
         // First, generate SSH keys and get the public key
-        const sshKeyGenScript = `#!/bin/bash
-set -e
-
+        const sshKeyGenScript = `
 echo "=== Setting up SSH for GitHub ==="
 echo
+
+echo "=== Installing Git cause Debian sucks lol ==="
+sudo apt install git
 
 # Set up Git configuration
 git config --global user.email "${githubEmail}"
@@ -400,9 +481,7 @@ echo
                   `Cloning ${body.githubRepository.full_name}`
                 );
                 
-                const cloneScript = `#!/bin/bash
-set -e
-
+                const cloneScript = `
 echo
 echo "=== Cloning Repository ==="
 echo "Repository: ${body.githubRepository.full_name}"

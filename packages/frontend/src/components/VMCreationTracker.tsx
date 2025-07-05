@@ -209,19 +209,6 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         </div>
       </div>
       <h3 className="text-lg font-semibold mb-6 text-center">Creating Your VM</h3>
-      
-      {/* Progress Bar */}
-      <div className="mb-8">
-        <div className="bg-te-gray-300 dark:bg-te-gray-700 rounded-full h-3 overflow-hidden">
-          <div 
-            className="bg-te-yellow h-full transition-all duration-500 ease-out"
-            style={{ width: `${currentProgress?.progress || 0}%` }}
-          />
-        </div>
-        <div className="mt-2 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
-          {currentProgress?.progress || 0}% Complete
-        </div>
-      </div>
 
       {/* Stage Tracker (Domino's Pizza Style) */}
       <div className="relative px-4">
@@ -232,7 +219,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         <div 
           className="absolute top-6 left-12 h-1 bg-te-yellow rounded-full transition-all duration-500"
           style={{ 
-            width: `calc(${Math.max(0, Math.min(100, (currentProgress?.progress || 0) * 0.8))}% - 48px)` 
+            width: `calc(${Math.max(0, Math.min(100, (currentProgress?.progress || 0)))}%)` 
           }}
         />
         
