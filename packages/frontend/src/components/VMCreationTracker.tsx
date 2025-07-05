@@ -21,11 +21,55 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token || !trackingId) return;
+    const authData = localStorage.getItem('auth');
+    
+    console.log('VMCreationTracker - Auth check:', {
+      hasToken: !!token,
+      hasAuthData: !!authData,
+      trackingId
+    });
+    
+    if (!trackingId) {
+      console.error('No tracking ID provided');
+      return;
+    }
+    
+    if (!token) {
+      console.error('No auth token found');
+      setError('Authentication required');
+      return;
+    }
 
-    // Construct WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/vm-progress-ws?trackingId=${trackingId}&token=${encodeURIComponent(token)}`;
+    // Construct WebSocket URL based on environment
+    const getWebSocketUrl = () => {
+      const { protocol, hostname } = window.location;
+      const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+      
+      // Check for explicit API URL in environment variable
+      if (import.meta.env.VITE_API_URL) {
+        const apiUrl = import.meta.env.VITE_API_URL;
+        const wsBaseUrl = apiUrl.replace('http:', 'ws:').replace('https:', 'wss:').replace('/api', '');
+        return `${wsBaseUrl}/vm-progress-ws`;
+      }
+      
+      // Production mode
+      if (import.meta.env.PROD) {
+        if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
+          return `${wsProtocol}//api.slopbox.dev/vm-progress-ws`;
+        }
+        return `${wsProtocol}//${hostname}/vm-progress-ws`;
+      }
+      
+      // Development mode
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return `ws://localhost:3000/vm-progress-ws`;
+      }
+      
+      // Non-localhost development
+      return `${wsProtocol}//${hostname}:3000/vm-progress-ws`;
+    };
+    
+    const wsUrl = `${getWebSocketUrl()}?trackingId=${trackingId}&token=${encodeURIComponent(token)}`;
 
     console.log('Connecting to VM progress WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
@@ -38,15 +82,35 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log('WebSocket message received:', message);
         
-        if (message.type === 'progress') {
+        if (message.type === 'error') {
+          console.error('WebSocket error message:', message.data);
+          setError(message.data);
+          setIsConnected(false);
+        } else if (message.type === 'connected') {
+          console.log('WebSocket connection confirmed for tracking ID:', message.trackingId);
+        } else if (message.type === 'progress') {
           const progress: VMCreationProgress = message.data;
           setCurrentProgress(progress);
           
           // Update stages based on progress
           setStages(prevStages => {
             const newStages = [...prevStages];
-            const stageIndex = newStages.findIndex(s => s.id === progress.stage);
+            
+            // Map progress stage to our stage IDs
+            const stageMapping: Record<string, string> = {
+              'preparing': 'preparing',
+              'creating': 'creating',
+              'configuring': 'configuring',
+              'installing': 'installing',
+              'finalizing': 'finalizing',
+              'complete': 'finalizing', // Map complete to finalizing stage
+              'error': progress.stage // Keep error as-is
+            };
+            
+            const mappedStage = stageMapping[progress.stage] || progress.stage;
+            const stageIndex = newStages.findIndex(s => s.id === mappedStage);
             
             if (stageIndex !== -1) {
               // Mark current stage as in-progress or complete
@@ -87,7 +151,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     ws.onerror = (error) => {
       console.error('VM progress WebSocket error:', error);
       setIsConnected(false);
-      setError('Connection error');
+      setError(`Connection error: ${error.type || 'Unknown error'}`);
     };
 
     ws.onclose = () => {

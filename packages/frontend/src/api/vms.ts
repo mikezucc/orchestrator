@@ -14,8 +14,8 @@ export const vmApi = {
     return data;
   },
 
-  create: async (vm: CreateVMRequest) => {
-    const { data } = await api.post<ApiResponse<VirtualMachine>>('/vms', vm);
+  create: async (vm: CreateVMRequest & { trackingId?: string }) => {
+    const { data } = await api.post<ApiResponse<VirtualMachine & { trackingId: string }>>('/vms', vm);
     return data;
   },
 
