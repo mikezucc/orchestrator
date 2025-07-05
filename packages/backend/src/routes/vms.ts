@@ -11,6 +11,7 @@ import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
 import { getOrganizationAccessToken } from '../services/organization-auth.js';
 import { flexibleAuth, flexibleRequireOrganization } from '../middleware/flexibleAuth.js';
+import { GitHubAPIService } from '../services/github-api.js';
 
 export const vmRoutes = new Hono();
 
@@ -374,6 +375,7 @@ vmRoutes.post('/:id/execute', async (c) => {
       vmId: vm.id,
       organizationId,
       userId,
+      githubSSHKey: body.githubSSHKey,
     });
 
     return c.json<ApiResponse<ExecuteScriptResponse>>({ 

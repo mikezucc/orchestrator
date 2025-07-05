@@ -61,6 +61,11 @@ export interface CreateFirewallRuleRequest {
 export interface ExecuteScriptRequest {
   script: string;
   timeout?: number; // in seconds
+  githubSSHKey?: {
+    registerKey?: boolean; // Register ephemeral SSH key with GitHub
+    cleanupAfterExecution?: boolean; // Remove key from GitHub after execution
+    keyTitle?: string; // Custom title for the SSH key
+  };
 }
 
 export interface ExecuteScriptResponse {

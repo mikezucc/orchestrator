@@ -3,6 +3,7 @@ import { generateSSHKeys, addSSHKeyToVM, getSSHConnectionInfo } from './gcp-ssh.
 import { getOrganizationAccessToken } from './organization-auth.js';
 import { executionSessionManager } from './execution-sessions.js';
 import { randomUUID } from 'crypto';
+import { GitHubAPIService } from './github-api.js';
 
 interface SSHExecuteParams {
   projectId: string;
@@ -16,6 +17,11 @@ interface SSHExecuteParams {
   vmId?: string; // VM ID for session tracking
   organizationId?: string; // Organization ID for session tracking
   userId?: string; // User ID for session tracking
+  githubSSHKey?: {
+    registerKey?: boolean; // Register ephemeral SSH key with GitHub
+    cleanupAfterExecution?: boolean; // Remove key from GitHub after execution
+    keyTitle?: string; // Custom title for the SSH key
+  };
 }
 
 export async function executeScriptViaSSH({
@@ -29,7 +35,8 @@ export async function executeScriptViaSSH({
   sessionId,
   vmId,
   organizationId,
-  userId
+  userId,
+  githubSSHKey
 }: SSHExecuteParams): Promise<{ stdout: string; stderr: string; exitCode: number; sessionId: string }> {
   console.log('=== Executing script via SSH ===');
   console.log('Instance:', instanceName);
@@ -40,6 +47,33 @@ export async function executeScriptViaSSH({
   // Generate SSH keys
   const { publicKey, privateKey } = await generateSSHKeys(username);
   console.log('SSH keys generated');
+
+  // Track GitHub key ID if we register it
+  let githubKeyId: number | undefined;
+  
+  // Register SSH key with GitHub if requested
+  if (githubSSHKey?.registerKey && userId) {
+    try {
+      const githubAPI = new GitHubAPIService();
+      
+      // Generate a title for the key
+      const keyTitle = githubSSHKey.keyTitle || 
+        `DevBox VM: ${instanceName} (${new Date().toISOString().split('T')[0]})`;
+      
+      // Add the key to GitHub
+      const githubKey = await githubAPI.addSSHKey(parseInt(userId), keyTitle, publicKey);
+      
+      if (githubKey) {
+        githubKeyId = githubKey.id;
+        console.log(`Registered SSH key with GitHub: ${keyTitle} (ID: ${githubKeyId})`);
+      } else {
+        console.warn('Failed to register SSH key with GitHub - continuing without GitHub registration');
+      }
+    } catch (error) {
+      console.error('Error registering SSH key with GitHub:', error);
+      // Continue execution even if GitHub registration fails
+    }
+  }
 
   // Add public key to VM
   await addSSHKeyToVM({
@@ -75,17 +109,29 @@ export async function executeScriptViaSSH({
       executionSessionManager.createSession(executionSessionId, vmId, organizationId, userId, sshClient);
     }
 
-    const cleanupSession = () => {
+    const cleanupSession = async () => {
       if (!sessionCleaned && vmId && organizationId && userId) {
         sessionCleaned = true;
         executionSessionManager.removeSession(executionSessionId);
       }
+      
+      // Remove GitHub SSH key if requested
+      if (githubSSHKey?.cleanupAfterExecution && githubKeyId && userId) {
+        try {
+          const githubAPI = new GitHubAPIService();
+          await githubAPI.removeSSHKey(parseInt(userId), githubKeyId);
+          console.log(`Removed SSH key from GitHub (ID: ${githubKeyId})`);
+        } catch (error) {
+          console.error('Error removing SSH key from GitHub:', error);
+          // Don't fail the operation if cleanup fails
+        }
+      }
     };
 
     // Set up timeout
-    timeoutHandle = setTimeout(() => {
+    timeoutHandle = setTimeout(async () => {
       console.error('Script execution timed out');
-      cleanupSession();
+      await cleanupSession();
       sshClient.end();
       reject(new Error(`Script execution timed out after ${timeout} seconds`));
     }, timeout * 1000);
@@ -94,10 +140,10 @@ export async function executeScriptViaSSH({
       console.log('SSH connection established for script execution');
 
       // Use shell() to get a proper login shell with full environment
-      sshClient.shell((err, stream) => {
+      sshClient.shell(async (err, stream) => {
         if (err) {
           clearTimeout(timeoutHandle);
-          cleanupSession();
+          await cleanupSession();
           sshClient.end();
           reject(err);
           return;
@@ -124,12 +170,12 @@ export async function executeScriptViaSSH({
           }
         }, 500);
 
-        stream.on('close', (code: number) => {
+        stream.on('close', async (code: number) => {
           console.log('Stream closed with code:', code);
           exitCode = code || 0;
           clearTimeout(timeoutHandle);
           clearInterval(abortCheckInterval);
-          cleanupSession();
+          await cleanupSession();
           sshClient.end();
           resolve({ stdout, stderr, exitCode, sessionId: executionSessionId });
         });
@@ -163,17 +209,17 @@ export async function executeScriptViaSSH({
       });
     });
 
-    sshClient.on('error', (err) => {
+    sshClient.on('error', async (err) => {
       console.error('SSH connection error:', err);
       clearTimeout(timeoutHandle);
-      cleanupSession();
+      await cleanupSession();
       reject(err);
     });
 
-    sshClient.on('close', () => {
+    sshClient.on('close', async () => {
       console.log('SSH connection closed');
       clearTimeout(timeoutHandle);
-      cleanupSession();
+      await cleanupSession();
     });
 
     // Connect to SSH
