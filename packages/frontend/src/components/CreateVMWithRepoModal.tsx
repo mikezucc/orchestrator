@@ -234,69 +234,26 @@ fi`
         throw new Error('Please select a repository');
       }
 
-      // Generate the repository setup script
-      const repoSetupScript = `#!/bin/bash
-set -e
-
-echo "=== DevBox VM Setup with GitHub Repository ==="
-echo
-
-# Set up Git configuration
-git config --global user.email "${githubStatus?.email || 'devbox@example.com'}"
-git config --global user.name "${githubStatus?.username || 'DevBox User'}"
-
-# Clone the repository
-echo "Cloning repository: ${selectedRepo.full_name}"
-cd ~
-git clone ${selectedRepo.ssh_url}
-
-# Enter the repository directory
-cd $(basename "${selectedRepo.ssh_url}" .git)
-
-# Run user's custom startup script if provided
-${userStartupScript ? `
-echo "Running user's custom startup script..."
-${userStartupScript}
-` : ''}
-
-echo
-echo "=== Setup Complete ==="
-echo "Repository cloned to: ~/$(basename "${selectedRepo.ssh_url}" .git)"
-`;
-
-      // Create the VM with a minimal startup script
-      const vmData = {
+      // Create the VM with GitHub repository and user boot script
+      const vmData: CreateVMRequest = {
         ...formData,
-        initScript: `#!/bin/bash
-# This VM will be set up with GitHub repository after boot
-echo "VM is starting up. Repository setup will begin shortly..."
-echo "Repository to clone: ${selectedRepo.full_name}"
-`,
+        githubRepository: {
+          id: selectedRepo.id,
+          name: selectedRepo.name,
+          full_name: selectedRepo.full_name,
+          ssh_url: selectedRepo.ssh_url,
+          private: selectedRepo.private,
+        },
+        userBootScript: userStartupScript || undefined,
       };
 
       const response = await vmApi.create(vmData);
-      
-      // Store VM ID and repo info for post-creation setup
-      if (response.success && response.data) {
-        // We'll need to implement a post-creation hook to:
-        // 1. Wait for VM to be running
-        // 2. Inject SSH key via execute script
-        // 3. Run the full setup script
-        
-        // For now, we'll store this in sessionStorage
-        sessionStorage.setItem(`vm-setup-${response.data.id}`, JSON.stringify({
-          vmId: response.data.id,
-          repository: selectedRepo,
-          setupScript: repoSetupScript,
-          userScript: userStartupScript,
-        }));
-      }
       
       return response;
     },
     onSuccess: (response) => {
       if (response.success) {
-        showSuccess('VM created successfully. Repository setup will begin shortly.');
+        showSuccess('VM created successfully with repository setup.');
         onSuccess();
       }
     },

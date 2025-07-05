@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
-import { organizations } from '../db/schema-auth.js';
+import { organizations, authUsers } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
@@ -140,12 +140,102 @@ vmRoutes.post('/', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
 
+    // Generate the complete init script
+    let completeInitScript = body.initScript || '';
+
+    // If GitHub repository is provided, create the repository setup script
+    if (body.githubRepository) {
+      // Get user's GitHub info
+      const [authUser] = await db
+        .select({ 
+          githubUsername: authUsers.githubUsername,
+          githubEmail: authUsers.githubEmail
+        })
+        .from(authUsers)
+        .where(eq(authUsers.id, userId.toString()))
+        .limit(1);
+
+      const githubUsername = authUser?.githubUsername || 'DevBox User';
+      const githubEmail = authUser?.githubEmail || 'devbox@example.com';
+
+      // Create the repository setup script
+      const repoSetupScript = `#!/bin/bash
+set -e
+
+echo "=== DevBox VM Setup with GitHub Repository ==="
+echo
+
+# Wait for cloud-init to complete
+while [ ! -f /var/lib/cloud/instance/boot-finished ]; do
+  echo "Waiting for cloud-init to finish..."
+  sleep 5
+done
+
+# Set up Git configuration
+git config --global user.email "${githubEmail}"
+git config --global user.name "${githubUsername}"
+
+# Generate SSH key for GitHub
+mkdir -p ~/.ssh
+ssh-keygen -t ed25519 -f ~/.ssh/github_devbox -N "" -C "devbox-vm-${body.name}"
+
+# Add SSH key to SSH agent
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/github_devbox
+
+# Configure SSH for GitHub
+cat > ~/.ssh/config << 'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github_devbox
+  StrictHostKeyChecking no
+EOF
+
+chmod 600 ~/.ssh/config
+
+# Display the public key for manual addition to GitHub
+echo
+echo "=== GitHub SSH Key ==="
+echo "Add this SSH key to your GitHub account:"
+echo
+cat ~/.ssh/github_devbox.pub
+echo
+echo "=== End of SSH Key ==="
+echo
+
+# Clone the repository
+echo "Cloning repository: ${body.githubRepository.full_name}"
+cd ~
+git clone ${body.githubRepository.ssh_url}
+
+# Enter the repository directory
+cd $(basename "${body.githubRepository.ssh_url}" .git)
+${body.userBootScript ? `
+
+# Run user's custom boot script
+echo
+echo "=== Running User Boot Script ==="
+${body.userBootScript}` : ''}
+
+echo
+echo "=== Setup Complete ==="
+echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
+`;
+
+      // Combine with any existing init script
+      completeInitScript = repoSetupScript;
+    } else if (body.userBootScript) {
+      // If no repository but user boot script is provided
+      completeInitScript = body.userBootScript;
+    }
+
     const gcpInstance = await createVM({
       projectId: body.gcpProjectId,
       zone: body.zone,
       name: body.name,
       machineType: body.machineType,
-      initScript: body.initScript,
+      initScript: completeInitScript,
       accessToken,
     });
 
@@ -157,7 +247,7 @@ vmRoutes.post('/', async (c) => {
       zone: body.zone,
       machineType: body.machineType,
       status: 'pending',
-      initScript: body.initScript,
+      initScript: completeInitScript,
       gcpInstanceId: gcpInstance.id,
     }).returning();
 

@@ -42,6 +42,14 @@ export interface CreateVMRequest {
   zone: string;
   machineType: string;
   initScript?: string;
+  githubRepository?: {
+    id: number;
+    name: string;
+    full_name: string;
+    ssh_url: string;
+    private: boolean;
+  };
+  userBootScript?: string;
 }
 
 export interface UpdateVMRequest {
