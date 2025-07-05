@@ -55,7 +55,6 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   const [elapsedTime, setElapsedTime] = useState(0);
   
   // Game state
-  const [selectedGame, setSelectedGame] = useState<'flappy' | 'cubefield'>('flappy');
   const [gameStarted, setGameStarted] = useState(false);
   const [gameScore, setGameScore] = useState(0);
   const [gameHighScore, setGameHighScore] = useState(0);
@@ -65,14 +64,6 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   const [gameOver, setGameOver] = useState(false);
   const gameCanvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
-  
-  // Cubefield state
-  const [playerX, setPlayerX] = useState(200);
-  const [cubes, setCubes] = useState<Array<{x: number, z: number, lane: number}>>([]);
-  const [gameSpeed, setGameSpeed] = useState(5);
-  const [leftPressed, setLeftPressed] = useState(false);
-  const [rightPressed, setRightPressed] = useState(false);
-  const [cubefieldHighScore, setCubefieldHighScore] = useState(0);
   
   // Use refs to store the latest callback functions
   const onCompleteRef = useRef(onComplete);
@@ -123,48 +114,22 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     setGameStarted(false);
     setGameOver(false);
     setGameScore(0);
-    if (selectedGame === 'flappy') {
-      setBirdY(150);
-      setBirdVelocity(0);
-      setPipes([]);
-    } else {
-      setPlayerX(200);
-      setCubes([]);
-      setGameSpeed(5);
-    }
+    setBirdY(150);
+    setBirdVelocity(0);
+    setPipes([]);
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
   };
 
-  // Start Cubefield game
-  const startCubefield = () => {
-    setGameStarted(true);
-    setGameOver(false);
-    setGameScore(0);
-    setPlayerX(200);
-    setGameSpeed(5);
-    // Start with no cubes for a grace period
-    setCubes([]);
-  };
-
   // Handle jump
   const handleJump = () => {
-    if (selectedGame === 'flappy') {
-      if (!gameStarted) {
-        startGame();
-      } else if (!gameOver) {
-        setBirdVelocity(JUMP_STRENGTH);
-      } else {
-        resetGame();
-      }
-    }
-  };
-
-  // Handle Cubefield click
-  const handleCubefieldClick = () => {
     if (!gameStarted) {
-      startCubefield();
+      startGame();
+    } else if (!gameOver) {
+      setBirdVelocity(JUMP_STRENGTH);
+    } else {
+      resetGame();
     }
   };
 
@@ -231,79 +196,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [gameStarted, gameOver, birdY, birdVelocity, gameScore, gameHighScore, selectedGame]);
-
-  // Cubefield game loop
-  useEffect(() => {
-    if (!gameStarted || selectedGame !== 'cubefield') return;
-    
-    // Ensure clean state on start
-    if (gameScore === 0) {
-      setCubes([]);
-    }
-
-    const gameLoop = () => {
-      // Update player position based on input
-      setPlayerX(prevX => {
-        let newX = prevX;
-        if (leftPressed && newX > 30) newX -= 8;
-        if (rightPressed && newX < 370) newX += 8;
-        return newX;
-      });
-
-      // Update game speed (gradually increases, but slower)
-      setGameSpeed(prev => Math.min(prev + 0.002, 15));
-
-      // Update cubes
-      setCubes(prevCubes => {
-        let newCubes = prevCubes.map(cube => ({
-          ...cube,
-          z: cube.z - gameSpeed
-        }));
-
-        // Remove cubes that passed the player
-        newCubes = newCubes.filter(cube => cube.z > -50);
-
-        // Add new cubes with better spacing
-        // Only start adding cubes after 2 seconds (score > 120)
-        if (gameScore > 120) {
-          // Add cubes less frequently and with more spacing
-          const minSpacing = 120; // Minimum distance between cubes
-          const lastZ = newCubes.length > 0 ? Math.max(...newCubes.map(c => c.z)) : 400;
-          
-          if (newCubes.length < 8 && (newCubes.length === 0 || lastZ < 500)) {
-            // Add 1-2 cubes at a time with spacing
-            const numToAdd = Math.random() > 0.7 ? 2 : 1;
-            for (let i = 0; i < numToAdd; i++) {
-              newCubes.push({
-                x: 50 + Math.random() * 300, // Keep cubes more centered
-                z: lastZ + minSpacing + (i * 50) + Math.random() * 50,
-                lane: Math.floor(Math.random() * 5)
-              });
-            }
-          }
-        }
-
-        // No collision detection - let the player enjoy the game!
-        // Score continuously increases as a reward for playing
-
-        return newCubes;
-      });
-
-      // Update score
-      setGameScore(prev => prev + 1);
-
-      animationRef.current = requestAnimationFrame(gameLoop);
-    };
-
-    animationRef.current = requestAnimationFrame(gameLoop);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [gameStarted, gameOver, selectedGame, leftPressed, rightPressed, playerX, gameSpeed, gameScore, cubefieldHighScore]);
+  }, [gameStarted, gameOver, birdY, birdVelocity, gameScore, gameHighScore]);
 
   // Render game
   useEffect(() => {
@@ -313,209 +206,69 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    if (selectedGame === 'flappy') {
-      // Clear canvas
-      ctx.fillStyle = '#87CEEB';
+    // Clear canvas
+    ctx.fillStyle = '#87CEEB';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Draw bird
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(85, birdY + BIRD_SIZE/2, BIRD_SIZE/2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw pipes
+    ctx.fillStyle = '#228B22';
+    pipes.forEach(pipe => {
+      // Top pipe
+      ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gapY);
+      // Bottom pipe
+      ctx.fillRect(pipe.x, pipe.gapY + PIPE_GAP, PIPE_WIDTH, GAME_HEIGHT - pipe.gapY - PIPE_GAP);
+    });
+
+    // Draw score
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`Score: ${gameScore}`, 10, 30);
+    
+    if (gameHighScore > 0) {
+      ctx.font = '16px Arial';
+      ctx.fillText(`Best: ${gameHighScore}`, 10, 50);
+    }
+
+    // Draw game over or start message
+    if (!gameStarted || gameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-      // Draw bird
-      ctx.fillStyle = '#FFD700';
-      ctx.beginPath();
-      ctx.arc(85, birdY + BIRD_SIZE/2, BIRD_SIZE/2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw pipes
-      ctx.fillStyle = '#228B22';
-      pipes.forEach(pipe => {
-        // Top pipe
-        ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gapY);
-        // Bottom pipe
-        ctx.fillRect(pipe.x, pipe.gapY + PIPE_GAP, PIPE_WIDTH, GAME_HEIGHT - pipe.gapY - PIPE_GAP);
-      });
-
-      // Draw score
+      
       ctx.fillStyle = 'white';
       ctx.font = 'bold 24px Arial';
-      ctx.fillText(`Score: ${gameScore}`, 10, 30);
+      ctx.textAlign = 'center';
       
-      if (gameHighScore > 0) {
-        ctx.font = '16px Arial';
-        ctx.fillText(`Best: ${gameHighScore}`, 10, 50);
-      }
-
-      // Draw game over or start message
-      if (!gameStarted || gameOver) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'center';
-        
-        if (gameOver) {
-          ctx.fillText('Game Over!', GAME_WIDTH/2, GAME_HEIGHT/2 - 20);
-          ctx.font = '18px Arial';
-          ctx.fillText('Click to play again', GAME_WIDTH/2, GAME_HEIGHT/2 + 10);
-        } else {
-          ctx.fillText('Click to Start!', GAME_WIDTH/2, GAME_HEIGHT/2);
-        }
-        ctx.textAlign = 'left';
-      }
-    } else {
-      // Cubefield rendering
-      // Create gradient background for depth effect
-      const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-      gradient.addColorStop(0, '#001a33');
-      gradient.addColorStop(1, '#000033');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-      // Draw horizon line
-      ctx.strokeStyle = '#0066cc';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, GAME_HEIGHT * 0.6);
-      ctx.lineTo(GAME_WIDTH, GAME_HEIGHT * 0.6);
-      ctx.stroke();
-
-      // Draw perspective grid lines
-      ctx.strokeStyle = '#003366';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 5; i++) {
-        const x = (i + 1) * GAME_WIDTH / 6;
-        ctx.beginPath();
-        ctx.moveTo(GAME_WIDTH / 2, GAME_HEIGHT * 0.6);
-        ctx.lineTo(x, GAME_HEIGHT);
-        ctx.stroke();
-      }
-
-      // Sort cubes by Z distance (far to near) for proper rendering
-      const sortedCubes = [...cubes].sort((a, b) => b.z - a.z);
-
-      // Draw cubes with 3D perspective
-      sortedCubes.forEach(cube => {
-        if (cube.z > 0 && cube.z < 500) {
-          const perspective = 200 / (cube.z + 200);
-          const screenX = GAME_WIDTH / 2 + (cube.x - GAME_WIDTH / 2) * perspective;
-          const screenY = GAME_HEIGHT * 0.6 + (GAME_HEIGHT * 0.4) * (1 - perspective);
-          const size = 40 * perspective;
-          
-          // Create gradient for cube faces
-          const brightness = Math.floor(255 * perspective);
-          const color = `rgb(${brightness}, ${brightness * 0.4}, ${brightness * 0.8})`;
-          
-          // Draw cube shadow
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-          ctx.fillRect(screenX - size/2 + 2, screenY - size/2 + 2, size, size);
-          
-          // Draw cube
-          ctx.fillStyle = color;
-          ctx.fillRect(screenX - size/2, screenY - size/2, size, size);
-          
-          // Draw cube edges for 3D effect
-          ctx.strokeStyle = `rgb(${brightness * 1.2}, ${brightness * 0.5}, ${brightness})`;
-          ctx.lineWidth = perspective * 2;
-          ctx.strokeRect(screenX - size/2, screenY - size/2, size, size);
-        }
-      });
-
-      // Draw player ship
-      const shipY = GAME_HEIGHT - 50;
-      ctx.fillStyle = '#00ff00';
-      ctx.beginPath();
-      ctx.moveTo(playerX, shipY);
-      ctx.lineTo(playerX - 15, shipY + 30);
-      ctx.lineTo(playerX, shipY + 20);
-      ctx.lineTo(playerX + 15, shipY + 30);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Ship glow effect
-      ctx.shadowColor = '#00ff00';
-      ctx.shadowBlur = 10;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Draw score
-      ctx.fillStyle = '#00ff00';
-      ctx.font = 'bold 24px Arial';
-      ctx.fillText(`Score: ${gameScore}`, 10, 30);
-      
-      if (cubefieldHighScore > 0) {
-        ctx.font = '16px Arial';
-        ctx.fillText(`Best: ${cubefieldHighScore}`, 10, 50);
-      }
-
-      // Draw speed indicator
-      ctx.font = '14px Arial';
-      ctx.fillText(`Speed: ${Math.floor(gameSpeed * 10)}`, 10, 70);
-
-      // Draw grace period message
-      if (gameStarted && gameScore < 120) {
-        ctx.fillStyle = '#ffff00';
-        ctx.font = 'bold 18px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Get Ready!', GAME_WIDTH/2, 100);
-        ctx.font = '14px Arial';
-        ctx.fillText(`Starting in ${Math.ceil((120 - gameScore) / 60)}...`, GAME_WIDTH/2, 120);
-        ctx.textAlign = 'left';
-      }
-
-      // Draw start message only
-      if (!gameStarted) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-        
-        ctx.fillStyle = '#00ff00';
-        ctx.font = 'bold 24px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('CUBEFIELD', GAME_WIDTH/2, GAME_HEIGHT/2 - 20);
+      if (gameOver) {
+        ctx.fillText('Game Over!', GAME_WIDTH/2, GAME_HEIGHT/2 - 20);
         ctx.font = '18px Arial';
-        ctx.fillText('Click to Start!', GAME_WIDTH/2, GAME_HEIGHT/2 + 10);
-        ctx.textAlign = 'left';
+        ctx.fillText('Click to play again', GAME_WIDTH/2, GAME_HEIGHT/2 + 10);
+      } else {
+        ctx.fillText('Click to Start!', GAME_WIDTH/2, GAME_HEIGHT/2);
       }
+      ctx.textAlign = 'left';
     }
-  }, [gameStarted, gameOver, birdY, pipes, gameScore, gameHighScore, selectedGame, playerX, cubes, gameSpeed, cubefieldHighScore]);
+  }, [gameStarted, gameOver, birdY, pipes, gameScore, gameHighScore]);
 
   // Add keyboard support
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (selectedGame === 'flappy') {
-        if (e.code === 'Space' || e.key === ' ') {
-          e.preventDefault();
-          handleJump();
-        }
-      } else if (selectedGame === 'cubefield') {
-        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-          e.preventDefault();
-          setLeftPressed(true);
-        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-          e.preventDefault();
-          setRightPressed(true);
-        } else if ((e.code === 'Space' || e.key === ' ') && !gameStarted) {
-          e.preventDefault();
-          startCubefield();
-        }
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        handleJump();
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (selectedGame === 'cubefield') {
-        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-          setLeftPressed(false);
-        } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-          setRightPressed(false);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyPress);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [gameStarted, gameOver, selectedGame]);
+  }, [gameStarted, gameOver]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -727,59 +480,29 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         </div>
       </div>
 
-      {/* Mini Games */}
-      <div className="mt-6">
-        <div className="bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-te-gray-700 dark:text-te-gray-300">
+      {/* Mini Game - Flappy Bird */}
+      {!isComplete && !error && (
+        <div className="mt-6">
+          <div className="bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-te-gray-700 dark:text-te-gray-300 mb-3">
               Play while you wait!
             </h4>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectedGame('flappy');
-                  resetGame();
-                }}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
-                  selectedGame === 'flappy'
-                    ? 'bg-te-yellow text-te-gray-900 font-semibold'
-                    : 'bg-te-gray-200 dark:bg-te-gray-700 text-te-gray-600 dark:text-te-gray-400 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
-                }`}
-              >
-                Flappy Bird
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedGame('cubefield');
-                  resetGame();
-                }}
-                className={`px-3 py-1 text-xs rounded transition-colors ${
-                  selectedGame === 'cubefield'
-                    ? 'bg-te-yellow text-te-gray-900 font-semibold'
-                    : 'bg-te-gray-200 dark:bg-te-gray-700 text-te-gray-600 dark:text-te-gray-400 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
-                }`}
-              >
-                Cubefield
-              </button>
-            </div>
             <div className="flex justify-center">
               <canvas
                 ref={gameCanvasRef}
                 width={GAME_WIDTH}
                 height={GAME_HEIGHT}
-                onClick={selectedGame === 'flappy' ? handleJump : handleCubefieldClick}
+                onClick={handleJump}
                 className="border border-te-gray-300 dark:border-te-gray-600 rounded cursor-pointer"
                 style={{ maxWidth: '100%', height: 'auto' }}
               />
             </div>
             <div className="text-center mt-2 text-xs text-te-gray-600 dark:text-te-gray-400">
-              {selectedGame === 'flappy' 
-                ? 'Click or press Space to jump!' 
-                : 'Use Arrow Keys or A/D to move. Space to start/restart!'}
+              Click or press Space to jump!
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Progress History */}
       <div className="mt-8">
@@ -835,6 +558,8 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               );
             })}
           </div>
+          {/* Auto-scroll to bottom */}
+          <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
         </div>
       </div>
 
@@ -878,6 +603,8 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
                 {scriptOutput.join('')}
               </pre>
+              {/* Auto-scroll to bottom */}
+              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
           )}
         </div>
