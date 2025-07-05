@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { authUsers, auditLogs, userSSHKeys } from '../db/schema-auth.js';
 import { eq, and } from 'drizzle-orm';
 import { flexibleAuth } from '../middleware/flexibleAuth.js';
-import { encrypt } from '../utils/auth.js';
+import { encrypt, decrypt } from '../utils/auth.js';
 import { generateSSHKeys } from '../services/gcp-ssh.js';
 import crypto from 'crypto';
 
@@ -284,6 +284,110 @@ githubAuthRoutes.get('/status', flexibleAuth, async (c) => {
   } catch (error) {
     console.error('Get GitHub status error:', error);
     return c.json({ success: false, error: 'Failed to get GitHub status' }, 500);
+  }
+});
+
+// Get user's GitHub repositories
+githubAuthRoutes.get('/repos', flexibleAuth, async (c) => {
+  try {
+    const userId = (c as any).userId || (c as any).user?.id;
+    
+    if (!userId) {
+      return c.json({ success: false, error: 'User not authenticated' }, 401);
+    }
+
+    const [user] = await db
+      .select({
+        githubAccessToken: authUsers.githubAccessToken,
+        githubUsername: authUsers.githubUsername,
+      })
+      .from(authUsers)
+      .where(eq(authUsers.id, userId))
+      .limit(1);
+
+    if (!user?.githubAccessToken) {
+      return c.json({ success: false, error: 'GitHub not connected' }, 401);
+    }
+
+    // Decrypt the access token
+    const accessToken = decrypt(user.githubAccessToken);
+
+    // Get query parameters
+    const page = parseInt(c.req.query('page') || '1');
+    const perPage = parseInt(c.req.query('per_page') || '30');
+    const searchQuery = c.req.query('q') || '';
+
+    // Construct the GitHub API URL
+    let apiUrl = `https://api.github.com/user/repos?page=${page}&per_page=${perPage}&sort=updated&direction=desc`;
+    
+    // If there's a search query, use the search API instead
+    if (searchQuery) {
+      // GitHub search API requires user: prefix for searching user's repos
+      const searchParams = new URLSearchParams({
+        q: `user:${user.githubUsername} ${searchQuery}`,
+        page: page.toString(),
+        per_page: perPage.toString(),
+        sort: 'updated',
+        order: 'desc'
+      });
+      apiUrl = `https://api.github.com/search/repositories?${searchParams}`;
+    }
+
+    // Fetch repositories from GitHub
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('GitHub API error:', response.status, await response.text());
+      return c.json({ success: false, error: 'Failed to fetch repositories' }, 500);
+    }
+
+    const data = await response.json();
+    
+    // Handle response based on whether it's search or regular listing
+    let repositories, totalCount;
+    if (searchQuery) {
+      repositories = data.items || [];
+      totalCount = data.total_count;
+    } else {
+      repositories = data || [];
+      // For regular listing, check Link header for pagination info
+      const linkHeader = response.headers.get('link');
+      const hasMore = linkHeader ? linkHeader.includes('rel="next"') : false;
+      totalCount = hasMore ? (page * perPage + 1) : repositories.length;
+    }
+
+    // Transform the data to only include necessary fields
+    const transformedRepos = repositories.map((repo: any) => ({
+      id: repo.id,
+      name: repo.name,
+      full_name: repo.full_name,
+      private: repo.private,
+      html_url: repo.html_url,
+      ssh_url: repo.ssh_url,
+      description: repo.description,
+      language: repo.language,
+      stargazers_count: repo.stargazers_count,
+      updated_at: repo.updated_at,
+    }));
+
+    return c.json({
+      success: true,
+      repositories: transformedRepos,
+      pagination: {
+        page,
+        perPage,
+        total: totalCount,
+        hasMore: totalCount > page * perPage,
+      },
+    });
+  } catch (error) {
+    console.error('Get GitHub repositories error:', error);
+    return c.json({ success: false, error: 'Failed to get repositories' }, 500);
   }
 });
 

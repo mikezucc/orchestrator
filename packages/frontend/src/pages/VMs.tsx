@@ -1,21 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { portsApi } from '../api/ports';
 import { organizationApi } from '../api/organizations';
 import { Link } from 'react-router-dom';
 import CreateVMModal from '../components/CreateVMModal';
+import CreateVMWithRepoModal from '../components/CreateVMWithRepoModal';
 import VMStatusBadge from '../components/VMStatusBadge';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import { useToast } from '../contexts/ToastContext';
+import { useVMPostCreationSetup } from '../hooks/useVMPostCreationSetup';
 import type { VirtualMachine } from '@gce-platform/types';
 import type { PortDescription } from '../api/ports';
 
 export default function VMs() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateWithRepoModal, setShowCreateWithRepoModal] = useState(false);
+  const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [duplicateVM, setDuplicateVM] = useState<VirtualMachine | null>(null);
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Use the VM post-creation setup hook
+  useVMPostCreationSetup();
+  
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowCreateOptions(false);
+      }
+    }
+    
+    if (showCreateOptions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCreateOptions]);
 
   // Fetch organization data to get configured projects
   const { data: organization } = useQuery({
@@ -159,12 +181,51 @@ export default function VMs() {
               {isLoading ? 'Syncing...' : 'Sync VMs'}
             </button>
           )}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="btn-primary"
-          >
-            + Create VM
-          </button>
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setShowCreateOptions(!showCreateOptions)}
+              className="btn-primary flex items-center space-x-2"
+            >
+              <span>+ Create VM</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showCreateOptions && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-te-gray-900 rounded-lg shadow-lg border border-te-gray-200 dark:border-te-gray-700 z-10">
+                <button
+                  onClick={() => {
+                    setShowCreateOptions(false);
+                    setShowCreateModal(true);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-te-gray-50 dark:hover:bg-te-gray-800 border-b border-te-gray-200 dark:border-te-gray-700"
+                >
+                  <div className="font-medium text-sm">Create Basic VM</div>
+                  <div className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1">
+                    Create a new VM with custom startup script
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateOptions(false);
+                    setShowCreateWithRepoModal(true);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-te-gray-50 dark:hover:bg-te-gray-800"
+                >
+                  <div className="font-medium text-sm flex items-center space-x-2">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    <span>Create VM with Repository</span>
+                  </div>
+                  <div className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1">
+                    Create a VM with a GitHub repository pre-cloned
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -338,6 +399,19 @@ export default function VMs() {
         />
       )}
 
+      {showCreateWithRepoModal && (
+        <CreateVMWithRepoModal
+          onClose={() => setShowCreateWithRepoModal(false)}
+          onSuccess={() => {
+            setShowCreateWithRepoModal(false);
+            queryClient.invalidateQueries({ queryKey: ['vms'] });
+            // Refresh after 500ms to get updated state
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['vms'] });
+            }, 500);
+          }}
+        />
+      )}
 
       {duplicateVM && (
         <DuplicateVMModal
