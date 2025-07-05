@@ -1,6 +1,7 @@
 import { fetchClient } from './fetchClient';
 
 export interface GitHubStatus {
+  success: boolean;
   connected: boolean;
   username?: string;
   email?: string;
@@ -31,6 +32,6 @@ export const githubAuthApi = {
 
   // Disconnect GitHub account
   disconnect: async (): Promise<void> => {
-    await fetchClient.delete('/api/github-auth/disconnect');
+    await fetchClient.delete('/github-auth/disconnect');
   },
 };

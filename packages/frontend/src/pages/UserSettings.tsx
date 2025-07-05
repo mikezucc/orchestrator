@@ -135,28 +135,55 @@ export default function UserSettings() {
         ) : githubStatus?.connected ? (
           <div className="space-y-4">
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                    Connected to GitHub
-                  </p>
-                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                    {githubStatus.username && `@${githubStatus.username}`}
-                    {githubStatus.email && ` (${githubStatus.email})`}
-                  </p>
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
+                      <Github className="h-6 w-6 text-green-600 dark:text-green-300" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                      GitHub Account Connected
+                    </p>
+                    <div className="mt-1 space-y-1">
+                      {githubStatus.username && (
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          <span className="text-green-600 dark:text-green-400">Username:</span> @{githubStatus.username}
+                        </p>
+                      )}
+                      {githubStatus.email && (
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          <span className="text-green-600 dark:text-green-400">Email:</span> {githubStatus.email}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <button
-                  onClick={() => disconnectGitHub.mutate()}
+                  onClick={() => {
+                    if (confirm('Are you sure you want to disconnect your GitHub account? This will remove your stored access token and any GitHub SSH keys.')) {
+                      disconnectGitHub.mutate();
+                    }
+                  }}
                   disabled={disconnectGitHub.isPending}
                   className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                 >
-                  Disconnect
+                  {disconnectGitHub.isPending ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
             </div>
-            <p className="text-sm text-te-gray-600 dark:text-te-gray-400">
-              Your GitHub account is connected. This allows you to use GitHub SSH authentication when executing scripts on VMs.
-            </p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                What this connection enables:
+              </h4>
+              <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
+                <li>Automatic SSH key registration when executing scripts</li>
+                <li>Access to private GitHub repositories from VMs</li>
+                <li>Seamless Git operations without manual SSH setup</li>
+                <li>Temporary SSH keys that are cleaned up after use</li>
+              </ul>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -209,8 +236,14 @@ export default function UserSettings() {
                     <div className="flex items-center space-x-2">
                       <h4 className="text-sm font-medium">{key.name}</h4>
                       {key.source === 'github' && (
-                        <span className="px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                          GitHub
+                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          <Github className="h-3 w-3" />
+                          <span>GitHub</span>
+                        </span>
+                      )}
+                      {key.source === 'generated' && (
+                        <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
+                          Generated
                         </span>
                       )}
                     </div>
@@ -245,9 +278,18 @@ export default function UserSettings() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-te-gray-500 dark:text-te-gray-600">
-            No SSH keys found. Generate a key or connect your GitHub account.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-te-gray-500 dark:text-te-gray-600">
+              No SSH keys found. Generate a key or connect your GitHub account.
+            </p>
+            {!githubStatus?.connected && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  <strong>Tip:</strong> Connect your GitHub account above to automatically manage SSH keys for GitHub access.
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
