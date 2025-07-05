@@ -8,6 +8,22 @@ interface VMCreationTrackerProps {
   onError?: (error: string) => void;
 }
 
+// Function to strip ANSI escape sequences
+function stripAnsi(str: string): string {
+  // Remove various ANSI escape sequences
+  return str
+    // Remove color codes
+    .replace(/\x1b\[[0-9;]*m/g, '')
+    // Remove cursor movement
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    // Remove other escape sequences
+    .replace(/\x1b\[[\?]?[0-9;]*[a-zA-Z]/g, '')
+    // Remove remaining escape characters
+    .replace(/\x1b/g, '')
+    // Remove carriage returns that might cause overwrites
+    .replace(/\r(?!\n)/g, '\n');
+}
+
 export default function VMCreationTracker({ trackingId, onComplete, onError }: VMCreationTrackerProps) {
   const [stages, setStages] = useState<VMCreationStage[]>([
     { id: 'preparing', name: 'Preparing', status: 'pending' },
@@ -88,8 +104,10 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
           if (progress.stage === 'script-output' && progress.scriptOutput) {
             // Batch script outputs to avoid overwhelming the UI
             setScriptOutput(prev => {
+              // Strip ANSI escape sequences from the output
+              const cleanedOutput = stripAnsi(progress.scriptOutput!.data);
               // Limit to last 1000 lines to prevent memory issues
-              const newOutput = [...prev, progress.scriptOutput!.data];
+              const newOutput = [...prev, cleanedOutput];
               if (newOutput.length > 1000) {
                 return newOutput.slice(-1000);
               }
