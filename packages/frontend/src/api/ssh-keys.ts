@@ -13,18 +13,18 @@ export interface SSHKey {
 export const sshKeysApi = {
   // List all SSH keys
   list: async (): Promise<SSHKey[]> => {
-    const response = await fetchClient.get('/api/ssh-keys');
+    const response = await fetchClient.get('/user/ssh-keys');
     return response.data;
   },
 
   // Generate a new SSH key
   generate: async (name: string): Promise<{ id: string; privateKey: string }> => {
-    const response = await fetchClient.post('/api/ssh-keys/generate', { name });
+    const response = await fetchClient.post('/user/ssh-keys/generate', { name });
     return response.data;
   },
 
   // Delete an SSH key
   delete: async (keyId: string): Promise<void> => {
-    await fetchClient.delete(`/api/ssh-keys/${keyId}`);
+    await fetchClient.delete(`/user/ssh-keys/${keyId}`);
   },
 };

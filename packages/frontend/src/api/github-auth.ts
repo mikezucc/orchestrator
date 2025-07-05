@@ -9,15 +9,24 @@ export interface GitHubStatus {
 export const githubAuthApi = {
   // Get current GitHub connection status
   getStatus: async (): Promise<GitHubStatus> => {
-    const response = await fetchClient.get('/api/github-auth/status');
+    const response = await fetchClient.get('/github-auth/status');
     return response.data;
   },
 
   // Initiate GitHub OAuth flow
-  connect: () => {
-    // This will redirect to GitHub OAuth with return URL
-    const returnUrl = encodeURIComponent('/user/settings');
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/github-auth/connect?returnUrl=${returnUrl}`;
+  connect: async () => {
+    // Get the OAuth URL from the API with proper authentication
+    const returnUrl = '/user/settings';
+    const response = await fetchClient.get(`/github-auth/connect-url?returnUrl=${encodeURIComponent(returnUrl)}`);
+
+    console.log('GitHub OAuth URL response:', response);
+    
+    if (response.success && response.url) {
+      // Redirect to GitHub OAuth
+      window.location.href = response.url;
+    } else {
+      throw new Error('Failed to get GitHub OAuth URL');
+    }
   },
 
   // Disconnect GitHub account

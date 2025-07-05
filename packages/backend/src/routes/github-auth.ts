@@ -13,8 +13,8 @@ const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || `${process.env.BA
 
 export const githubAuthRoutes = new Hono();
 
-// Initiate GitHub OAuth for connecting account
-githubAuthRoutes.get('/connect', flexibleAuth, async (c) => {
+// Get GitHub OAuth URL
+githubAuthRoutes.get('/connect-url', flexibleAuth, async (c) => {
   const userId = (c as any).userId || (c as any).user?.id;
   
   if (!userId) {
@@ -36,10 +36,16 @@ githubAuthRoutes.get('/connect', flexibleAuth, async (c) => {
   const authUrl = new URL('https://github.com/login/oauth/authorize');
   authUrl.searchParams.set('client_id', GITHUB_CLIENT_ID);
   authUrl.searchParams.set('redirect_uri', GITHUB_REDIRECT_URI);
-  authUrl.searchParams.set('scope', 'read:user user:email read:public_key');
+  authUrl.searchParams.set('scope', 'read:user user:email read:public_key write:public_key');
   authUrl.searchParams.set('state', state);
 
-  return c.redirect(authUrl.toString());
+  return c.json({ success: true, url: authUrl.toString() });
+});
+
+// Legacy connect endpoint (for backward compatibility)
+githubAuthRoutes.get('/connect', async (c) => {
+  // For direct browser access, redirect to login
+  return c.redirect(`${process.env.FRONTEND_URL}/login?redirect=/user/settings`);
 });
 
 // Handle GitHub OAuth callback
@@ -184,7 +190,7 @@ githubAuthRoutes.get('/callback', async (c) => {
     });
 
     // Redirect to frontend success page
-    return c.redirect(`${process.env.FRONTEND_URL}${returnUrl}?githubConnected=true`);
+    return c.redirect(`${process.env.FRONTEND_URL}/user/settings?githubConnected=true`);
   } catch (error) {
     console.error('GitHub auth error:', error);
     return c.redirect(`${process.env.FRONTEND_URL}/profile/ssh-keys?error=auth_failed`);

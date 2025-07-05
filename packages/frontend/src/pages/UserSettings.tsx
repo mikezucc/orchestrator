@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { githubAuthApi, GitHubStatus } from '../api/github-auth';
 import { sshKeysApi, SSHKey } from '../api/ssh-keys';
 import { useToast } from '../contexts/ToastContext';
@@ -8,9 +9,34 @@ import { Github, Key, Trash2, Download, Copy, Plus, X } from 'lucide-react';
 export default function UserSettings() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showGenerateKey, setShowGenerateKey] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [privateKey, setPrivateKey] = useState('');
+
+  // Check for GitHub connection success
+  useEffect(() => {
+    if (searchParams.get('githubConnected') === 'true') {
+      showToast('GitHub account connected successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['github-status'] });
+      queryClient.invalidateQueries({ queryKey: ['ssh-keys'] });
+      // Clean up URL
+      searchParams.delete('githubConnected');
+      setSearchParams(searchParams);
+    } else if (searchParams.get('error')) {
+      const error = searchParams.get('error');
+      const errorMessages: Record<string, string> = {
+        'missing_params': 'Missing required parameters',
+        'invalid_state': 'Invalid authentication state',
+        'token_exchange_failed': 'Failed to exchange token with GitHub',
+        'auth_failed': 'GitHub authentication failed',
+      };
+      showToast(errorMessages[error!] || 'Authentication failed', 'error');
+      // Clean up URL
+      searchParams.delete('error');
+      setSearchParams(searchParams);
+    }
+  }, [searchParams, setSearchParams, showToast, queryClient]);
 
   // Fetch GitHub connection status
   const { data: githubStatus, isLoading: githubLoading } = useQuery({
@@ -138,7 +164,13 @@ export default function UserSettings() {
               Connect your GitHub account to enable SSH authentication for private repositories when executing scripts on VMs.
             </p>
             <button
-              onClick={() => githubAuthApi.connect()}
+              onClick={async () => {
+                try {
+                  await githubAuthApi.connect();
+                } catch (error) {
+                  showToast('Failed to connect GitHub account', 'error');
+                }
+              }}
               className="px-4 py-2 text-sm bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 rounded-lg hover:bg-te-gray-800 dark:hover:bg-te-yellow/90 transition-colors"
             >
               Connect GitHub Account
