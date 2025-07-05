@@ -54,6 +54,17 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   const [startTime] = useState(Date.now());
   const [elapsedTime, setElapsedTime] = useState(0);
   
+  // Game state
+  const [gameStarted, setGameStarted] = useState(false);
+  const [gameScore, setGameScore] = useState(0);
+  const [gameHighScore, setGameHighScore] = useState(0);
+  const [birdY, setBirdY] = useState(150);
+  const [birdVelocity, setBirdVelocity] = useState(0);
+  const [pipes, setPipes] = useState<Array<{x: number, gapY: number}>>([]);
+  const [gameOver, setGameOver] = useState(false);
+  const gameCanvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number>();
+  
   // Use refs to store the latest callback functions
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
@@ -77,6 +88,187 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
       return () => clearInterval(interval);
     }
   }, [startTime, isComplete, error]);
+
+  // Game constants
+  const GRAVITY = 0.6;
+  const JUMP_STRENGTH = -10;
+  const PIPE_WIDTH = 60;
+  const PIPE_GAP = 120;
+  const PIPE_SPEED = 3;
+  const BIRD_SIZE = 30;
+  const GAME_WIDTH = 400;
+  const GAME_HEIGHT = 300;
+
+  // Start game
+  const startGame = () => {
+    setGameStarted(true);
+    setGameOver(false);
+    setGameScore(0);
+    setBirdY(150);
+    setBirdVelocity(0);
+    setPipes([{ x: GAME_WIDTH, gapY: Math.random() * (GAME_HEIGHT - PIPE_GAP - 60) + 30 }]);
+  };
+
+  // Reset game
+  const resetGame = () => {
+    setGameStarted(false);
+    setGameOver(false);
+    setGameScore(0);
+    setBirdY(150);
+    setBirdVelocity(0);
+    setPipes([]);
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+  };
+
+  // Handle jump
+  const handleJump = () => {
+    if (!gameStarted) {
+      startGame();
+    } else if (!gameOver) {
+      setBirdVelocity(JUMP_STRENGTH);
+    } else {
+      resetGame();
+    }
+  };
+
+  // Game loop
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+
+    const gameLoop = () => {
+      // Update bird physics
+      setBirdY(prevY => {
+        const newY = prevY + birdVelocity;
+        // Check boundaries
+        if (newY < 0 || newY > GAME_HEIGHT - BIRD_SIZE) {
+          setGameOver(true);
+          if (gameScore > gameHighScore) {
+            setGameHighScore(gameScore);
+          }
+          return prevY;
+        }
+        return newY;
+      });
+
+      setBirdVelocity(prev => prev + GRAVITY);
+
+      // Update pipes
+      setPipes(prevPipes => {
+        const newPipes = prevPipes.map(pipe => ({ ...pipe, x: pipe.x - PIPE_SPEED }));
+        
+        // Remove off-screen pipes
+        const filteredPipes = newPipes.filter(pipe => pipe.x > -PIPE_WIDTH);
+        
+        // Add new pipes
+        if (filteredPipes.length === 0 || filteredPipes[filteredPipes.length - 1].x < GAME_WIDTH - 200) {
+          filteredPipes.push({ 
+            x: GAME_WIDTH, 
+            gapY: Math.random() * (GAME_HEIGHT - PIPE_GAP - 60) + 30 
+          });
+        }
+        
+        // Check collisions
+        filteredPipes.forEach(pipe => {
+          if (pipe.x < 100 && pipe.x + PIPE_WIDTH > 70) {
+            if (birdY < pipe.gapY || birdY + BIRD_SIZE > pipe.gapY + PIPE_GAP) {
+              setGameOver(true);
+              if (gameScore > gameHighScore) {
+                setGameHighScore(gameScore);
+              }
+            } else if (pipe.x + PIPE_WIDTH === 70) {
+              setGameScore(prev => prev + 1);
+            }
+          }
+        });
+        
+        return filteredPipes;
+      });
+
+      animationRef.current = requestAnimationFrame(gameLoop);
+    };
+
+    animationRef.current = requestAnimationFrame(gameLoop);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [gameStarted, gameOver, birdY, birdVelocity, gameScore, gameHighScore]);
+
+  // Render game
+  useEffect(() => {
+    const canvas = gameCanvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.fillStyle = '#87CEEB';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Draw bird
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(85, birdY + BIRD_SIZE/2, BIRD_SIZE/2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw pipes
+    ctx.fillStyle = '#228B22';
+    pipes.forEach(pipe => {
+      // Top pipe
+      ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.gapY);
+      // Bottom pipe
+      ctx.fillRect(pipe.x, pipe.gapY + PIPE_GAP, PIPE_WIDTH, GAME_HEIGHT - pipe.gapY - PIPE_GAP);
+    });
+
+    // Draw score
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 24px Arial';
+    ctx.fillText(`Score: ${gameScore}`, 10, 30);
+    
+    if (gameHighScore > 0) {
+      ctx.font = '16px Arial';
+      ctx.fillText(`Best: ${gameHighScore}`, 10, 50);
+    }
+
+    // Draw game over or start message
+    if (!gameStarted || gameOver) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      
+      if (gameOver) {
+        ctx.fillText('Game Over!', GAME_WIDTH/2, GAME_HEIGHT/2 - 20);
+        ctx.font = '18px Arial';
+        ctx.fillText('Click to play again', GAME_WIDTH/2, GAME_HEIGHT/2 + 10);
+      } else {
+        ctx.fillText('Click to Start!', GAME_WIDTH/2, GAME_HEIGHT/2);
+      }
+      ctx.textAlign = 'left';
+    }
+  }, [gameStarted, gameOver, birdY, pipes, gameScore, gameHighScore]);
+
+  // Add keyboard support
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        handleJump();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [gameStarted, gameOver]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -287,6 +479,30 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
           ))}
         </div>
       </div>
+
+      {/* Mini Game - Flappy Bird */}
+      {!isComplete && !error && (
+        <div className="mt-6">
+          <div className="bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-te-gray-700 dark:text-te-gray-300 mb-3">
+              Play while you wait!
+            </h4>
+            <div className="flex justify-center">
+              <canvas
+                ref={gameCanvasRef}
+                width={GAME_WIDTH}
+                height={GAME_HEIGHT}
+                onClick={handleJump}
+                className="border border-te-gray-300 dark:border-te-gray-600 rounded cursor-pointer"
+                style={{ maxWidth: '100%', height: 'auto' }}
+              />
+            </div>
+            <div className="text-center mt-2 text-xs text-te-gray-600 dark:text-te-gray-400">
+              Click or press Space to jump!
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress History */}
       <div className="mt-8">
