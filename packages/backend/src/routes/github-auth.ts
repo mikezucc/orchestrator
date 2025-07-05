@@ -267,7 +267,7 @@ githubAuthRoutes.get('/status', flexibleAuth, async (c) => {
 
     const [user] = await db
       .select({
-        githubConnected: authUsers.githubUsername,
+        githubAccessToken: authUsers.githubAccessToken,
         githubUsername: authUsers.githubUsername,
         githubEmail: authUsers.githubEmail,
       })
@@ -277,7 +277,7 @@ githubAuthRoutes.get('/status', flexibleAuth, async (c) => {
 
     return c.json({
       success: true,
-      connected: !!user?.githubConnected,
+      connected: !!user?.githubAccessToken,
       username: user?.githubUsername,
       email: user?.githubEmail,
     });

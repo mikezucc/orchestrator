@@ -187,21 +187,43 @@ export default function UserSettings() {
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                    <Github className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      GitHub Not Connected
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Connect to enable SSH authentication
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      await githubAuthApi.connect();
+                    } catch (error) {
+                      showToast('Failed to connect GitHub account', 'error');
+                    }
+                  }}
+                  className="px-4 py-2 text-sm bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 rounded-lg hover:bg-te-gray-800 dark:hover:bg-te-yellow/90 transition-colors"
+                >
+                  Connect Account
+                </button>
+              </div>
+            </div>
             <p className="text-sm text-te-gray-600 dark:text-te-gray-400">
-              Connect your GitHub account to enable SSH authentication for private repositories when executing scripts on VMs.
+              Connect your GitHub account to:
             </p>
-            <button
-              onClick={async () => {
-                try {
-                  await githubAuthApi.connect();
-                } catch (error) {
-                  showToast('Failed to connect GitHub account', 'error');
-                }
-              }}
-              className="px-4 py-2 text-sm bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 rounded-lg hover:bg-te-gray-800 dark:hover:bg-te-yellow/90 transition-colors"
-            >
-              Connect GitHub Account
-            </button>
+            <ul className="text-sm text-te-gray-600 dark:text-te-gray-400 space-y-1 list-disc list-inside ml-2">
+              <li>Enable SSH authentication for private repositories</li>
+              <li>Automatically manage SSH keys for GitHub access</li>
+              <li>Execute scripts that interact with private repos</li>
+            </ul>
           </div>
         )}
       </div>

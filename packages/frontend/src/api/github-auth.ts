@@ -11,7 +11,7 @@ export const githubAuthApi = {
   // Get current GitHub connection status
   getStatus: async (): Promise<GitHubStatus> => {
     const response = await fetchClient.get('/github-auth/status');
-    return response.data;
+    return response;
   },
 
   // Initiate GitHub OAuth flow
