@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { VMCreationProgress, VMCreationStage } from '@gce-platform/types';
+import { getWebSocketBaseURL } from '../utils/api-config';
 
 interface VMCreationTrackerProps {
   trackingId: string;
@@ -40,36 +41,9 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
       return;
     }
 
-    // Construct WebSocket URL based on environment
-    const getWebSocketUrl = () => {
-      const { protocol, hostname } = window.location;
-      const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-      
-      // Check for explicit API URL in environment variable
-      if (import.meta.env.VITE_API_URL) {
-        const apiUrl = import.meta.env.VITE_API_URL;
-        const wsBaseUrl = apiUrl.replace('http:', 'ws:').replace('https:', 'wss:').replace('/api', '');
-        return `${wsBaseUrl}/vm-progress-ws`;
-      }
-      
-      // Production mode
-      if (import.meta.env.PROD) {
-        if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
-          return `${wsProtocol}//api.slopbox.dev/vm-progress-ws`;
-        }
-        return `${wsProtocol}//${hostname}/vm-progress-ws`;
-      }
-      
-      // Development mode
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return `ws://localhost:3000/vm-progress-ws`;
-      }
-      
-      // Non-localhost development
-      return `${wsProtocol}//${hostname}:3000/vm-progress-ws`;
-    };
-    
-    const wsUrl = `${getWebSocketUrl()}?trackingId=${trackingId}&token=${encodeURIComponent(token)}`;
+    // Get WebSocket URL using the same host as the API
+    const wsBaseUrl = getWebSocketBaseURL();
+    const wsUrl = `${wsBaseUrl}/vm-progress-ws?trackingId=${trackingId}&token=${encodeURIComponent(token)}`;
 
     console.log('Connecting to VM progress WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
