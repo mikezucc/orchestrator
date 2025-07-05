@@ -177,12 +177,6 @@ set -e
 echo "=== DevBox VM Setup with GitHub Repository ==="
 echo
 
-# Wait for cloud-init to complete
-while [ ! -f /var/lib/cloud/instance/boot-finished ]; do
-  echo "Waiting for cloud-init to finish..."
-  sleep 5
-done
-
 # Set up Git configuration
 git config --global user.email "${githubEmail}"
 git config --global user.name "${githubUsername}"
@@ -223,15 +217,9 @@ git clone ${body.githubRepository.ssh_url}
 
 # Enter the repository directory
 cd $(basename "${body.githubRepository.ssh_url}" .git)
-${body.userBootScript ? `
-
-# Run user's custom boot script
-echo
-echo "=== Running User Boot Script ==="
-${body.userBootScript}` : ''}
 
 echo
-echo "=== Setup Complete ==="
+echo "=== Repository Setup Complete ==="
 echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
 `;
     }
@@ -325,66 +313,128 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
     vmCreationProgress.reportConfiguring(trackingId, 'Waiting for SSH to be ready...');
     await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds for SSH
 
-    // Now execute scripts via SSH if needed
+    // Get organization details for SSH username (needed for both scripts)
+    let username = '';
     if (body.githubRepository || body.userBootScript) {
+      const [organization] = await db.select().from(organizations)
+        .where(eq(organizations.id, organizationId));
+
+      if (!organization || !organization.gcpEmail) {
+        vmCreationProgress.reportError(trackingId, 'Organization does not have Google Cloud credentials configured');
+        throw new Error('Organization does not have Google Cloud credentials configured');
+      }
+
+      // Generate username from organization's Google Cloud email
+      username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    // Execute GitHub repository setup script if needed
+    if (body.githubRepository && repoSetupScript) {
       vmCreationProgress.reportInstalling(
         trackingId, 
-        'Executing setup scripts via SSH...',
-        body.githubRepository ? `Repository: ${body.githubRepository.full_name}` : undefined
+        'Setting up GitHub repository...',
+        `Cloning ${body.githubRepository.full_name}`
       );
 
       try {
-        // Get organization details for SSH username
-        const [organization] = await db.select().from(organizations)
-          .where(eq(organizations.id, organizationId));
+        const gitSessionId = `vm-git-${vm.id}-${Date.now()}`;
 
-        if (!organization || !organization.gcpEmail) {
-          throw new Error('Organization does not have Google Cloud credentials configured');
-        }
-
-        // Generate username from organization's Google Cloud email
-        const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-
-        // Create a session ID for tracking
-        const sessionId = `vm-creation-${vm.id}-${Date.now()}`;
-
-        // Execute the complete init script via SSH
-        const executePromise = executeScriptViaSSH({
+        vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting GitHub Repository Setup ===\n');
+        
+        const gitResult = await executeScriptViaSSH({
           projectId: body.gcpProjectId,
           zone: body.zone,
           instanceName: gcpInstance.id,
           username,
-          script: completeInitScript,
-          timeout: 600000, // 10 minutes timeout for setup scripts
+          script: repoSetupScript,
+          timeout: 300000, // 5 minutes timeout for git operations
           accessToken,
           vmId: vm.id,
           organizationId,
           userId,
           githubSSHKey: false, // Don't add GitHub SSH key, script will generate its own
-          sessionId,
+          sessionId: gitSessionId,
           onOutput: (type: 'stdout' | 'stderr', data: string) => {
             // Stream output to progress tracker
             vmCreationProgress.reportScriptOutput(trackingId, type, data);
           },
         });
 
-        const result = await executePromise;
-
-        if (result.exitCode !== 0) {
-          throw new Error(`Script execution failed with exit code ${result.exitCode}: ${result.stderr}`);
+        if (gitResult.exitCode !== 0) {
+          vmCreationProgress.reportError(
+            trackingId,
+            `GitHub repository setup failed with exit code ${gitResult.exitCode}`
+          );
+          vmCreationProgress.reportScriptOutput(trackingId, 'stderr', `\nRepository setup failed: ${gitResult.stderr}\n`);
+        } else {
+          vmCreationProgress.reportInstalling(
+            trackingId,
+            'GitHub repository setup completed successfully!'
+          );
+          vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== GitHub Repository Setup Completed Successfully ===\n');
         }
-
-        vmCreationProgress.reportInstalling(
-          trackingId,
-          'Setup scripts completed successfully!'
-        );
       } catch (error) {
-        console.error('Failed to execute setup scripts:', error);
+        console.error('Failed to execute GitHub setup script:', error);
         vmCreationProgress.reportError(
           trackingId, 
-          `Failed to execute setup scripts: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to setup GitHub repository: ${error instanceof Error ? error.message : String(error)}`
         );
-        // Don't fail the entire VM creation, just report the error
+        vmCreationProgress.reportScriptOutput(trackingId, 'stderr', `\nError: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
+    }
+
+    // Execute user boot script if provided
+    if (userBootScript) {
+      vmCreationProgress.reportInstalling(
+        trackingId, 
+        'Executing user boot script...',
+        'Running custom setup commands'
+      );
+
+      try {
+        const bootSessionId = `vm-boot-${vm.id}-${Date.now()}`;
+
+        vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting User Boot Script ===\n');
+        
+        const bootResult = await executeScriptViaSSH({
+          projectId: body.gcpProjectId,
+          zone: body.zone,
+          instanceName: gcpInstance.id,
+          username,
+          script: userBootScript,
+          timeout: 600000, // 10 minutes timeout for user scripts
+          accessToken,
+          vmId: vm.id,
+          organizationId,
+          userId,
+          githubSSHKey: false,
+          sessionId: bootSessionId,
+          onOutput: (type: 'stdout' | 'stderr', data: string) => {
+            // Stream output to progress tracker
+            vmCreationProgress.reportScriptOutput(trackingId, type, data);
+          },
+        });
+
+        if (bootResult.exitCode !== 0) {
+          vmCreationProgress.reportError(
+            trackingId,
+            `User boot script failed with exit code ${bootResult.exitCode}`
+          );
+          vmCreationProgress.reportScriptOutput(trackingId, 'stderr', `\nBoot script failed: ${bootResult.stderr}\n`);
+        } else {
+          vmCreationProgress.reportInstalling(
+            trackingId,
+            'User boot script completed successfully!'
+          );
+          vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== User Boot Script Completed Successfully ===\n');
+        }
+      } catch (error) {
+        console.error('Failed to execute user boot script:', error);
+        vmCreationProgress.reportError(
+          trackingId, 
+          `Failed to execute user boot script: ${error instanceof Error ? error.message : String(error)}`
+        );
+        vmCreationProgress.reportScriptOutput(trackingId, 'stderr', `\nError: ${error instanceof Error ? error.message : String(error)}\n`);
       }
     }
 
