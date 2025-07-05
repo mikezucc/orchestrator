@@ -130,7 +130,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     } else {
       setPlayerX(200);
       setCubes([]);
-      setGameSpeed(5);
+      setGameSpeed(2); // Match the slower starting speed
     }
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -143,7 +143,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
     setGameOver(false);
     setGameScore(0);
     setPlayerX(200);
-    setGameSpeed(5);
+    setGameSpeed(2); // Start with much slower speed
     // Start with no cubes for a grace period
     setCubes([]);
   };
@@ -251,8 +251,8 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         return newX;
       });
 
-      // Update game speed (gradually increases, but slower)
-      setGameSpeed(prev => Math.min(prev + 0.002, 15));
+      // Update game speed (very gradual increase)
+      setGameSpeed(prev => Math.min(prev + 0.0005, 8)); // Much slower speed and lower max
 
       // Update cubes
       setCubes(prevCubes => {
@@ -267,17 +267,18 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         // Add new cubes with better spacing
         // Only start adding cubes after 2 seconds (score > 120)
         if (gameScore > 120) {
-          // Add cubes less frequently and with more spacing
-          const minSpacing = 120; // Minimum distance between cubes
+          // Much less frequent cube spawning
+          const minSpacing = 200; // Increased minimum distance between cubes
           const lastZ = newCubes.length > 0 ? Math.max(...newCubes.map(c => c.z)) : 400;
           
-          if (newCubes.length < 8 && (newCubes.length === 0 || lastZ < 500)) {
-            // Add 1-2 cubes at a time with spacing
-            const numToAdd = Math.random() > 0.7 ? 2 : 1;
-            for (let i = 0; i < numToAdd; i++) {
+          // Reduced max cubes from 8 to 4, and only spawn occasionally
+          if (newCubes.length < 4 && (newCubes.length === 0 || lastZ < 500)) {
+            // Only add cubes 20% of the time when conditions are met
+            if (Math.random() < 0.2) {
+              // Add just 1 cube at a time
               newCubes.push({
                 x: 50 + Math.random() * 300, // Keep cubes more centered
-                z: lastZ + minSpacing + (i * 50) + Math.random() * 50,
+                z: lastZ + minSpacing + Math.random() * 100,
                 lane: Math.floor(Math.random() * 5)
               });
             }
@@ -370,12 +371,13 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-      // Draw horizon line
+      // Draw horizon line (moved higher up)
+      const horizonY = GAME_HEIGHT * 0.3; // Changed from 0.6 to 0.3
       ctx.strokeStyle = '#0066cc';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(0, GAME_HEIGHT * 0.6);
-      ctx.lineTo(GAME_WIDTH, GAME_HEIGHT * 0.6);
+      ctx.moveTo(0, horizonY);
+      ctx.lineTo(GAME_WIDTH, horizonY);
       ctx.stroke();
 
       // Draw perspective grid lines
@@ -384,7 +386,7 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
       for (let i = 0; i < 5; i++) {
         const x = (i + 1) * GAME_WIDTH / 6;
         ctx.beginPath();
-        ctx.moveTo(GAME_WIDTH / 2, GAME_HEIGHT * 0.6);
+        ctx.moveTo(GAME_WIDTH / 2, horizonY);
         ctx.lineTo(x, GAME_HEIGHT);
         ctx.stroke();
       }
@@ -397,7 +399,9 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
         if (cube.z > 0 && cube.z < 500) {
           const perspective = 200 / (cube.z + 200);
           const screenX = GAME_WIDTH / 2 + (cube.x - GAME_WIDTH / 2) * perspective;
-          const screenY = GAME_HEIGHT * 0.6 + (GAME_HEIGHT * 0.4) * (1 - perspective);
+          // Fixed: Cubes start at horizon (0.3) and move DOWN towards player at bottom
+          const horizonY = GAME_HEIGHT * 0.3;
+          const screenY = horizonY + (GAME_HEIGHT - horizonY) * (1 - (cube.z / 500));
           const size = 40 * perspective;
           
           // Create gradient for cube faces
