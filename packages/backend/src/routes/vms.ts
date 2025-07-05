@@ -143,10 +143,6 @@ vmRoutes.post('/', async (c) => {
     // Report initial progress
     vmCreationProgress.reportPreparing(trackingId, 'Validating request and preparing resources...');
     
-    // Initialize script variables
-    let repoSetupScript = '';
-    let completeInitScript = '';
-    
     // Get organization access token
     const accessToken = await getOrganizationAccessToken(organizationId);
     if (!accessToken) {
@@ -154,82 +150,7 @@ vmRoutes.post('/', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'Failed to authenticate with Google Cloud' }, 401);
     }
 
-    // If GitHub repository is provided, create the repository setup script
-    if (body.githubRepository) {
-      vmCreationProgress.reportPreparing(trackingId, 'Preparing GitHub repository configuration...');
-      // Get user's GitHub info
-      const [authUser] = await db
-        .select({ 
-          githubUsername: authUsers.githubUsername,
-          githubEmail: authUsers.githubEmail
-        })
-        .from(authUsers)
-        .where(eq(authUsers.id, userId.toString()))
-        .limit(1);
-
-      const githubUsername = authUser?.githubUsername || 'DevBox User';
-      const githubEmail = authUser?.githubEmail || 'devbox@example.com';
-
-      // Create the repository setup script
-      repoSetupScript = `#!/bin/bash
-set -e
-
-echo "=== DevBox VM Setup with GitHub Repository ==="
-echo
-
-# Set up Git configuration
-git config --global user.email "${githubEmail}"
-git config --global user.name "${githubUsername}"
-
-# Generate SSH key for GitHub
-mkdir -p ~/.ssh
-ssh-keygen -t ed25519 -f ~/.ssh/github_devbox -N "" -C "devbox-vm-${body.name}"
-
-# Add SSH key to SSH agent
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/github_devbox
-
-# Configure SSH for GitHub
-cat > ~/.ssh/config << 'EOF'
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/github_devbox
-  StrictHostKeyChecking no
-EOF
-
-chmod 600 ~/.ssh/config
-
-# Display the public key for manual addition to GitHub
-echo
-echo "=== GitHub SSH Key ==="
-echo "Add this SSH key to your GitHub account:"
-echo
-cat ~/.ssh/github_devbox.pub
-echo
-echo "=== End of SSH Key ==="
-echo
-
-# Clone the repository
-echo "Cloning repository: ${body.githubRepository.full_name}"
-cd ~
-git clone ${body.githubRepository.ssh_url}
-
-# Enter the repository directory
-cd $(basename "${body.githubRepository.ssh_url}" .git)
-
-echo
-echo "=== Repository Setup Complete ==="
-echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
-`;
-    }
-
-    // Combine repository setup script with user boot script
-    if (body.githubRepository) {
-      completeInitScript = repoSetupScript;
-    } else if (userBootScript) {
-      completeInitScript = userBootScript;
-    }
+    // We'll handle GitHub repository setup after VM is ready via SSH
 
     // Report creating VM
     vmCreationProgress.reportCreating(trackingId, 'Creating VM instance in Google Cloud...');
@@ -254,7 +175,7 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
       zone: body.zone,
       machineType: body.machineType,
       status: 'pending',
-      initScript: completeInitScript,
+      initScript: '', // We execute scripts via SSH instead
       gcpInstanceId: gcpInstance.id,
     }).returning();
 
@@ -329,24 +250,81 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
     }
 
     // Execute GitHub repository setup script if needed
-    if (body.githubRepository && repoSetupScript) {
+    if (body.githubRepository) {
       vmCreationProgress.reportInstalling(
         trackingId, 
-        'Setting up GitHub repository...',
-        `Cloning ${body.githubRepository.full_name}`
+        'Setting up GitHub SSH access...',
+        'Generating SSH keys for GitHub'
       );
 
       try {
-        const gitSessionId = `vm-git-${vm.id}-${Date.now()}`;
+        // Get user's GitHub info for the SSH setup
+        const [authUser] = await db
+          .select({ 
+            githubUsername: authUsers.githubUsername,
+            githubEmail: authUsers.githubEmail
+          })
+          .from(authUsers)
+          .where(eq(authUsers.id, userId.toString()))
+          .limit(1);
 
-        vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting GitHub Repository Setup ===\n');
+        const githubUsername = authUser?.githubUsername || 'DevBox User';
+        const githubEmail = authUser?.githubEmail || 'devbox@example.com';
+
+        // First, generate SSH keys and get the public key
+        const sshKeyGenScript = `#!/bin/bash
+set -e
+
+echo "=== Setting up SSH for GitHub ==="
+echo
+
+# Set up Git configuration
+git config --global user.email "${githubEmail}"
+git config --global user.name "${githubUsername}"
+
+# Generate SSH key for GitHub
+mkdir -p ~/.ssh
+ssh-keygen -t ed25519 -f ~/.ssh/github_devbox -N "" -C "devbox-vm-${body.name}"
+
+# Add SSH key to SSH agent
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/github_devbox
+
+# Configure SSH for GitHub
+cat > ~/.ssh/config << 'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/github_devbox
+  StrictHostKeyChecking no
+EOF
+
+chmod 600 ~/.ssh/config
+
+# Display the public key
+echo
+echo "=== GitHub SSH Key ==="
+echo "Add this SSH key to your GitHub account:"
+echo
+cat ~/.ssh/github_devbox.pub
+echo
+echo "=== End of SSH Key ==="
+echo
+`;
+
+        const gitSessionId = `vm-git-${vm.id}-${Date.now()}`;
+        vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting GitHub SSH Setup ===\n');
+        
+        // Variable to capture the SSH public key
+        let capturedSSHKey = '';
+        let isCapturingKey = false;
         
         const gitResult = await executeScriptViaSSH({
           projectId: body.gcpProjectId,
           zone: body.zone,
           instanceName: gcpInstance.id,
           username,
-          script: repoSetupScript,
+          script: sshKeyGenScript,
           timeout: 300000, // 5 minutes timeout for git operations
           accessToken,
           vmId: vm.id,
@@ -357,6 +335,27 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
           onOutput: (type: 'stdout' | 'stderr', data: string) => {
             // Stream output to progress tracker
             vmCreationProgress.reportScriptOutput(trackingId, type, data);
+            
+            // Capture SSH key from output
+            if (type === 'stdout') {
+              if (data.includes('=== GitHub SSH Key ===')) {
+                isCapturingKey = true;
+                capturedSSHKey = ''; // Reset in case of multiple runs
+              } else if (data.includes('=== End of SSH Key ===')) {
+                isCapturingKey = false;
+              } else if (isCapturingKey) {
+                // Accumulate the key data, removing any prompts or extra text
+                const lines = data.split('\n');
+                for (const line of lines) {
+                  const trimmedLine = line.trim();
+                  // SSH keys start with ssh- or ecdsa- or similar
+                  if (trimmedLine.startsWith('ssh-') || trimmedLine.startsWith('ecdsa-') || 
+                      trimmedLine.startsWith('ed25519-') || trimmedLine.includes('ssh-ed25519')) {
+                    capturedSSHKey = trimmedLine;
+                  }
+                }
+              }
+            }
           },
         });
 
@@ -371,7 +370,110 @@ echo "Repository cloned to: ~/$(basename "${body.githubRepository.ssh_url}" .git
             trackingId,
             'GitHub repository setup completed successfully!'
           );
-          vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== GitHub Repository Setup Completed Successfully ===\n');
+          vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== SSH Key Generated Successfully ===\n');
+          
+          // Add SSH key to user's GitHub account if we captured it
+          if (capturedSSHKey && userId) {
+            try {
+              vmCreationProgress.reportInstalling(trackingId, 'Adding SSH key to GitHub account...');
+              
+              const githubAPI = new GitHubAPIService();
+              const keyTitle = `DevBox VM: ${body.name} (${new Date().toISOString().split('T')[0]})`;
+              
+              const addedKey = await githubAPI.addSSHKey(parseInt(userId), keyTitle, capturedSSHKey);
+              
+              if (addedKey) {
+                vmCreationProgress.reportInstalling(
+                  trackingId,
+                  'SSH key added to GitHub account successfully!'
+                );
+                vmCreationProgress.reportScriptOutput(
+                  trackingId, 
+                  'stdout', 
+                  `\n✓ SSH key automatically added to your GitHub account as "${keyTitle}"\n`
+                );
+                
+                // Now clone the repository
+                vmCreationProgress.reportInstalling(
+                  trackingId,
+                  'Cloning repository...',
+                  `Cloning ${body.githubRepository.full_name}`
+                );
+                
+                const cloneScript = `#!/bin/bash
+set -e
+
+echo
+echo "=== Cloning Repository ==="
+echo "Repository: ${body.githubRepository.full_name}"
+cd ~
+
+# Clone the repository
+git clone ${body.githubRepository.ssh_url}
+
+# Enter the repository directory
+cd $(basename "${body.githubRepository.ssh_url}" .git)
+
+echo
+echo "=== Repository Cloned Successfully ==="
+echo "Location: ~/$(basename "${body.githubRepository.ssh_url}" .git)"
+pwd
+`;
+
+                const cloneSessionId = `vm-clone-${vm.id}-${Date.now()}`;
+                vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting Repository Clone ===\n');
+                
+                const cloneResult = await executeScriptViaSSH({
+                  projectId: body.gcpProjectId,
+                  zone: body.zone,
+                  instanceName: gcpInstance.id,
+                  username,
+                  script: cloneScript,
+                  timeout: 300000, // 5 minutes timeout for clone
+                  accessToken,
+                  vmId: vm.id,
+                  organizationId,
+                  userId,
+                  githubSSHKey: false,
+                  sessionId: cloneSessionId,
+                  onOutput: (type: 'stdout' | 'stderr', data: string) => {
+                    vmCreationProgress.reportScriptOutput(trackingId, type, data);
+                  },
+                });
+                
+                if (cloneResult.exitCode !== 0) {
+                  vmCreationProgress.reportError(
+                    trackingId,
+                    `Repository clone failed with exit code ${cloneResult.exitCode}`
+                  );
+                  vmCreationProgress.reportScriptOutput(trackingId, 'stderr', `\nClone failed: ${cloneResult.stderr}\n`);
+                } else {
+                  vmCreationProgress.reportInstalling(
+                    trackingId,
+                    'Repository cloned successfully!'
+                  );
+                }
+              } else {
+                vmCreationProgress.reportScriptOutput(
+                  trackingId, 
+                  'stderr', 
+                  '\n⚠ Failed to add SSH key to GitHub account. You may need to add it manually.\n'
+                );
+              }
+            } catch (error) {
+              console.error('Failed to add SSH key to GitHub:', error);
+              vmCreationProgress.reportScriptOutput(
+                trackingId, 
+                'stderr', 
+                `\n⚠ Could not add SSH key to GitHub: ${error instanceof Error ? error.message : String(error)}\n`
+              );
+              vmCreationProgress.reportScriptOutput(
+                trackingId, 
+                'stdout', 
+                `\nPlease add the following SSH key to your GitHub account manually:\n${capturedSSHKey}\n`
+              );
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to execute GitHub setup script:', error);
