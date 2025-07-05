@@ -36,7 +36,7 @@ githubAuthRoutes.get('/connect-url', flexibleAuth, async (c) => {
   const authUrl = new URL('https://github.com/login/oauth/authorize');
   authUrl.searchParams.set('client_id', GITHUB_CLIENT_ID);
   authUrl.searchParams.set('redirect_uri', GITHUB_REDIRECT_URI);
-  authUrl.searchParams.set('scope', 'read:user user:email read:public_key write:public_key');
+  authUrl.searchParams.set('scope', 'read:user user:email read:public_key write:public_key repo');
   authUrl.searchParams.set('state', state);
 
   return c.json({ success: true, url: authUrl.toString() });

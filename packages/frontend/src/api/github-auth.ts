@@ -7,6 +7,30 @@ export interface GitHubStatus {
   email?: string;
 }
 
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  html_url: string;
+  ssh_url: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+  updated_at: string;
+}
+
+export interface ReposResponse {
+  success: boolean;
+  repositories: GitHubRepo[];
+  pagination: {
+    page: number;
+    perPage: number;
+    total: number;
+    hasMore: boolean;
+  };
+}
+
 export const githubAuthApi = {
   // Get current GitHub connection status
   getStatus: async (): Promise<GitHubStatus> => {
@@ -33,5 +57,17 @@ export const githubAuthApi = {
   // Disconnect GitHub account
   disconnect: async (): Promise<void> => {
     await fetchClient.delete('/github-auth/disconnect');
+  },
+  
+  // Get user's GitHub repositories
+  getRepositories: async (page: number = 1, perPage: number = 30, search?: string): Promise<ReposResponse> => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      ...(search && { q: search }),
+    });
+    
+    const response = await fetchClient.get(`/github-auth/repos?${params}`);
+    return response;
   },
 };

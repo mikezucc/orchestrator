@@ -2,26 +2,13 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { organizationApi } from '../api/organizations';
-import { githubAuthApi } from '../api/github-auth';
+import { githubAuthApi, type GitHubRepo } from '../api/github-auth';
 import type { CreateVMRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
 
 interface CreateVMWithRepoModalProps {
   onClose: () => void;
   onSuccess: () => void;
-}
-
-interface GitHubRepo {
-  id: number;
-  name: string;
-  full_name: string;
-  private: boolean;
-  html_url: string;
-  ssh_url: string;
-  description: string | null;
-  language: string | null;
-  stargazers_count: number;
-  updated_at: string;
 }
 
 export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWithRepoModalProps) {
@@ -51,63 +38,43 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   const [userStartupScript, setUserStartupScript] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [repoPage, setRepoPage] = useState(1);
-  const [hasMoreRepos, setHasMoreRepos] = useState(true);
 
-  // Fetch GitHub repositories
-  const fetchRepositories = async (page: number = 1, search: string = '') => {
-    if (!githubStatus?.connected) return;
-    
-    setLoadingRepos(true);
-    try {
-      const response = await fetch(`/api/github-auth/repos?page=${page}&per_page=30${search ? `&q=${encodeURIComponent(search)}` : ''}`, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch repositories');
-      
-      const data = await response.json();
-      
-      if (page === 1) {
-        setRepos(data.repositories || []);
-      } else {
-        setRepos(prev => [...prev, ...(data.repositories || [])]);
-      }
-      
-      setHasMoreRepos(data.hasMore || false);
-    } catch (error) {
-      console.error('Failed to fetch repositories:', error);
-      showError('Failed to load GitHub repositories');
-    } finally {
-      setLoadingRepos(false);
-    }
-  };
-
-  useEffect(() => {
-    if (githubStatus?.connected) {
-      fetchRepositories(1);
-    }
-  }, [githubStatus?.connected]);
-
-  // Debounced search
+  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (githubStatus?.connected) {
-        setRepoPage(1);
-        fetchRepositories(1, searchQuery);
-      }
+      setDebouncedSearchQuery(searchQuery);
+      setRepoPage(1); // Reset to first page on search
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, githubStatus?.connected]);
+  }, [searchQuery]);
+
+  // Fetch GitHub repositories using useQuery
+  const { data: reposData, isLoading: loadingRepos, isFetchingNextPage } = useQuery({
+    queryKey: ['github-repos', debouncedSearchQuery, repoPage],
+    queryFn: () => githubAuthApi.getRepositories(repoPage, 30, debouncedSearchQuery || undefined),
+    enabled: !!githubStatus?.connected,
+    keepPreviousData: true, // Keep previous data while loading new page
+  });
+
+  // Accumulate repos for pagination
+  const [allRepos, setAllRepos] = useState<GitHubRepo[]>([]);
+  
+  useEffect(() => {
+    if (reposData?.repositories) {
+      if (repoPage === 1) {
+        setAllRepos(reposData.repositories);
+      } else {
+        setAllRepos(prev => [...prev, ...reposData.repositories]);
+      }
+    }
+  }, [reposData, repoPage]);
 
   const loadMoreRepos = () => {
-    if (!loadingRepos && hasMoreRepos) {
-      const nextPage = repoPage + 1;
-      setRepoPage(nextPage);
-      fetchRepositories(nextPage, searchQuery);
+    if (!loadingRepos && !isFetchingNextPage && reposData?.pagination?.hasMore) {
+      setRepoPage(prev => prev + 1);
     }
   };
 
@@ -279,17 +246,17 @@ echo "Repository to clone: ${selectedRepo.full_name}"
 
               {/* Repository List */}
               <div className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg max-h-64 overflow-y-auto">
-                {loadingRepos && repos.length === 0 ? (
+                {loadingRepos && allRepos.length === 0 ? (
                   <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
                     Loading repositories...
                   </div>
-                ) : repos.length === 0 ? (
+                ) : allRepos.length === 0 ? (
                   <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
                     No repositories found
                   </div>
                 ) : (
                   <>
-                    {repos.map((repo) => (
+                    {allRepos.map((repo) => (
                       <div
                         key={repo.id}
                         onClick={() => setSelectedRepo(repo)}
@@ -335,14 +302,14 @@ echo "Repository to clone: ${selectedRepo.full_name}"
                       </div>
                     ))}
                     
-                    {hasMoreRepos && (
+                    {reposData?.pagination?.hasMore && (
                       <button
                         type="button"
                         onClick={loadMoreRepos}
-                        disabled={loadingRepos}
+                        disabled={loadingRepos || isFetchingNextPage}
                         className="w-full p-3 text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
                       >
-                        {loadingRepos ? 'Loading...' : 'Load more repositories'}
+                        {loadingRepos || isFetchingNextPage ? 'Loading...' : 'Load more repositories'}
                       </button>
                     )}
                   </>

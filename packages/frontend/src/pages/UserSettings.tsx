@@ -182,7 +182,12 @@ export default function UserSettings() {
                 <li>Access to private GitHub repositories from VMs</li>
                 <li>Seamless Git operations without manual SSH setup</li>
                 <li>Temporary SSH keys that are cleaned up after use</li>
+                <li>Create VMs with GitHub repositories pre-cloned</li>
+                <li>List and manage your GitHub repositories</li>
               </ul>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-3">
+                <strong>Permissions granted:</strong> Profile, Email, SSH Keys, Full Repository Access
+              </p>
             </div>
           </div>
         ) : (
@@ -198,7 +203,7 @@ export default function UserSettings() {
                       GitHub Not Connected
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Connect to enable SSH authentication
+                      Connect to enable repository access and SSH authentication
                     </p>
                   </div>
                 </div>
@@ -216,14 +221,25 @@ export default function UserSettings() {
                 </button>
               </div>
             </div>
-            <p className="text-sm text-te-gray-600 dark:text-te-gray-400">
-              Connect your GitHub account to:
-            </p>
-            <ul className="text-sm text-te-gray-600 dark:text-te-gray-400 space-y-1 list-disc list-inside ml-2">
-              <li>Enable SSH authentication for private repositories</li>
-              <li>Automatically manage SSH keys for GitHub access</li>
-              <li>Execute scripts that interact with private repos</li>
-            </ul>
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-te-gray-600 dark:text-te-gray-400 mb-2">
+                  Connect your GitHub account to:
+                </p>
+                <ul className="text-sm text-te-gray-600 dark:text-te-gray-400 space-y-1 list-disc list-inside ml-2">
+                  <li>Create VMs with GitHub repositories pre-cloned</li>
+                  <li>Access and list all your repositories (public & private)</li>
+                  <li>Enable SSH authentication for private repositories</li>
+                  <li>Automatically manage SSH keys for GitHub access</li>
+                  <li>Execute scripts that interact with private repos</li>
+                </ul>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-3">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  <strong>Permissions requested:</strong> We'll request access to your profile, email, SSH keys, and full repository access. You can revoke these permissions at any time.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
