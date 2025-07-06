@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { scriptsApi } from '../api/scripts';
 import type { Script, CreateScriptRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface ScriptLibraryModalProps {
   onClose: () => void;
@@ -205,9 +207,20 @@ export default function ScriptLibraryModal({
               {selectedScript && (
                 <div className="mt-6 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
                   <h4 className="font-semibold text-sm mb-2">Script Preview</h4>
-                  <pre className="text-xs font-mono bg-white dark:bg-te-gray-800 p-3 rounded overflow-x-auto max-h-64">
-                    {selectedScript.scriptContent}
-                  </pre>
+                  <div className="rounded overflow-hidden">
+                    <SyntaxHighlighter
+                      language="bash"
+                      style={oneDark}
+                      customStyle={{
+                        margin: 0,
+                        fontSize: '0.75rem',
+                        maxHeight: '16rem',
+                        overflow: 'auto'
+                      }}
+                    >
+                      {selectedScript.scriptContent}
+                    </SyntaxHighlighter>
+                  </div>
                   {selectedScript.createdBy === (window as any).userId && (
                     <button
                       onClick={() => {
@@ -257,14 +270,31 @@ export default function ScriptLibraryModal({
                 <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                   Script Content *
                 </label>
-                <textarea
-                  value={newScript.scriptContent}
-                  onChange={(e) => setNewScript({ ...newScript, scriptContent: e.target.value })}
-                  className="w-full font-mono text-xs"
-                  rows={15}
-                  placeholder="#!/bin/bash\n# Your script here..."
-                  spellCheck={false}
-                />
+                <div className="relative">
+                  <textarea
+                    value={newScript.scriptContent}
+                    onChange={(e) => setNewScript({ ...newScript, scriptContent: e.target.value })}
+                    className="w-full font-mono text-xs absolute inset-0 bg-transparent text-transparent caret-white"
+                    rows={15}
+                    placeholder="#!/bin/bash\n# Your script here..."
+                    spellCheck={false}
+                    style={{ caretColor: 'white' }}
+                  />
+                  <div className="rounded overflow-hidden pointer-events-none">
+                    <SyntaxHighlighter
+                      language="bash"
+                      style={oneDark}
+                      customStyle={{
+                        margin: 0,
+                        fontSize: '0.75rem',
+                        minHeight: '22.5rem',
+                        padding: '0.75rem',
+                      }}
+                    >
+                      {newScript.scriptContent || '#!/bin/bash\n# Your script here...'}
+                    </SyntaxHighlighter>
+                  </div>
+                </div>
               </div>
 
               <div>
