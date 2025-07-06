@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { authUsers, sessions, organizationMembers } from '../db/schema-auth.js';
 import { generateOTP, storeOTP, verifyOTP } from '../services/otp.js';
@@ -7,6 +7,7 @@ import { emailService } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
 import jwt from 'jsonwebtoken';
 import { generateSessionToken } from '../utils/auth.js';
+import { MAX_USERS } from '../config/constants.js';
 
 const authOTP = new Hono();
 
@@ -56,6 +57,17 @@ authOTP.post('/verify-otp', async (c) => {
     });
     
     if (!user) {
+      // Check if we've reached the maximum user limit
+      const [userCount] = await db
+        .select({ count: count() })
+        .from(authUsers);
+      
+      if (userCount.count >= MAX_USERS) {
+        return c.json({ 
+          error: 'Maximum user limit reached. No new registrations are being accepted at this time.' 
+        }, 403);
+      }
+      
       // Create new user
       const [newUser] = await db.insert(authUsers).values({
         email,

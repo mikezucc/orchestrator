@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { authUsers, organizations, organizationMembers, sessions, auditLogs } from '../db/schema-auth.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import { 
   generateTOTPSecret, 
   generateQRCode, 
@@ -13,6 +13,7 @@ import {
 } from '../utils/auth.js';
 import { emailService } from '../services/email.js';
 import { createId } from '@paralleldrive/cuid2';
+import { MAX_USERS } from '../config/constants.js';
 
 export const authRoutes = new Hono();
 
@@ -40,6 +41,18 @@ authRoutes.post('/signup', async (c) => {
         success: false, 
         error: 'User with this email already exists' 
       }, 400);
+    }
+
+    // Check if we've reached the maximum user limit
+    const [userCount] = await db
+      .select({ count: count() })
+      .from(authUsers);
+    
+    if (userCount.count >= MAX_USERS) {
+      return c.json({ 
+        success: false, 
+        error: 'Maximum user limit reached. No new registrations are being accepted at this time.' 
+      }, 403);
     }
 
     // Create user with unverified email
