@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../db/index.js';
-import { virtualMachines } from '../db/schema.js';
+import { virtualMachines, firewallRules, portDescriptions } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 
 const compute = google.compute('v1');
@@ -189,9 +189,45 @@ export async function syncOrganizationVMsFromProjects(organizationId: string, ac
       }
     }
 
-    console.log(`Sync complete for organization ${organizationId}: synced ${syncedCount} VMs, found ${allInstances.length} total instances`);
+    // Delete VMs that no longer exist in GCP
+    const gcpInstanceIds = allInstances.map(({ instance }) => instance.id);
     
-    return { synced: syncedCount, errors };
+    // Get all VMs for this organization
+    const existingVMs = await db.select()
+      .from(virtualMachines)
+      .where(eq(virtualMachines.organizationId, organizationId));
+    
+    // Find VMs that exist in database but not in GCP
+    const vmsToDelete = existingVMs.filter(vm => 
+      vm.gcpInstanceId && !gcpInstanceIds.includes(vm.gcpInstanceId)
+    );
+    
+    // Delete orphaned VMs and their related data
+    let deletedCount = 0;
+    for (const vm of vmsToDelete) {
+      try {
+        // First delete related firewall rules
+        await db.delete(firewallRules)
+          .where(eq(firewallRules.vmId, vm.id));
+        
+        // Then delete related port descriptions
+        await db.delete(portDescriptions)
+          .where(eq(portDescriptions.vmId, vm.id));
+        
+        // Finally delete the VM itself
+        await db.delete(virtualMachines)
+          .where(eq(virtualMachines.id, vm.id));
+        
+        deletedCount++;
+        console.log(`Deleted VM ${vm.name} (${vm.id}) and its related data as it no longer exists in GCP`);
+      } catch (deleteError) {
+        errors.push(`Failed to delete orphaned VM ${vm.name}: ${deleteError}`);
+      }
+    }
+    
+    console.log(`Sync complete for organization ${organizationId}: synced ${syncedCount} VMs, deleted ${deletedCount} orphaned VMs, found ${allInstances.length} total instances`);
+    
+    return { synced: syncedCount, deleted: deletedCount, errors };
   } catch (error) {
     console.error('Failed to sync VMs:', error);
     throw error;

@@ -45,6 +45,7 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   const [selectedScript, setSelectedScript] = useState<string>('');
   const [showProgressTracker, setShowProgressTracker] = useState(false);
   const [trackingId, setTrackingId] = useState<string | null>(null);
+  const [showRepoList, setShowRepoList] = useState(true);
 
   // Premade scripts
   const premadeScripts = {
@@ -387,96 +388,122 @@ fi`
                 GitHub Repository
               </label>
               
-              {/* Search Input */}
-              <div className="relative mb-3">
-                <input
-                  type="text"
-                  placeholder="Search repositories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10"
-                />
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-te-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+              {selectedRepo && !showRepoList ? (
+                // Show selected repository as a dropdown button
+                <div 
+                  onClick={() => setShowRepoList(true)}
+                  className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-3 cursor-pointer hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-sm">{selectedRepo.name}</span>
+                        {selectedRepo.private && (
+                          <span className="text-2xs px-1.5 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded">
+                            Private
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-te-gray-600 dark:text-te-gray-400">
+                        {selectedRepo.full_name}
+                      </span>
+                    </div>
+                    <svg className="w-4 h-4 text-te-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Search Input */}
+                  <div className="relative mb-3">
+                    <input
+                      type="text"
+                      placeholder="Search repositories..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10"
+                    />
+                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-te-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
 
-              {/* Repository List */}
-              <div className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg max-h-64 overflow-y-auto">
-                {loadingRepos && allRepos.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
-                    Loading repositories...
-                  </div>
-                ) : allRepos.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
-                    No repositories found
-                  </div>
-                ) : (
-                  <>
-                    {allRepos.map((repo) => (
-                      <div
-                        key={repo.id}
-                        onClick={() => setSelectedRepo(repo)}
-                        className={`p-3 cursor-pointer hover:bg-te-gray-100 dark:hover:bg-te-gray-800 border-b border-te-gray-200 dark:border-te-gray-800 last:border-b-0 ${
-                          selectedRepo?.id === repo.id ? 'bg-te-gray-100 dark:bg-te-gray-800' : ''
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium text-sm">{repo.name}</span>
-                              {repo.private && (
-                                <span className="text-2xs px-1.5 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded">
-                                  Private
-                                </span>
+                  {/* Repository List */}
+                  <div className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg max-h-64 overflow-y-auto">
+                    {loadingRepos && allRepos.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
+                        Loading repositories...
+                      </div>
+                    ) : allRepos.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-te-gray-600 dark:text-te-gray-400">
+                        No repositories found
+                      </div>
+                    ) : (
+                      <>
+                        {allRepos.map((repo) => (
+                          <div
+                            key={repo.id}
+                            onClick={() => {
+                              setSelectedRepo(repo);
+                              setShowRepoList(false);
+                            }}
+                            className={`p-3 cursor-pointer hover:bg-te-gray-100 dark:hover:bg-te-gray-800 border-b border-te-gray-200 dark:border-te-gray-800 last:border-b-0 ${
+                              selectedRepo?.id === repo.id ? 'bg-te-gray-100 dark:bg-te-gray-800' : ''
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-sm">{repo.name}</span>
+                                  {repo.private && (
+                                    <span className="text-2xs px-1.5 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded">
+                                      Private
+                                    </span>
+                                  )}
+                                </div>
+                                {repo.description && (
+                                  <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1">
+                                    {repo.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center space-x-3 mt-1">
+                                  {repo.language && (
+                                    <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
+                                      {repo.language}
+                                    </span>
+                                  )}
+                                  <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
+                                    ⭐ {repo.stargazers_count}
+                                  </span>
+                                  <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
+                                    Updated {new Date(repo.updated_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                              {selectedRepo?.id === repo.id && (
+                                <svg className="w-5 h-5 text-te-yellow ml-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
                               )}
-                            </div>
-                            {repo.description && (
-                              <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1">
-                                {repo.description}
-                              </p>
-                            )}
-                            <div className="flex items-center space-x-3 mt-1">
-                              {repo.language && (
-                                <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
-                                  {repo.language}
-                                </span>
-                              )}
-                              <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
-                                ⭐ {repo.stargazers_count}
-                              </span>
-                              <span className="text-2xs text-te-gray-600 dark:text-te-gray-400">
-                                Updated {new Date(repo.updated_at).toLocaleDateString()}
-                              </span>
                             </div>
                           </div>
-                          {selectedRepo?.id === repo.id && (
-                            <svg className="w-5 h-5 text-te-yellow ml-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {reposData?.pagination?.hasMore && (
-                      <button
-                        type="button"
-                        onClick={loadMoreRepos}
-                        disabled={loadingRepos || isFetchingNextPage}
-                        className="w-full p-3 text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-                      >
-                        {loadingRepos || isFetchingNextPage ? 'Loading...' : 'Load more repositories'}
-                      </button>
+                        ))}
+                        
+                        {reposData?.pagination?.hasMore && (
+                          <button
+                            type="button"
+                            onClick={loadMoreRepos}
+                            disabled={loadingRepos || isFetchingNextPage}
+                            className="w-full p-3 text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
+                          >
+                            {loadingRepos || isFetchingNextPage ? 'Loading...' : 'Load more repositories'}
+                          </button>
+                        )}
+                      </>
                     )}
-                  </>
-                )}
-              </div>
-
-              {selectedRepo && (
-                <div className="mt-2 p-2 bg-te-gray-100 dark:bg-te-gray-800 rounded text-xs">
-                  Selected: <span className="font-medium">{selectedRepo.full_name}</span>
-                </div>
+                  </div>
+                </>
               )}
             </div>
 

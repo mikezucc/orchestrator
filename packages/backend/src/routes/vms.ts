@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
 import { organizations, authUsers } from '../db/schema-auth.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
 import { executeScriptViaSSH } from '../services/gcp-ssh-execute.js';
@@ -52,7 +52,7 @@ vmRoutes.get('/', async (c) => {
           accessToken, 
           organization.gcpProjectIds
         );
-        console.log(`Synced ${syncResult.synced} VMs for organization ${organizationId}`);
+        console.log(`Synced ${syncResult.synced} VMs and deleted ${syncResult.deleted || 0} orphaned VMs for organization ${organizationId}`);
         if (syncResult.errors.length > 0) {
           console.warn('Sync errors:', syncResult.errors);
           syncErrors = syncResult.errors;
@@ -70,11 +70,12 @@ vmRoutes.get('/', async (c) => {
     }
   }
 
-  // Get VMs for the organization
+  // Get VMs for the organization, sorted alphabetically by name
   const vms = await db
     .select()
     .from(virtualMachines)
-    .where(eq(virtualMachines.organizationId, organizationId));
+    .where(eq(virtualMachines.organizationId, organizationId))
+    .orderBy(asc(virtualMachines.name));
   
   console.log(`Found ${vms.length} VMs for organization ${organizationId}`);
   
