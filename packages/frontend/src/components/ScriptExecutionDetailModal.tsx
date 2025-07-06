@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { ScriptExecution } from '@gce-platform/types';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import Convert from 'ansi-to-html';
 
 SyntaxHighlighter.registerLanguage('bash', bash);
 
@@ -14,6 +15,22 @@ interface ScriptExecutionDetailModalProps {
 export default function ScriptExecutionDetailModal({ execution, onClose }: ScriptExecutionDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'output' | 'metadata'>('output');
   const [showFullScript, setShowFullScript] = useState(false);
+
+  // Helper function to clean ANSI sequences that ansi-to-html doesn't handle
+  const cleanAnsiOutput = (text: string): string => {
+    return text
+      // Remove bracketed paste mode sequences
+      .replace(/\x1b\[\?2004[lh]/g, '')
+      // Remove other problematic escape sequences
+      .replace(/\x1b\]0;[^\x07]*\x07/g, '') // Terminal title sequences
+      .replace(/\x1b\[\?[\d;]*[a-zA-Z]/g, '') // Other mode sequences
+      .replace(/\x1b\[[\d;]*[Hf]/g, '') // Cursor positioning
+      .replace(/\x1b\[[\d;]*[ABCD]/g, '') // Cursor movement
+      .replace(/\x1b\[[\d;]*[su]/g, '') // Save/restore cursor
+      .replace(/\x1b\[\d*[JK]/g, '') // Clear screen/line
+      .replace(/\x1b\[=\d*[lh]/g, '') // Screen modes
+      .replace(/\x1b\[\?\d+[lh]/g, ''); // Private mode sequences
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -163,9 +180,22 @@ export default function ScriptExecutionDetailModal({ execution, onClose }: Scrip
               
               {execution.logOutput ? (
                 <div className="bg-te-gray-900 dark:bg-black rounded-lg overflow-hidden">
-                  <pre className="p-4 text-xs text-green-400 font-mono whitespace-pre-wrap overflow-x-auto">
-                    {execution.logOutput}
-                  </pre>
+                  <pre 
+                    className="p-4 text-xs font-mono whitespace-pre-wrap overflow-x-auto"
+                    dangerouslySetInnerHTML={{
+                      __html: useMemo(() => {
+                        const convert = new Convert({
+                          fg: '#10b981',
+                          bg: '#111827',
+                          newline: true,
+                          escapeXML: true,
+                          stream: true
+                        });
+                        const cleanedOutput = cleanAnsiOutput(execution.logOutput);
+                        return convert.toHtml(cleanedOutput);
+                      }, [execution.logOutput])
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="text-center py-8 text-te-gray-500 dark:text-te-gray-400">
@@ -179,9 +209,22 @@ export default function ScriptExecutionDetailModal({ execution, onClose }: Scrip
                     Error Output
                   </h3>
                   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
-                    <pre className="p-4 text-xs text-red-600 dark:text-red-400 font-mono whitespace-pre-wrap overflow-x-auto">
-                      {execution.errorOutput}
-                    </pre>
+                    <pre 
+                      className="p-4 text-xs font-mono whitespace-pre-wrap overflow-x-auto"
+                      dangerouslySetInnerHTML={{
+                        __html: useMemo(() => {
+                          const convert = new Convert({
+                            fg: '#dc2626',
+                            bg: '#7f1d1d',
+                            newline: true,
+                            escapeXML: true,
+                            stream: true
+                          });
+                          const cleanedOutput = cleanAnsiOutput(execution.errorOutput);
+                          return convert.toHtml(cleanedOutput);
+                        }, [execution.errorOutput])
+                      }}
+                    />
                   </div>
                 </div>
               )}

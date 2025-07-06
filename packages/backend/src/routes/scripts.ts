@@ -100,6 +100,240 @@ scriptsRouter.get('/', async (c) => {
   }
 });
 
+// Get script execution history
+scriptsRouter.get('/executions', async (c) => {
+  try {
+    console.log('Fetching script executions');
+    const organizationId = (c as any).organizationId;
+    
+    // Parse query parameters
+    const query = c.req.query();
+    const filter: ScriptExecutionFilter = {
+      vmId: query.vmId,
+      scriptId: query.scriptId,
+      executedBy: query.executedBy,
+      status: query.status,
+      executionType: query.executionType,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      limit: query.limit ? parseInt(query.limit) : 50,
+      offset: query.offset ? parseInt(query.offset) : 0,
+    };
+
+    // Build where conditions
+    const conditions = [];
+    
+    // Filter by organizationId through VM relationship
+    if (organizationId) {
+      conditions.push(eq(virtualMachines.organizationId, organizationId));
+    }
+    
+    if (filter.vmId) {
+      conditions.push(eq(scriptExecutions.vmId, filter.vmId));
+    }
+    
+    if (filter.scriptId) {
+      conditions.push(eq(scriptExecutions.scriptId, filter.scriptId));
+    }
+    
+    if (filter.executedBy) {
+      conditions.push(eq(scriptExecutions.executedBy, filter.executedBy));
+    }
+    
+    if (filter.status) {
+      conditions.push(eq(scriptExecutions.status, filter.status as any));
+    }
+    
+    if (filter.executionType) {
+      conditions.push(eq(scriptExecutions.executionType, filter.executionType as any));
+    }
+    
+    if (filter.startDate) {
+      conditions.push(gte(scriptExecutions.startedAt, filter.startDate));
+    }
+    
+    if (filter.endDate) {
+      conditions.push(lte(scriptExecutions.startedAt, filter.endDate));
+    }
+
+    // Execute query
+    const executions = await db
+      .select({
+        execution: scriptExecutions,
+        executedByUser: {
+          email: authUsers.email,
+          name: authUsers.name,
+        },
+        vm: {
+          id: virtualMachines.id,
+          name: virtualMachines.name,
+        },
+        script: {
+          id: scripts.id,
+          name: scripts.name,
+        },
+      })
+      .from(scriptExecutions)
+      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
+      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
+      .leftJoin(scripts, eq(scriptExecutions.scriptId, scripts.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(scriptExecutions.startedAt))
+      .limit(filter.limit!)
+      .offset(filter.offset!);
+
+    // Format response
+    const formattedExecutions: ScriptExecution[] = executions.map(({ execution, executedByUser }) => ({
+      ...execution,
+      executedByUser,
+    }));
+
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: true,
+      data: formattedExecutions,
+    });
+  } catch (error) {
+    console.error('Error fetching script executions:', error);
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: false,
+      error: 'Failed to fetch script executions',
+    }, 500);
+  }
+});
+
+// Get executions for a specific script
+scriptsRouter.get('/:id/executions', async (c) => {
+  try {
+    const user = (c as any).user;
+    const organizationId = (c as any).organizationId;
+    const scriptId = c.req.param('id');
+    
+    // Verify script exists and user has access
+    const script = await db
+      .select()
+      .from(scripts)
+      .where(eq(scripts.id, scriptId))
+      .limit(1);
+      
+    if (script.length === 0) {
+      return c.json<ApiResponse<ScriptExecution[]>>({
+        success: false,
+        error: 'Script not found',
+      }, 404);
+    }
+
+    // Get executions
+    const executions = await db
+      .select({
+        execution: scriptExecutions,
+        executedByUser: {
+          email: authUsers.email,
+          name: authUsers.name,
+        },
+        vm: {
+          id: virtualMachines.id,
+          name: virtualMachines.name,
+        },
+      })
+      .from(scriptExecutions)
+      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
+      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
+      .where(
+        and(
+          eq(scriptExecutions.scriptId, scriptId),
+          organizationId ? eq(virtualMachines.organizationId, organizationId) : undefined
+        )
+      )
+      .orderBy(desc(scriptExecutions.startedAt))
+      .limit(50);
+
+    // Format response
+    const formattedExecutions: ScriptExecution[] = executions.map(({ execution, executedByUser }) => ({
+      ...execution,
+      executedByUser,
+    }));
+
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: true,
+      data: formattedExecutions,
+    });
+  } catch (error) {
+    console.error('Error fetching script executions:', error);
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: false,
+      error: 'Failed to fetch script executions',
+    }, 500);
+  }
+});
+
+// Get single execution details
+scriptsRouter.get('/executions/:id', async (c) => {
+  try {
+    const user = (c as any).user;
+    const organizationId = (c as any).organizationId;
+    const executionId = parseInt(c.req.param('id'));
+    
+    if (isNaN(executionId)) {
+      return c.json<ApiResponse<ScriptExecution>>({
+        success: false,
+        error: 'Invalid execution ID',
+      }, 400);
+    }
+
+    const result = await db
+      .select({
+        execution: scriptExecutions,
+        executedByUser: {
+          email: authUsers.email,
+          name: authUsers.name,
+        },
+        vm: {
+          id: virtualMachines.id,
+          name: virtualMachines.name,
+        },
+        script: {
+          id: scripts.id,
+          name: scripts.name,
+        },
+      })
+      .from(scriptExecutions)
+      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
+      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
+      .leftJoin(scripts, eq(scriptExecutions.scriptId, scripts.id))
+      .where(
+        and(
+          eq(scriptExecutions.id, executionId),
+          organizationId && result[0]?.vm ? eq(virtualMachines.organizationId, organizationId) : undefined
+        )
+      )
+      .limit(1);
+
+    if (result.length === 0) {
+      return c.json<ApiResponse<ScriptExecution>>({
+        success: false,
+        error: 'Script execution not found',
+      }, 404);
+    }
+
+    const { execution, executedByUser } = result[0];
+    const formattedExecution: ScriptExecution = {
+      ...execution,
+      executedByUser,
+    };
+
+    return c.json<ApiResponse<ScriptExecution>>({
+      success: true,
+      data: formattedExecution,
+    });
+  } catch (error) {
+    console.error('Error fetching script execution:', error);
+    return c.json<ApiResponse<ScriptExecution>>({
+      success: false,
+      error: 'Failed to fetch script execution',
+    }, 500);
+  }
+});
+
 // Get single script
 scriptsRouter.get('/:id', async (c) => {
   try {
@@ -467,240 +701,6 @@ scriptsRouter.delete('/:id/tags/:tag', async (c) => {
     return c.json<ApiResponse<{ message: string }>>({
       success: false,
       error: 'Failed to remove tag',
-    }, 500);
-  }
-});
-
-// Get script execution history
-scriptsRouter.get('/executions', async (c) => {
-  try {
-    console.log('Fetching script executions');
-    const organizationId = (c as any).organizationId;
-    
-    // Parse query parameters
-    const query = c.req.query();
-    const filter: ScriptExecutionFilter = {
-      vmId: query.vmId,
-      scriptId: query.scriptId,
-      executedBy: query.executedBy,
-      status: query.status,
-      executionType: query.executionType,
-      startDate: query.startDate ? new Date(query.startDate) : undefined,
-      endDate: query.endDate ? new Date(query.endDate) : undefined,
-      limit: query.limit ? parseInt(query.limit) : 50,
-      offset: query.offset ? parseInt(query.offset) : 0,
-    };
-
-    // Build where conditions
-    const conditions = [];
-    
-    // Filter by organizationId through VM relationship
-    if (organizationId) {
-      conditions.push(eq(virtualMachines.organizationId, organizationId));
-    }
-    
-    if (filter.vmId) {
-      conditions.push(eq(scriptExecutions.vmId, filter.vmId));
-    }
-    
-    if (filter.scriptId) {
-      conditions.push(eq(scriptExecutions.scriptId, filter.scriptId));
-    }
-    
-    if (filter.executedBy) {
-      conditions.push(eq(scriptExecutions.executedBy, filter.executedBy));
-    }
-    
-    if (filter.status) {
-      conditions.push(eq(scriptExecutions.status, filter.status as any));
-    }
-    
-    if (filter.executionType) {
-      conditions.push(eq(scriptExecutions.executionType, filter.executionType as any));
-    }
-    
-    if (filter.startDate) {
-      conditions.push(gte(scriptExecutions.startedAt, filter.startDate));
-    }
-    
-    if (filter.endDate) {
-      conditions.push(lte(scriptExecutions.startedAt, filter.endDate));
-    }
-
-    // Execute query
-    const executions = await db
-      .select({
-        execution: scriptExecutions,
-        executedByUser: {
-          email: authUsers.email,
-          name: authUsers.name,
-        },
-        vm: {
-          id: virtualMachines.id,
-          name: virtualMachines.name,
-        },
-        script: {
-          id: scripts.id,
-          name: scripts.name,
-        },
-      })
-      .from(scriptExecutions)
-      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
-      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
-      .leftJoin(scripts, eq(scriptExecutions.scriptId, scripts.id))
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(scriptExecutions.startedAt))
-      .limit(filter.limit!)
-      .offset(filter.offset!);
-
-    // Format response
-    const formattedExecutions: ScriptExecution[] = executions.map(({ execution, executedByUser }) => ({
-      ...execution,
-      executedByUser,
-    }));
-
-    return c.json<ApiResponse<ScriptExecution[]>>({
-      success: true,
-      data: formattedExecutions,
-    });
-  } catch (error) {
-    console.error('Error fetching script executions:', error);
-    return c.json<ApiResponse<ScriptExecution[]>>({
-      success: false,
-      error: 'Failed to fetch script executions',
-    }, 500);
-  }
-});
-
-// Get executions for a specific script
-scriptsRouter.get('/:id/executions', async (c) => {
-  try {
-    const user = (c as any).user;
-    const organizationId = (c as any).organizationId;
-    const scriptId = c.req.param('id');
-    
-    // Verify script exists and user has access
-    const script = await db
-      .select()
-      .from(scripts)
-      .where(eq(scripts.id, scriptId))
-      .limit(1);
-      
-    if (script.length === 0) {
-      return c.json<ApiResponse<ScriptExecution[]>>({
-        success: false,
-        error: 'Script not found',
-      }, 404);
-    }
-
-    // Get executions
-    const executions = await db
-      .select({
-        execution: scriptExecutions,
-        executedByUser: {
-          email: authUsers.email,
-          name: authUsers.name,
-        },
-        vm: {
-          id: virtualMachines.id,
-          name: virtualMachines.name,
-        },
-      })
-      .from(scriptExecutions)
-      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
-      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
-      .where(
-        and(
-          eq(scriptExecutions.scriptId, scriptId),
-          organizationId ? eq(virtualMachines.organizationId, organizationId) : undefined
-        )
-      )
-      .orderBy(desc(scriptExecutions.startedAt))
-      .limit(50);
-
-    // Format response
-    const formattedExecutions: ScriptExecution[] = executions.map(({ execution, executedByUser }) => ({
-      ...execution,
-      executedByUser,
-    }));
-
-    return c.json<ApiResponse<ScriptExecution[]>>({
-      success: true,
-      data: formattedExecutions,
-    });
-  } catch (error) {
-    console.error('Error fetching script executions:', error);
-    return c.json<ApiResponse<ScriptExecution[]>>({
-      success: false,
-      error: 'Failed to fetch script executions',
-    }, 500);
-  }
-});
-
-// Get single execution details
-scriptsRouter.get('/executions/:id', async (c) => {
-  try {
-    const user = (c as any).user;
-    const organizationId = (c as any).organizationId;
-    const executionId = parseInt(c.req.param('id'));
-    
-    if (isNaN(executionId)) {
-      return c.json<ApiResponse<ScriptExecution>>({
-        success: false,
-        error: 'Invalid execution ID',
-      }, 400);
-    }
-
-    const result = await db
-      .select({
-        execution: scriptExecutions,
-        executedByUser: {
-          email: authUsers.email,
-          name: authUsers.name,
-        },
-        vm: {
-          id: virtualMachines.id,
-          name: virtualMachines.name,
-        },
-        script: {
-          id: scripts.id,
-          name: scripts.name,
-        },
-      })
-      .from(scriptExecutions)
-      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
-      .leftJoin(virtualMachines, eq(scriptExecutions.vmId, virtualMachines.id))
-      .leftJoin(scripts, eq(scriptExecutions.scriptId, scripts.id))
-      .where(
-        and(
-          eq(scriptExecutions.id, executionId),
-          organizationId && result[0]?.vm ? eq(virtualMachines.organizationId, organizationId) : undefined
-        )
-      )
-      .limit(1);
-
-    if (result.length === 0) {
-      return c.json<ApiResponse<ScriptExecution>>({
-        success: false,
-        error: 'Script execution not found',
-      }, 404);
-    }
-
-    const { execution, executedByUser } = result[0];
-    const formattedExecution: ScriptExecution = {
-      ...execution,
-      executedByUser,
-    };
-
-    return c.json<ApiResponse<ScriptExecution>>({
-      success: true,
-      data: formattedExecution,
-    });
-  } catch (error) {
-    console.error('Error fetching script execution:', error);
-    return c.json<ApiResponse<ScriptExecution>>({
-      success: false,
-      error: 'Failed to fetch script execution',
     }, 500);
   }
 });
