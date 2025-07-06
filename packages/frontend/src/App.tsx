@@ -7,6 +7,7 @@ import { OrganizationProvider } from './contexts/OrganizationContext';
 import Layout from './components/Layout';
 import VMs from './pages/VMs';
 import VMDetail from './pages/VMDetail';
+import Scripts from './pages/Scripts';
 import Login from './pages/Login';
 import LoginOTP from './pages/LoginOTP';
 import AuthCallback from './pages/AuthCallback';
@@ -34,6 +35,7 @@ function App() {
                     <Route index element={<VMs />} />
                     <Route path="vms" element={<VMs />} />
                     <Route path="vms/:id" element={<VMDetail />} />
+                    <Route path="scripts" element={<Scripts />} />
                     <Route path="organization/settings" element={<OrganizationSettings />} />
                     <Route path="user/settings" element={<UserSettings />} />
                   </Route>

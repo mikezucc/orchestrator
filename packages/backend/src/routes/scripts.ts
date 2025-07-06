@@ -466,7 +466,7 @@ scriptsRouter.delete('/:id/tags/:tag', async (c) => {
 // Get script execution history
 scriptsRouter.get('/executions', async (c) => {
   try {
-    const user = (c as any).user;
+    console.log('Fetching script executions');
     const organizationId = (c as any).organizationId;
     
     // Parse query parameters

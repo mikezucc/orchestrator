@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
@@ -10,6 +10,7 @@ import WormholeSection from '../components/WormholeSection';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
 import ExecuteScriptModal from '../components/ExecuteScriptModal';
+import ScriptExecutionsList from '../components/ScriptExecutionsList';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -24,17 +25,20 @@ export default function VMDetail() {
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showVMInfo, setShowVMInfo] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'executions'>('overview');
 
   console.log('showSSHTerminal', showSSHTerminal);
 
-  const { data: vmResponse, isLoading: vmLoading } = useQuery({
+  const { data: vmResponse, isLoading: vmLoading, error: vmError } = useQuery({
     queryKey: ['vm', id],
     queryFn: () => vmApi.get(id!, true), // Sync VM data on load
     enabled: !!id,
-    onError: (error: any) => {
-      showError(error.response?.data?.error || 'Failed to load VM details');
-    },
   });
+
+  // Handle error separately
+  if (vmError) {
+    showError((vmError as any).response?.data?.error || 'Failed to load VM details');
+  }
 
   const { data: rulesResponse } = useQuery({
     queryKey: ['firewall-rules', id],
@@ -48,9 +52,6 @@ export default function VMDetail() {
       return response;
     },
     enabled: !!id,
-    onError: (error: any) => {
-      showError(error.response?.data?.error || 'Failed to load firewall rules');
-    },
   });
 
   const startMutation = useMutation({
@@ -201,7 +202,11 @@ export default function VMDetail() {
                 <span>Connect SSH</span>
               </button>
               <button
-                onClick={() => setShowExecuteScriptModal(true)}
+                onClick={() => {
+                  setShowExecuteScriptModal(true);
+                  // Optionally switch to executions tab
+                  // setActiveTab('executions');
+                }}
                 className="btn-secondary flex items-center space-x-2"
                 title="Execute bash script on VM"
               >
@@ -308,88 +313,121 @@ export default function VMDetail() {
         </div>
       </div>
 
-      <div className="card">
-        <div 
-          className="flex items-center justify-between cursor-pointer"
-          onClick={() => setShowVMInfo(!showVMInfo)}
+      {/* Tabs */}
+      <div className="flex border-b border-te-gray-200 dark:border-te-gray-800">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-6 py-3 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
+            activeTab === 'overview'
+              ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
+              : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
+          }`}
         >
-          <h3 className="text-sm font-semibold uppercase tracking-wider">VM Information</h3>
-          <svg 
-            className={`w-4 h-4 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
-              showVMInfo ? 'rotate-180' : ''
-            }`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-        
-        {showVMInfo && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4">
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Project ID
-                </p>
-                <p className="font-medium">{vm.gcpProjectId}</p>
-              </div>
-              
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Zone
-                </p>
-                <p className="font-medium">{vm.zone}</p>
-              </div>
-              
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Machine Type
-                </p>
-                <p className="font-medium">{vm.machineType}</p>
-              </div>
-              
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Created
-                </p>
-                <p className="font-medium tabular-nums">
-                  {new Date(vm.createdAt).toLocaleString()}
-                </p>
-              </div>
-              
-              <div>
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
-                  Updated
-                </p>
-                <p className="font-medium tabular-nums">
-                  {new Date(vm.updatedAt).toLocaleString()}
-                </p>
-              </div>
+          Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('executions')}
+          className={`px-6 py-3 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
+            activeTab === 'executions'
+              ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
+              : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
+          }`}
+        >
+          Script Executions
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
+          <div className="card">
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setShowVMInfo(!showVMInfo)}
+            >
+              <h3 className="text-sm font-semibold uppercase tracking-wider">VM Information</h3>
+              <svg 
+                className={`w-4 h-4 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
+                  showVMInfo ? 'rotate-180' : ''
+                }`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
             
-            {vm.initScript && (
-              <div className="mt-6 pt-6 border-t border-te-gray-200 dark:border-te-gray-800">
-                <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-2">
-                  Init Script
-                </p>
-                <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono">
-                  {vm.initScript}
-                </pre>
-              </div>
+            {showVMInfo && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-4">
+                  <div>
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                      Project ID
+                    </p>
+                    <p className="font-medium">{vm.gcpProjectId}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                      Zone
+                    </p>
+                    <p className="font-medium">{vm.zone}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                      Machine Type
+                    </p>
+                    <p className="font-medium">{vm.machineType}</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                      Created
+                    </p>
+                    <p className="font-medium tabular-nums">
+                      {new Date(vm.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-1">
+                      Updated
+                    </p>
+                    <p className="font-medium tabular-nums">
+                      {new Date(vm.updatedAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                
+                {vm.initScript && (
+                  <div className="mt-6 pt-6 border-t border-te-gray-200 dark:border-te-gray-800">
+                    <p className="text-2xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500 mb-2">
+                      Init Script
+                    </p>
+                    <pre className="bg-te-gray-100 dark:bg-te-gray-950 p-3 text-xs overflow-x-auto font-mono">
+                      {vm.initScript}
+                    </pre>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
-      <div>
-        <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
-      </div>
+          <div>
+            <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
+          </div>
 
-      <div>
-        <FirewallRules vmId={id!} rules={rules} />
-      </div>
+          <div>
+            <FirewallRules vmId={id!} rules={rules} />
+          </div>
+        </>
+      )}
+
+      {activeTab === 'executions' && (
+        <ScriptExecutionsList vmId={id!} title="Script Execution History" />
+      )}
 
       {showPortSelector && vm.publicIp && (
         <PortSelectorModal
@@ -417,7 +455,13 @@ export default function VMDetail() {
       {showExecuteScriptModal && (
         <ExecuteScriptModal
           vm={vm}
-          onClose={() => setShowExecuteScriptModal(false)}
+          onClose={() => {
+            setShowExecuteScriptModal(false);
+            // Refresh script executions list when modal is closed
+            if (activeTab === 'executions') {
+              queryClient.invalidateQueries({ queryKey: ['script-executions'] });
+            }
+          }}
           output={consoleOutput}
           setOutput={setConsoleOutput}
         />
