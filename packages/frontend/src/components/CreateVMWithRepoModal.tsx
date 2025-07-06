@@ -12,6 +12,7 @@ import { scriptsApi } from '../api/scripts';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import { vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import ScriptEditor from './ScriptEditor';
 
 SyntaxHighlighter.registerLanguage('bash', bash);
 
@@ -854,12 +855,10 @@ echo "All scripts completed successfully!"`;
                               className="w-full mb-2 text-sm"
                               placeholder="Script name..."
                             />
-                            <textarea
+                            <ScriptEditor
                               value={script.script}
-                              onChange={(e) => updateScriptInChain(script.id, { script: e.target.value })}
-                              className="w-full font-mono text-xs"
-                              rows={8}
-                              spellCheck={false}
+                              onChange={(code) => updateScriptInChain(script.id, { script: code })}
+                              minHeight="12rem"
                             />
                             <div className="flex justify-end mt-2 space-x-2">
                               <button

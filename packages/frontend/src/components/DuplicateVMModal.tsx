@@ -4,6 +4,7 @@ import { vmApi } from '../api/vms';
 import { useToast } from '../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import type { VirtualMachine } from '@gce-platform/types';
+import ScriptEditor from './ScriptEditor';
 
 interface DuplicateVMModalProps {
   vm: VirtualMachine;
@@ -126,13 +127,11 @@ export default function DuplicateVMModal({ vm, onClose }: DuplicateVMModalProps)
                 <label htmlFor="startup-script" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                   Startup Script (Optional)
                 </label>
-                <textarea
-                  id="startup-script"
+                <ScriptEditor
                   value={startupScript}
-                  onChange={(e) => setStartupScript(e.target.value)}
+                  onChange={setStartupScript}
                   placeholder="#!/bin/bash\n# Your startup script here\n# This script will run when the VM boots up"
-                  className="w-full h-32 font-mono text-xs"
-                  spellCheck={false}
+                  minHeight="8rem"
                 />
                 <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
                   This script will run automatically when the VM starts. Use it to install software, configure services, etc.

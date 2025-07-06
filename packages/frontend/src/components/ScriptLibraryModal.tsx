@@ -5,6 +5,7 @@ import type { Script, CreateScriptRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import ScriptEditor from './ScriptEditor';
 
 interface ScriptLibraryModalProps {
   onClose: () => void;
@@ -124,7 +125,7 @@ export default function ScriptLibraryModal({
                   : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
               }`}
             >
-              Browse Library
+              Library
             </button>
             <button
               onClick={() => setSelectedTab('save')}
@@ -134,7 +135,7 @@ export default function ScriptLibraryModal({
                   : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
               }`}
             >
-              Save Script
+              Create New
             </button>
           </div>
         )}
@@ -270,31 +271,11 @@ export default function ScriptLibraryModal({
                 <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                   Script Content *
                 </label>
-                <div className="relative">
-                  <textarea
-                    value={newScript.scriptContent}
-                    onChange={(e) => setNewScript({ ...newScript, scriptContent: e.target.value })}
-                    className="w-full font-mono text-xs absolute inset-0 bg-transparent text-transparent caret-white"
-                    rows={15}
-                    placeholder="#!/bin/bash\n# Your script here..."
-                    spellCheck={false}
-                    style={{ caretColor: 'white' }}
-                  />
-                  <div className="rounded overflow-hidden pointer-events-none">
-                    <SyntaxHighlighter
-                      language="bash"
-                      style={oneDark}
-                      customStyle={{
-                        margin: 0,
-                        fontSize: '0.75rem',
-                        minHeight: '22.5rem',
-                        padding: '0.75rem',
-                      }}
-                    >
-                      {newScript.scriptContent || '#!/bin/bash\n# Your script here...'}
-                    </SyntaxHighlighter>
-                  </div>
-                </div>
+                <ScriptEditor
+                  value={newScript.scriptContent}
+                  onChange={(code) => setNewScript({ ...newScript, scriptContent: code })}
+                  placeholder="#!/bin/bash\n# Your script here..."
+                />
               </div>
 
               <div>

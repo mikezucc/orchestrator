@@ -4,6 +4,7 @@ import { vmApi } from '../api/vms';
 import { organizationApi } from '../api/organizations';
 import type { CreateVMRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
+import ScriptEditor from './ScriptEditor';
 
 interface CreateVMModalProps {
   onClose: () => void;
@@ -164,14 +165,11 @@ export default function CreateVMModal({ onClose, onSuccess }: CreateVMModalProps
                 <label htmlFor="initScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                   Startup Script (Optional)
                 </label>
-                <textarea
-                  id="initScript"
-                  rows={6}
+                <ScriptEditor
                   value={formData.initScript}
-                  onChange={(e) => setFormData({ ...formData, initScript: e.target.value })}
-                  className="w-full font-mono text-xs"
+                  onChange={(code) => setFormData({ ...formData, initScript: code })}
                   placeholder="#!/bin/bash\n# Your startup script here\n# This script will run when the VM boots up\n\n# Example:\n# apt-get update\n# apt-get install -y nginx"
-                  spellCheck={false}
+                  minHeight="9rem"
                 />
                 <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
                   This script will run automatically when the VM starts. Use it to install software, configure services, etc.

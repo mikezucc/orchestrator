@@ -6,6 +6,7 @@ import type { VirtualMachine, Script } from '@gce-platform/types';
 import AnsiToHtml from 'ansi-to-html';
 import ScriptLibraryDropdown from './ScriptLibraryDropdown';
 import SaveScriptDialog from './SaveScriptDialog';
+import ScriptEditor from './ScriptEditor';
 import '../styles/terminal.css';
 
 interface ExecuteScriptModalProps {
@@ -184,12 +185,12 @@ export default function ExecuteScriptModal({ vm, onClose, output, setOutput }: E
               <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                 Bash Script
               </label>
-              <textarea
+              <ScriptEditor
                 value={script}
-                onChange={(e) => setScript(e.target.value)}
-                placeholder="#!/bin/bash&#10;echo 'Hello from VM'&#10;ls -la&#10;pwd"
-                className="w-full h-64 px-3 py-2 text-sm bg-te-gray-100 dark:bg-te-gray-950 border border-te-gray-300 dark:border-te-gray-700 rounded-lg focus:border-te-gray-500 dark:focus:border-te-yellow focus:outline-none font-mono"
-                disabled={executeMutation.isPending}
+                onChange={setScript}
+                placeholder="#!/bin/bash\necho 'Hello from VM'\nls -la\npwd"
+                minHeight="16rem"
+                readOnly={executeMutation.isPending}
               />
             </div>
 
