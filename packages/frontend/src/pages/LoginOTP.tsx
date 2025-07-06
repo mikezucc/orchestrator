@@ -4,48 +4,70 @@ import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 import { fetchClient } from '../api/fetchClient';
 
-// Animated geometric background component
+// Particle component
+function Particle({ delay }: { delay: number }) {
+  const randomX = Math.random() * 100;
+  const randomY = Math.random() * 100;
+  const randomSize = Math.random() * 4 + 1;
+  const duration = Math.random() * 20 + 10;
+  
+  return (
+    <div
+      className="absolute rounded-full bg-te-gray-400/10 dark:bg-te-gray-600/10 animate-particle"
+      style={{
+        left: `${randomX}%`,
+        top: `${randomY}%`,
+        width: `${randomSize}px`,
+        height: `${randomSize}px`,
+        animationDelay: `${delay}s`,
+        animationDuration: `${duration}s`,
+      }}
+    />
+  );
+}
+
+// Animated background component with particles
 function AnimatedBackground() {
+  const [particles, setParticles] = useState<number[]>([]);
+  
+  useEffect(() => {
+    // Generate initial particles
+    setParticles(Array.from({ length: 50 }, (_, i) => i));
+    
+    // Add new particles periodically
+    const interval = setInterval(() => {
+      setParticles(prev => [...prev.slice(-49), Date.now()]);
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-te-gray-50 via-te-gray-100 to-te-gray-200 dark:from-te-gray-950 dark:via-te-gray-900 dark:to-te-gray-800" />
-      
-      {/* Animated geometric shapes */}
-      <div className="absolute inset-0">
-        {/* Large rotating circle */}
-        <div className="absolute top-1/4 -left-1/4 w-96 h-96 rounded-full border border-te-gray-300/20 dark:border-te-gray-700/20 animate-[spin_20s_linear_infinite]" />
-        
-        {/* Medium floating square */}
-        <div className="absolute top-1/2 right-1/4 w-64 h-64 border border-te-gray-400/10 dark:border-te-gray-600/10 rotate-45 animate-[float_15s_ease-in-out_infinite]" />
-        
-        {/* Small triangle */}
-        <div className="absolute bottom-1/4 left-1/3 w-0 h-0 border-l-[50px] border-l-transparent border-b-[86px] border-b-te-gray-300/10 dark:border-b-te-gray-700/10 border-r-[50px] border-r-transparent animate-[float_10s_ease-in-out_infinite_reverse]" />
-        
-        {/* Floating dots */}
-        <div className="absolute top-1/3 right-1/3 w-4 h-4 bg-te-gray-400/20 dark:bg-te-gray-600/20 rounded-full animate-[pulse_4s_ease-in-out_infinite]" />
-        <div className="absolute bottom-1/3 left-1/4 w-6 h-6 bg-te-gray-300/20 dark:bg-te-gray-700/20 rounded-full animate-[pulse_5s_ease-in-out_infinite_1s]" />
-        
-        {/* Hexagon */}
-        <div className="absolute top-3/4 right-1/2 w-32 h-32 animate-[float_12s_ease-in-out_infinite]">
-          <svg viewBox="0 0 100 100" className="w-full h-full">
-            <polygon
-              points="50,10 85,30 85,70 50,90 15,70 15,30"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-              className="text-te-gray-300/20 dark:text-te-gray-700/20"
-            />
-          </svg>
+      {/* Rotating gradient background - giant circle */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute w-[200vw] h-[200vw] animate-gradient-rotate">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-te-gray-50 via-te-gray-100 to-te-gray-200 dark:from-te-gray-950 dark:via-te-gray-900 dark:to-te-gray-800" />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-te-gray-100 via-te-gray-200 to-te-gray-300 dark:from-te-gray-900 dark:via-te-gray-800 dark:to-te-gray-700 opacity-0 animate-gradient-fade" />
+          <div className="absolute inset-0 rounded-full bg-gradient-to-bl from-te-gray-200 via-te-gray-300 to-te-gray-400 dark:from-te-gray-800 dark:via-te-gray-700 dark:to-te-gray-600 opacity-0 animate-gradient-fade-delayed" />
         </div>
-        
-        {/* Moving lines */}
-        <div className="absolute top-0 left-1/2 w-px h-full bg-gradient-to-b from-transparent via-te-gray-300/20 dark:via-te-gray-700/20 to-transparent animate-[slideDown_8s_linear_infinite]" />
-        <div className="absolute left-0 top-1/2 w-full h-px bg-gradient-to-r from-transparent via-te-gray-300/20 dark:via-te-gray-700/20 to-transparent animate-[slideRight_10s_linear_infinite]" />
       </div>
       
-      {/* Blur overlay */}
-      <div className="absolute inset-0 backdrop-blur-[1px] animate-[blur_3s_ease-in-out_infinite]" />
+      {/* Undulating overlay */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-te-gray-300/20 dark:via-te-gray-700/20 to-transparent animate-undulate" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-te-gray-300/20 dark:via-te-gray-700/20 to-transparent animate-undulate-delayed" />
+      </div>
+      
+      {/* Particles */}
+      <div className="absolute inset-0">
+        {particles.map((id, index) => (
+          <Particle key={id} delay={index * 0.1} />
+        ))}
+      </div>
+      
+      {/* Subtle blur overlay */}
+      <div className="absolute inset-0 backdrop-blur-[0.5px]" />
     </div>
   );
 }

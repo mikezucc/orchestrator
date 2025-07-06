@@ -36,31 +36,55 @@ export default {
       },
       animation: {
         'fadeIn': 'fadeIn 0.5s ease-in-out',
-        'float': 'float 3s ease-in-out infinite',
-        'slideDown': 'slideDown 8s linear infinite',
-        'slideRight': 'slideRight 10s linear infinite',
-        'blur': 'blur 3s ease-in-out infinite',
+        'particle': 'particle 15s ease-in-out infinite',
+        'gradient-rotate': 'gradientRotate 240s ease-in-out infinite',
+        'gradient-fade': 'gradientFade 30s ease-in-out infinite',
+        'gradient-fade-delayed': 'gradientFade 30s ease-in-out infinite 10s',
+        'undulate': 'undulate 120s ease-in-out infinite',
+        'undulate-delayed': 'undulate 120s ease-in-out infinite 4s',
       },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        float: {
-          '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
-          '50%': { transform: 'translateY(-20px) rotate(10deg)' },
+        particle: {
+          '0%': { 
+            opacity: '0',
+            transform: 'scale(0) blur(10px)',
+          },
+          '20%': { 
+            opacity: '0.4',
+            transform: 'scale(1) blur(2px)',
+          },
+          '80%': { 
+            opacity: '0.4',
+            transform: 'scale(1) blur(2px)',
+          },
+          '100%': { 
+            opacity: '0',
+            transform: 'scale(0.8) blur(10px)',
+          },
         },
-        slideDown: {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(100%)' },
+        gradientRotate: {
+          '0%, 100%': { transform: 'rotate(0deg) scale(1)' },
+          '33%': { transform: 'rotate(120deg) scale(1.1)' },
+          '66%': { transform: 'rotate(240deg) scale(1.1)' },
         },
-        slideRight: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' },
+        gradientFade: {
+          '0%, 100%': { opacity: '0' },
+          '33%': { opacity: '1' },
+          '66%': { opacity: '0' },
         },
-        blur: {
-          '0%, 100%': { filter: 'blur(0px)' },
-          '50%': { filter: 'blur(2px)' },
+        undulate: {
+          '0%, 100%': { 
+            transform: 'translateY(0) scaleY(1)',
+            opacity: '0.3',
+          },
+          '50%': { 
+            transform: 'translateY(-10%) scaleY(1.2)',
+            opacity: '0.5',
+          },
         },
       },
     },
