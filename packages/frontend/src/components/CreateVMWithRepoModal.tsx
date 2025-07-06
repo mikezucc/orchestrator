@@ -60,6 +60,7 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   const [scriptChain, setScriptChain] = useState<ScriptChainItem[]>([]);
   const [showScriptLibrary, setShowScriptLibrary] = useState(false);
   const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const queryClient = useQueryClient();
 
   // Premade scripts
@@ -273,6 +274,21 @@ echo "All scripts completed successfully!"`;
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Handle click outside for template dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.template-dropdown')) {
+        setShowTemplateDropdown(false);
+      }
+    }
+    
+    if (showTemplateDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showTemplateDropdown]);
 
   // Fetch GitHub repositories using useQuery
   const { data: reposData, isLoading: loadingRepos, isFetchingNextPage } = useQuery({
@@ -687,24 +703,64 @@ echo "All scripts completed successfully!"`;
                       </svg>
                       From Library
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        Object.entries(premadeScripts).forEach(([key, script]) => {
-                          if (key !== 'custom') {
-                            addScriptToChain({
-                              type: 'premade',
-                              name: script.name,
-                              script: script.script,
-                              enabled: false
-                            });
-                          }
-                        });
-                      }}
-                      className="btn-secondary text-xs"
-                    >
-                      Add All Templates
-                    </button>
+                    <div className="relative template-dropdown">
+                      <button
+                        type="button"
+                        onClick={() => setShowTemplateDropdown(!showTemplateDropdown)}
+                        className="btn-secondary text-xs flex items-center"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Templates
+                        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {showTemplateDropdown && (
+                        <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded shadow-lg z-10">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              Object.entries(premadeScripts).forEach(([key, script]) => {
+                                if (key !== 'custom') {
+                                  addScriptToChain({
+                                    type: 'premade',
+                                    name: script.name,
+                                    script: script.script,
+                                    enabled: false
+                                  });
+                                }
+                              });
+                              setShowTemplateDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-te-gray-50 dark:hover:bg-te-gray-700 border-b border-te-gray-200 dark:border-te-gray-700"
+                          >
+                            Add All Templates
+                          </button>
+                          {Object.entries(premadeScripts).map(([key, script]) => 
+                            key !== 'custom' && (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => {
+                                  addScriptToChain({
+                                    type: 'premade',
+                                    name: script.name,
+                                    script: script.script,
+                                    enabled: true
+                                  });
+                                  setShowTemplateDropdown(false);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs hover:bg-te-gray-50 dark:hover:bg-te-gray-700"
+                              >
+                                {script.name}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
