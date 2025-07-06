@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import type { VMCreationProgress, VMCreationStage } from '@gce-platform/types';
 import { getWebSocketBaseURL } from '../utils/api-config';
+import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
+import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
+import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+
+SyntaxHighlighter.registerLanguage('bash', bash);
 
 interface VMCreationTrackerProps {
   trackingId: string;
@@ -599,10 +604,20 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
             </div>
           </div>
           {showScriptOutput && (
-            <div className="bg-te-gray-900 dark:bg-black border border-te-gray-700 rounded-lg p-4 max-h-64 overflow-y-auto">
-              <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+            <div className="bg-te-gray-900 dark:bg-black border border-te-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+              <SyntaxHighlighter
+                language="bash"
+                style={atomOneDark}
+                customStyle={{
+                  fontSize: '0.75rem',
+                  padding: '1rem',
+                  margin: 0,
+                  backgroundColor: 'transparent',
+                }}
+                showLineNumbers={false}
+              >
                 {scriptOutput.join('')}
-              </pre>
+              </SyntaxHighlighter>
               {/* Auto-scroll to bottom */}
               <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
