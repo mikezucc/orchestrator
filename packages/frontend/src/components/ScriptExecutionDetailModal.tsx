@@ -24,7 +24,7 @@ export default function ScriptExecutionDetailModal({ execution, onClose }: Scrip
       // Remove other problematic escape sequences
       .replace(/\x1b\]0;[^\x07]*\x07/g, '') // Terminal title sequences
       .replace(/\x1b\[\?[\d;]*[a-zA-Z]/g, '') // Other mode sequences
-      .replace(/\x1b\[[\d;]*[Hf]/g, '') // Cursor positioning
+      .replace(/\x1b\[[\d;]*[GHf]/g, '') // Cursor positioning
       .replace(/\x1b\[[\d;]*[ABCD]/g, '') // Cursor movement
       .replace(/\x1b\[[\d;]*[su]/g, '') // Save/restore cursor
       .replace(/\x1b\[\d*[JK]/g, '') // Clear screen/line
