@@ -12,7 +12,7 @@ interface ScriptLibraryModalProps {
   onSelectScript: (script: Script) => void;
   onSaveScript?: (script: CreateScriptRequest) => void;
   mode: 'select' | 'save' | 'both';
-  initialScript?: { name: string; script: string; description?: string };
+  initialScript?: { name: string; script: string; description?: string; id?: string; tags?: string[] };
 }
 
 export default function ScriptLibraryModal({ 
@@ -33,9 +33,10 @@ export default function ScriptLibraryModal({
     name: initialScript?.name || '',
     description: initialScript?.description || '',
     scriptContent: initialScript?.script || '',
-    tags: [] as string[],
+    tags: initialScript?.tags || [] as string[],
   });
   const [newTag, setNewTag] = useState('');
+  const isEditing = !!initialScript?.id;
 
   // Fetch scripts
   const { data: scriptsData, isLoading } = useQuery({
@@ -68,6 +69,22 @@ export default function ScriptLibraryModal({
     },
   });
 
+  // Update script mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => scriptsApi.update(id, data),
+    onSuccess: (updatedScript) => {
+      queryClient.invalidateQueries({ queryKey: ['scripts'] });
+      showSuccess('Script updated successfully');
+      if (onSaveScript) {
+        onSaveScript(updatedScript as any);
+      }
+      onClose();
+    },
+    onError: (error: any) => {
+      showError(error.message || 'Failed to update script');
+    },
+  });
+
   // Delete script mutation
   const deleteMutation = useMutation({
     mutationFn: scriptsApi.delete,
@@ -97,14 +114,19 @@ export default function ScriptLibraryModal({
       showError('Name and script content are required');
       return;
     }
-    createMutation.mutate(newScript);
+    
+    if (isEditing && initialScript?.id) {
+      updateMutation.mutate({ id: initialScript.id, data: newScript });
+    } else {
+      createMutation.mutate(newScript);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-6 border-b border-te-gray-200 dark:border-te-gray-800">
-          <h2 className="text-lg font-semibold uppercase tracking-wider">Script Library</h2>
+          <h2 className="text-lg font-semibold uppercase tracking-wider">{isEditing ? 'Edit Script' : 'Script Library'}</h2>
           <button
             onClick={onClose}
             className="p-1 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
@@ -248,7 +270,7 @@ export default function ScriptLibraryModal({
                             }}
                             className="btn-secondary text-xs px-3 py-1"
                           >
-                            Copy Script
+                            Copy
                           </button>
                           {mode === 'both' && (
                             <button
@@ -261,9 +283,9 @@ export default function ScriptLibraryModal({
                                 });
                                 setSelectedTab('save');
                               }}
-                              className="btn-primary text-xs px-3 py-1"
+                              className="btn-secondary text-xs px-3 py-1"
                             >
-                              Create From Script
+                              Duplicate and Edit
                             </button>
                           )}
                         </div>
@@ -412,10 +434,10 @@ export default function ScriptLibraryModal({
           {selectedTab === 'save' && mode !== 'select' && (
             <button
               onClick={handleSaveScript}
-              disabled={!newScript.name.trim() || !newScript.scriptContent.trim() || createMutation.isPending}
+              disabled={!newScript.name.trim() || !newScript.scriptContent.trim() || createMutation.isPending || updateMutation.isPending}
               className="btn-primary"
             >
-              {createMutation.isPending ? 'Saving...' : 'Save to Library'}
+              {(createMutation.isPending || updateMutation.isPending) ? 'Saving...' : (isEditing ? 'Update Script' : 'Save to Library')}
             </button>
           )}
         </div>

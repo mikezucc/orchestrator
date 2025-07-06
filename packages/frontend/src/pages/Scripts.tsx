@@ -12,6 +12,7 @@ export default function Scripts() {
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [selectedScript, setSelectedScript] = useState<Script | null>(null);
   const [expandedScripts, setExpandedScripts] = useState<Set<string>>(new Set());
+  const [editingScript, setEditingScript] = useState<Script | null>(null);
 
   const { data: scriptsData, isLoading: loadingScripts, refetch: refetchScripts } = useQuery({
     queryKey: ['scripts'],
@@ -60,55 +61,48 @@ export default function Scripts() {
       <div className="bg-white dark:bg-te-gray-800 rounded-lg shadow">
         <div className="border-b border-te-gray-200 dark:border-te-gray-700">
           <div className="flex">
-            <button
-              onClick={() => {
-                setActiveTab('library');
-                setSelectedScript(null);
-              }}
-              className={`px-6 py-4 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
-                activeTab === 'library'
-                  ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
-                  : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
-              }`}
-            >
-              Script Library
-            </button>
-            <button
-              onClick={() => setActiveTab('executions')}
-              className={`px-6 py-4 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
-                activeTab === 'executions'
-                  ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
-                  : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
-              }`}
-            >
-              All Executions
-              {selectedScript && (
-                <span className="ml-2 text-xs text-te-gray-500">
-                  ({selectedScript.name})
-                </span>
-              )}
-            </button>
+            <div className="flex justify-between items-center">
+              <button
+                onClick={() => {
+                  setActiveTab('library');
+                  setSelectedScript(null);
+                }}
+                className={`px-6 py-4 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
+                  activeTab === 'library'
+                    ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
+                    : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
+                }`}
+              >
+                Script Library
+              </button>
+              <button
+                onClick={() => setActiveTab('executions')}
+                className={`px-6 py-4 text-sm font-medium uppercase tracking-wider border-b-2 transition-colors ${
+                  activeTab === 'executions'
+                    ? 'border-te-yellow text-te-gray-900 dark:text-te-yellow'
+                    : 'border-transparent text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-300'
+                }`}
+              >
+                All Executions
+                {selectedScript && (
+                  <span className="ml-2 text-xs text-te-gray-500">
+                    ({selectedScript.name})
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowScriptModal(true)}
+                className="btn-primary"
+              >
+                Create New
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Tab Content */}
         {activeTab === 'library' ? (
           <div>
-            <div className="p-6 border-b border-te-gray-200 dark:border-te-gray-700">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold">Your Scripts</h2>
-                <button
-                  onClick={() => setShowScriptModal(true)}
-                  className="btn-primary"
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  New Script
-                </button>
-              </div>
-            </div>
-
             {loadingScripts ? (
               <div className="p-6 text-center">
                 <div className="inline-flex items-center space-x-2 text-te-gray-600 dark:text-te-gray-400">
@@ -140,7 +134,7 @@ export default function Scripts() {
                     const showExpandButton = scriptLines > 20;
                     
                     return (
-                      <div key={script.id} className="p-6 hover:bg-te-gray-50 dark:hover:bg-te-gray-700">
+                      <div key={script.id} className="p-6">
                         <div className="flex justify-between items-start mb-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
@@ -177,9 +171,7 @@ export default function Scripts() {
                               View Executions
                             </button>
                             <button
-                              onClick={() => {
-                                // Could implement edit functionality
-                              }}
+                              onClick={() => setEditingScript(script)}
                               className="text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-200"
                             >
                               Edit
@@ -245,6 +237,25 @@ export default function Scripts() {
           onSaveScript={() => {
             refetchScripts();
             setShowScriptModal(false);
+          }}
+        />
+      )}
+      
+      {editingScript && (
+        <ScriptLibraryModal
+          mode="save"
+          initialScript={{
+            id: editingScript.id,
+            name: editingScript.name,
+            script: editingScript.scriptContent,
+            description: editingScript.description,
+            tags: editingScript.tags
+          }}
+          onClose={() => setEditingScript(null)}
+          onSelectScript={() => {}}
+          onSaveScript={() => {
+            refetchScripts();
+            setEditingScript(null);
           }}
         />
       )}
