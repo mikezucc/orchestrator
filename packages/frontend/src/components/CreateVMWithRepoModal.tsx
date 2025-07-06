@@ -53,7 +53,6 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   });
   
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [repoPage, setRepoPage] = useState(1);
@@ -699,27 +698,8 @@ echo "All scripts completed successfully!"`;
               </div>
             </div>
 
-            {/* Advanced Options */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center space-x-2 text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow transition-colors"
-              >
-                <svg 
-                  className={`w-4 h-4 transform transition-transform ${showAdvanced ? 'rotate-90' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <span>Advanced Options</span>
-              </button>
-            </div>
-
-            {showAdvanced && (
-              <div className="space-y-4 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
+            {/* Script Configuration */}
+            <div className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wider">Script Chain</h3>
                   <div className="flex items-center space-x-2">
@@ -938,8 +918,7 @@ echo "All scripts completed successfully!"`;
                     </p>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         </form>
         )}
