@@ -22,7 +22,6 @@ const createScriptSchema = z.object({
   description: z.string().optional(),
   scriptContent: z.string().min(1),
   timeout: z.number().min(1).max(300).optional().default(60),
-  isPublic: z.boolean().optional().default(false),
   tags: z.array(z.string()).optional(),
 });
 
@@ -31,7 +30,6 @@ const updateScriptSchema = z.object({
   description: z.string().optional(),
   scriptContent: z.string().min(1).optional(),
   timeout: z.number().min(1).max(300).optional(),
-  isPublic: z.boolean().optional(),
 });
 
 // List scripts (personal + org scripts)
@@ -42,8 +40,7 @@ scriptsRouter.get('/', async (c) => {
 
     // Get scripts that are either:
     // 1. Created by the user (personal)
-    // 2. Belong to the organization and are public
-    // 3. Belong to the organization and created by the user
+    // 2. Belong to the organization (all users can see)
     const scriptsList = await db
       .select({
         script: scripts,
@@ -58,15 +55,12 @@ scriptsRouter.get('/', async (c) => {
         organizationId
           ? or(
               // Personal scripts (user's own)
-              and(eq(scripts.createdBy, user.id), eq(scripts.organizationId, null as any)),
-              // Organization scripts (public or own)
-              and(
-                eq(scripts.organizationId, organizationId),
-                or(eq(scripts.isPublic, true), eq(scripts.createdBy, user.id))
-              )
+              and(eq(scripts.createdBy, user.id), sql`${scripts.organizationId} IS NULL`),
+              // Organization scripts (all users can see)
+              eq(scripts.organizationId, organizationId)
             )
           : // If no organizationId, only show personal scripts
-            and(eq(scripts.createdBy, user.id), eq(scripts.organizationId, null))
+            and(eq(scripts.createdBy, user.id), sql`${scripts.organizationId} IS NULL`)
       )
       .orderBy(desc(scripts.updatedAt));
 
@@ -138,8 +132,7 @@ scriptsRouter.get('/:id', async (c) => {
     // Check access permissions
     const hasAccess = 
       script.createdBy === user.id || // Own script
-      (script.organizationId === organizationId && script.isPublic) || // Public org script
-      (script.organizationId === organizationId && script.createdBy === user.id); // Own org script
+      script.organizationId === organizationId; // Any org script (all users can see)
 
     if (!hasAccess) {
       return c.json<ApiResponse<Script>>({
@@ -185,13 +178,12 @@ scriptsRouter.post('/', zValidator('json', createScriptSchema), async (c) => {
       .insert(scripts)
       .values({
         id: createId(),
-        organizationId: body.isPublic ? organizationId : null, // Only set org ID if public
+        organizationId: organizationId, // Always set org ID for organization scripts
         createdBy: user.id,
         name: body.name,
         description: body.description,
         scriptContent: body.scriptContent,
         timeout: body.timeout || 60,
-        isPublic: body.isPublic || false,
       })
       .returning();
 
@@ -259,10 +251,14 @@ scriptsRouter.patch('/:id', zValidator('json', updateScriptSchema), async (c) =>
       }, 404);
     }
 
-    if (existingScript.createdBy !== user.id) {
+    // Check if user can edit (own script or any org script)
+    const canEdit = existingScript.createdBy === user.id || 
+                   (existingScript.organizationId === organizationId && organizationId !== null);
+    
+    if (!canEdit) {
       return c.json<ApiResponse<Script>>({
         success: false,
-        error: 'You can only edit your own scripts',
+        error: 'Access denied',
       }, 403);
     }
 
@@ -334,10 +330,14 @@ scriptsRouter.delete('/:id', async (c) => {
       }, 404);
     }
 
-    if (existingScript.createdBy !== user.id) {
+    // Check if user can delete (own script or any org script)
+    const canDelete = existingScript.createdBy === user.id || 
+                     (existingScript.organizationId === organizationId && organizationId !== null);
+    
+    if (!canDelete) {
       return c.json<ApiResponse<{ message: string }>>({
         success: false,
-        error: 'You can only delete your own scripts',
+        error: 'Access denied',
       }, 403);
     }
 
@@ -378,10 +378,14 @@ scriptsRouter.post('/:id/tags', zValidator('json', z.object({ tags: z.array(z.st
       }, 404);
     }
 
-    if (existingScript.createdBy !== user.id) {
+    // Check if user can modify tags (own script or any org script)
+    const canModify = existingScript.createdBy === user.id || 
+                     (existingScript.organizationId === organizationId && organizationId !== null);
+    
+    if (!canModify) {
       return c.json<ApiResponse<{ message: string }>>({
         success: false,
-        error: 'You can only modify tags for your own scripts',
+        error: 'Access denied',
       }, 403);
     }
 
@@ -438,10 +442,14 @@ scriptsRouter.delete('/:id/tags/:tag', async (c) => {
       }, 404);
     }
 
-    if (existingScript.createdBy !== user.id) {
+    // Check if user can modify tags (own script or any org script)
+    const canModify = existingScript.createdBy === user.id || 
+                     (existingScript.organizationId === organizationId && organizationId !== null);
+    
+    if (!canModify) {
       return c.json<ApiResponse<{ message: string }>>({
         success: false,
-        error: 'You can only modify tags for your own scripts',
+        error: 'Access denied',
       }, 403);
     }
 

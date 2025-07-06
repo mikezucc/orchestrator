@@ -16,7 +16,6 @@ export default function SaveScriptDialog({ scriptContent, defaultTimeout = 60, o
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [timeout, setTimeout] = useState(defaultTimeout.toString());
-  const [isPublic, setIsPublic] = useState(false);
   const [tags, setTags] = useState('');
 
   const saveMutation = useMutation({
@@ -47,7 +46,6 @@ export default function SaveScriptDialog({ scriptContent, defaultTimeout = 60, o
       description: description.trim() || undefined,
       scriptContent,
       timeout: parseInt(timeout) || 60,
-      isPublic,
       tags: tagList.length > 0 ? tagList : undefined,
     });
   };
@@ -113,19 +111,6 @@ export default function SaveScriptDialog({ scriptContent, defaultTimeout = 60, o
               max="300"
               className="w-32 px-3 py-2 text-sm bg-te-gray-100 dark:bg-te-gray-950 border border-te-gray-300 dark:border-te-gray-700 rounded-lg focus:border-te-gray-500 dark:focus:border-te-yellow focus:outline-none"
             />
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="isPublic"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-              className="rounded border-te-gray-300 dark:border-te-gray-700 text-te-yellow focus:ring-te-yellow"
-            />
-            <label htmlFor="isPublic" className="text-sm text-te-gray-700 dark:text-te-gray-300">
-              Share with organization members
-            </label>
           </div>
         </div>
 

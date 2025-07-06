@@ -4,11 +4,14 @@ import { scriptsApi } from '../api/scripts';
 import ScriptLibraryModal from '../components/ScriptLibraryModal';
 import ScriptExecutionsList from '../components/ScriptExecutionsList';
 import type { Script } from '@gce-platform/types';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function Scripts() {
   const [activeTab, setActiveTab] = useState<'library' | 'executions'>('library');
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [selectedScript, setSelectedScript] = useState<Script | null>(null);
+  const [expandedScripts, setExpandedScripts] = useState<Set<string>>(new Set());
 
   const { data: scriptsData, isLoading: loadingScripts, refetch: refetchScripts } = useQuery({
     queryKey: ['scripts'],
@@ -20,6 +23,26 @@ export default function Scripts() {
   const handleViewExecutions = (script: Script) => {
     setSelectedScript(script);
     setActiveTab('executions');
+  };
+
+  const toggleExpanded = (scriptId: string) => {
+    setExpandedScripts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(scriptId)) {
+        newSet.delete(scriptId);
+      } else {
+        newSet.add(scriptId);
+      }
+      return newSet;
+    });
+  };
+
+  const getScriptPreview = (scriptContent: string, isExpanded: boolean) => {
+    const lines = scriptContent.split('\n');
+    if (!isExpanded && lines.length > 20) {
+      return lines.slice(0, 20).join('\n');
+    }
+    return scriptContent;
   };
 
   return (
@@ -110,92 +133,99 @@ export default function Scripts() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-te-gray-200 dark:divide-te-gray-700">
-                  <thead className="bg-te-gray-50 dark:bg-te-gray-900">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Tags
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Visibility
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Created By
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-te-gray-500 dark:text-te-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-te-gray-800 divide-y divide-te-gray-200 dark:divide-te-gray-700">
-                    {scripts.map((script) => (
-                      <tr key={script.id} className="hover:bg-te-gray-50 dark:hover:bg-te-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-te-gray-900 dark:text-te-gray-100">
-                            {script.name}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-te-gray-900 dark:text-te-gray-100 max-w-xs truncate">
-                            {script.description || '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {script.tags && script.tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {script.tags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-te-gray-100 dark:bg-te-gray-700 text-te-gray-800 dark:text-te-gray-200"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
+                <div className="divide-y divide-te-gray-200 dark:divide-te-gray-700">
+                  {scripts.map((script: Script) => {
+                    const isExpanded = expandedScripts.has(script.id);
+                    const scriptLines = script.scriptContent.split('\n').length;
+                    const showExpandButton = scriptLines > 20;
+                    
+                    return (
+                      <div key={script.id} className="p-6 hover:bg-te-gray-50 dark:hover:bg-te-gray-700">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-semibold text-te-gray-900 dark:text-te-gray-100">
+                                {script.name}
+                              </h3>
+                              {script.tags && script.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {script.tags.map((tag: string) => (
+                                    <span
+                                      key={tag}
+                                      className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-te-gray-100 dark:bg-te-gray-700 text-te-gray-800 dark:text-te-gray-200"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-sm text-te-gray-500">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            script.isPublic
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                              : 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-300'
-                          }`}>
-                            {script.isPublic ? 'Public' : 'Private'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-te-gray-900 dark:text-te-gray-100">
-                            {script.createdByUser?.email || 'Unknown'}
+                            {script.description && (
+                              <p className="text-sm text-te-gray-600 dark:text-te-gray-400 mt-1">
+                                {script.description}
+                              </p>
+                            )}
+                            <p className="text-xs text-te-gray-500 dark:text-te-gray-500 mt-1">
+                              Created by {script.createdByUser?.email || 'Unknown'}
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleViewExecutions(script)}
-                            className="text-te-blue-600 dark:text-te-blue-400 hover:text-te-blue-900 dark:hover:text-te-blue-300 mr-3"
-                          >
-                            View Executions
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Could implement edit functionality
-                            }}
-                            className="text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-200"
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleViewExecutions(script)}
+                              className="text-sm text-te-blue-600 dark:text-te-blue-400 hover:text-te-blue-900 dark:hover:text-te-blue-300"
+                            >
+                              View Executions
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Could implement edit functionality
+                              }}
+                              className="text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-200"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="relative mt-4">
+                          <div className="rounded-lg overflow-hidden bg-gray-900">
+                            <SyntaxHighlighter
+                              language="bash"
+                              style={oneDark}
+                              customStyle={{
+                                margin: 0,
+                                fontSize: '0.875rem',
+                                maxHeight: isExpanded ? 'none' : '400px',
+                              }}
+                              showLineNumbers
+                            >
+                              {getScriptPreview(script.scriptContent, isExpanded)}
+                            </SyntaxHighlighter>
+                          </div>
+                          {showExpandButton && !isExpanded && (
+                            <div className="absolute bottom-0 left-0 right-0">
+                              <div className="h-20 bg-gradient-to-t from-gray-900 to-transparent" />
+                              <button
+                                onClick={() => toggleExpanded(script.id)}
+                                className="absolute bottom-0 left-0 right-0 bg-gray-900 text-white text-sm py-2 text-center hover:underline"
+                              >
+                                Show more ({scriptLines} lines)
+                              </button>
+                            </div>
+                          )}
+                          {isExpanded && showExpandButton && (
+                            <button
+                              onClick={() => toggleExpanded(script.id)}
+                              className="mt-2 text-sm text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-gray-200"
+                            >
+                              Show less
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

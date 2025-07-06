@@ -263,7 +263,6 @@ export interface Script {
   description?: string;
   scriptContent: string;
   timeout: number;
-  isPublic: boolean;
   tags?: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -274,7 +273,6 @@ export interface CreateScriptRequest {
   description?: string;
   scriptContent: string;
   timeout?: number;
-  isPublic?: boolean;
   tags?: string[];
 }
 
@@ -283,7 +281,6 @@ export interface UpdateScriptRequest {
   description?: string;
   scriptContent?: string;
   timeout?: number;
-  isPublic?: boolean;
 }
 
 // Script Execution types

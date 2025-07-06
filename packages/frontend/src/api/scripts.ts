@@ -3,9 +3,9 @@ import type { ApiResponse, Script, CreateScriptRequest, UpdateScriptRequest } fr
 
 export const scriptsApi = {
   // List all scripts
-  async list(): Promise<Script[]> {
+  async list(): Promise<ApiResponse<Script[]>> {
     const response = await api.get<ApiResponse<Script[]>>('/scripts');
-    return response.data.data || [];
+    return response.data;
   },
 
   // Get a single script

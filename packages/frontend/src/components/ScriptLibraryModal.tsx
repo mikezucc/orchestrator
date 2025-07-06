@@ -31,15 +31,16 @@ export default function ScriptLibraryModal({
     description: initialScript?.description || '',
     scriptContent: initialScript?.script || '',
     tags: [] as string[],
-    isPublic: false,
   });
   const [newTag, setNewTag] = useState('');
 
   // Fetch scripts
-  const { data: scripts = [], isLoading } = useQuery({
+  const { data: scriptsData, isLoading } = useQuery({
     queryKey: ['scripts'],
     queryFn: scriptsApi.list,
   });
+  
+  const scripts = scriptsData?.data || [];
 
   // Filter scripts based on search
   const filteredScripts = scripts.filter(script => 
@@ -174,11 +175,6 @@ export default function ScriptLibraryModal({
                     >
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-semibold text-sm">{script.name}</h3>
-                        {script.isPublic && (
-                          <span className="text-2xs px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
-                            Public
-                          </span>
-                        )}
                       </div>
                       {script.description && (
                         <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mb-2">
@@ -308,19 +304,6 @@ export default function ScriptLibraryModal({
                     </span>
                   ))}
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isPublic"
-                  checked={newScript.isPublic}
-                  onChange={(e) => setNewScript({ ...newScript, isPublic: e.target.checked })}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="isPublic" className="text-sm">
-                  Make this script public to all organization members
-                </label>
               </div>
             </div>
           )}
