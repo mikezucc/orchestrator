@@ -1,39 +1,61 @@
 import { api } from './client';
-import type { Script, CreateScriptRequest, UpdateScriptRequest, ApiResponse } from '@gce-platform/types';
+import type { ApiResponse, Script, CreateScriptRequest, UpdateScriptRequest } from '@gce-platform/types';
 
 export const scriptsApi = {
-  list: async () => {
-    const { data } = await api.get<ApiResponse<Script[]>>('/scripts');
-    return data;
+  // List all scripts
+  async list(): Promise<Script[]> {
+    const response = await api.get<ApiResponse<Script[]>>('/scripts');
+    return response.data.data || [];
   },
 
-  get: async (id: string) => {
-    const { data } = await api.get<ApiResponse<Script>>(`/scripts/${id}`);
-    return data;
+  // Get a single script
+  async get(id: string): Promise<Script> {
+    const response = await api.get<ApiResponse<Script>>(`/scripts/${id}`);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch script');
+    }
+    return response.data.data;
   },
 
-  create: async (script: CreateScriptRequest) => {
-    const { data } = await api.post<ApiResponse<Script>>('/scripts', script);
-    return data;
+  // Create a new script
+  async create(data: CreateScriptRequest): Promise<Script> {
+    const response = await api.post<ApiResponse<Script>>('/scripts', data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create script');
+    }
+    return response.data.data;
   },
 
-  update: async (id: string, script: UpdateScriptRequest) => {
-    const { data } = await api.patch<ApiResponse<Script>>(`/scripts/${id}`, script);
-    return data;
+  // Update a script
+  async update(id: string, data: UpdateScriptRequest): Promise<Script> {
+    const response = await api.patch<ApiResponse<Script>>(`/scripts/${id}`, data);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update script');
+    }
+    return response.data.data;
   },
 
-  delete: async (id: string) => {
-    const { data } = await api.delete<ApiResponse<{ message: string }>>(`/scripts/${id}`);
-    return data;
+  // Delete a script
+  async delete(id: string): Promise<void> {
+    const response = await api.delete<ApiResponse<{ message: string }>>(`/scripts/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to delete script');
+    }
   },
 
-  addTags: async (id: string, tags: string[]) => {
-    const { data } = await api.post<ApiResponse<{ message: string }>>(`/scripts/${id}/tags`, { tags });
-    return data;
+  // Add tags to a script
+  async addTags(id: string, tags: string[]): Promise<void> {
+    const response = await api.post<ApiResponse<{ message: string }>>(`/scripts/${id}/tags`, { tags });
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to add tags');
+    }
   },
 
-  removeTag: async (id: string, tag: string) => {
-    const { data } = await api.delete<ApiResponse<{ message: string }>>(`/scripts/${id}/tags/${tag}`);
-    return data;
+  // Remove a tag from a script
+  async removeTag(id: string, tag: string): Promise<void> {
+    const response = await api.delete<ApiResponse<{ message: string }>>(`/scripts/${id}/tags/${encodeURIComponent(tag)}`);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to remove tag');
+    }
   },
 };

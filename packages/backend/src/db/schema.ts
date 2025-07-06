@@ -71,3 +71,22 @@ export const portDescriptions = pgTable('port_descriptions', {
       .on(table.vmId, table.port, table.protocol),
   };
 });
+
+export const scriptLibrary = pgTable('script_library', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').references(() => authUsers.id).notNull(),
+  organizationId: text('organization_id').references(() => organizations.id).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  script: text('script').notNull(),
+  language: text('language').default('bash').notNull(),
+  tags: jsonb('tags').$type<string[]>().default([]),
+  isPublic: boolean('is_public').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userNameUnique: uniqueIndex('script_library_user_name_unique')
+      .on(table.userId, table.name),
+  };
+});

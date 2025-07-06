@@ -1,16 +1,27 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { vmApi } from '../api/vms';
 import { organizationApi } from '../api/organizations';
 import { githubAuthApi, type GitHubRepo } from '../api/github-auth';
-import type { CreateVMRequest } from '@gce-platform/types';
+import type { CreateVMRequest, Script, CreateScriptRequest } from '@gce-platform/types';
 import { useToast } from '../contexts/ToastContext';
 import VMCreationTracker from './VMCreationTracker';
+import ScriptLibraryModal from './ScriptLibraryModal';
 import { vmCreationProgress } from '../services/vm-creation-progress';
+import { scriptsApi } from '../api/scripts';
 
 interface CreateVMWithRepoModalProps {
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface ScriptChainItem {
+  id: string;
+  type: 'library' | 'custom' | 'premade';
+  libraryScriptId?: string;
+  name: string;
+  script: string;
+  enabled: boolean;
 }
 
 export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWithRepoModalProps) {
@@ -37,15 +48,19 @@ export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWi
   });
   
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
-  const [userStartupScript, setUserStartupScript] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [repoPage, setRepoPage] = useState(1);
-  const [selectedScript, setSelectedScript] = useState<string>('');
   const [showProgressTracker, setShowProgressTracker] = useState(false);
   const [trackingId, setTrackingId] = useState<string | null>(null);
   const [showRepoList, setShowRepoList] = useState(true);
+  
+  // Script chain management
+  const [scriptChain, setScriptChain] = useState<ScriptChainItem[]>([]);
+  const [showScriptLibrary, setShowScriptLibrary] = useState(false);
+  const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Premade scripts
   const premadeScripts = {
@@ -195,12 +210,58 @@ fi`
     }
   };
 
-  // Handle script selection
-  const handleScriptSelect = (scriptKey: string) => {
-    setSelectedScript(scriptKey);
-    if (scriptKey && scriptKey !== 'custom') {
-      setUserStartupScript(premadeScripts[scriptKey as keyof typeof premadeScripts].script);
+  // Add a script to the chain
+  const addScriptToChain = (script: Omit<ScriptChainItem, 'id'>) => {
+    const newScript: ScriptChainItem = {
+      ...script,
+      id: `script-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    };
+    setScriptChain([...scriptChain, newScript]);
+  };
+
+  // Remove a script from the chain
+  const removeScriptFromChain = (id: string) => {
+    setScriptChain(scriptChain.filter(s => s.id !== id));
+  };
+
+  // Update a script in the chain
+  const updateScriptInChain = (id: string, updates: Partial<ScriptChainItem>) => {
+    setScriptChain(scriptChain.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  // Move script up/down in the chain
+  const moveScript = (id: string, direction: 'up' | 'down') => {
+    const index = scriptChain.findIndex(s => s.id === id);
+    if (index === -1) return;
+    
+    const newChain = [...scriptChain];
+    if (direction === 'up' && index > 0) {
+      [newChain[index - 1], newChain[index]] = [newChain[index], newChain[index - 1]];
+    } else if (direction === 'down' && index < newChain.length - 1) {
+      [newChain[index], newChain[index + 1]] = [newChain[index + 1], newChain[index]];
     }
+    setScriptChain(newChain);
+  };
+
+  // Combine all enabled scripts into a single boot script
+  const generateCombinedScript = () => {
+    const enabledScripts = scriptChain.filter(s => s.enabled);
+    if (enabledScripts.length === 0) return '';
+    
+    const scriptParts = enabledScripts.map((script, index) => {
+      return `
+# ===== Script ${index + 1}: ${script.name} =====
+${script.script}
+# ===== End of ${script.name} =====
+`;
+    });
+    
+    return `#!/bin/bash
+set -e
+
+echo "Starting multi-script execution..."
+${scriptParts.join('\n')}
+echo "All scripts completed successfully!"`;
   };
 
   // Debounce search query
@@ -260,7 +321,7 @@ fi`
           ssh_url: selectedRepo.ssh_url,
           private: selectedRepo.private,
         },
-        userBootScript: userStartupScript || undefined,
+        userBootScript: generateCombinedScript() || undefined,
         trackingId: newTrackingId,
       };
 
@@ -613,48 +674,186 @@ fi`
 
             {showAdvanced && (
               <div className="space-y-4 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
-                <div>
-                  <label htmlFor="scriptTemplate" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                    Script Template
-                  </label>
-                  <select
-                    id="scriptTemplate"
-                    value={selectedScript}
-                    onChange={(e) => handleScriptSelect(e.target.value)}
-                    className="w-full mb-4"
-                  >
-                    <option value="">Select a template...</option>
-                    {Object.entries(premadeScripts).map(([key, script]) => (
-                      <option key={key} value={key}>
-                        {script.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider">Script Chain</h3>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowScriptLibrary(true)}
+                      className="btn-secondary text-xs"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      From Library
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        Object.entries(premadeScripts).forEach(([key, script]) => {
+                          if (key !== 'custom') {
+                            addScriptToChain({
+                              type: 'premade',
+                              name: script.name,
+                              script: script.script,
+                              enabled: false
+                            });
+                          }
+                        });
+                      }}
+                      className="btn-secondary text-xs"
+                    >
+                      Add All Templates
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addScriptToChain({
+                          type: 'custom',
+                          name: 'Custom Script',
+                          script: '#!/bin/bash\n# Add your custom script here',
+                          enabled: true
+                        });
+                        setEditingScriptId(scriptChain.length.toString());
+                      }}
+                      className="btn-secondary text-xs"
+                    >
+                      + Add Custom
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="userScript" className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
-                    Post-Clone Startup Script (Optional)
-                  </label>
-                  <textarea
-                    id="userScript"
-                    rows={10}
-                    value={userStartupScript}
-                    onChange={(e) => {
-                      setUserStartupScript(e.target.value);
-                      // If user manually edits, switch to custom
-                      if (selectedScript && selectedScript !== 'custom') {
-                        setSelectedScript('custom');
-                      }
-                    }}
-                    className="w-full font-mono text-xs"
-                    placeholder="#!/bin/bash\n# This script runs after the repository is cloned\n# Working directory will be the cloned repository\n\n# Example:\n# npm install\n# npm run build"
-                    spellCheck={false}
-                  />
-                  <p className="text-2xs text-te-gray-600 dark:text-te-gray-500 mt-1">
-                    This script will run after the repository is cloned. The working directory will be set to the cloned repository.
-                  </p>
-                </div>
+                {scriptChain.length === 0 ? (
+                  <div className="text-center py-8 text-te-gray-500 dark:text-te-gray-600">
+                    <p className="text-sm mb-4">No scripts added yet</p>
+                    <p className="text-xs">Add scripts from templates, library, or create custom scripts</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {scriptChain.map((script, index) => (
+                      <div key={script.id} className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={script.enabled}
+                              onChange={(e) => updateScriptInChain(script.id, { enabled: e.target.checked })}
+                              className="mt-0.5"
+                            />
+                            <div>
+                              <h4 className="text-sm font-medium">
+                                {index + 1}. {script.name}
+                              </h4>
+                              <span className="text-2xs text-te-gray-500">
+                                {script.type === 'library' ? 'From Library' : script.type === 'premade' ? 'Template' : 'Custom'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => moveScript(script.id, 'up')}
+                              disabled={index === 0}
+                              className="p-1 text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-yellow disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveScript(script.id, 'down')}
+                              disabled={index === scriptChain.length - 1}
+                              className="p-1 text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-yellow disabled:opacity-50"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {script.type === 'custom' && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingScriptId(editingScriptId === script.id ? null : script.id)}
+                                className="p-1 text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-yellow"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (script.type === 'custom' || confirm('Remove this script from the chain?')) {
+                                  removeScriptFromChain(script.id);
+                                }
+                              }}
+                              className="p-1 text-red-500 hover:text-red-700 dark:hover:text-te-orange"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {editingScriptId === script.id ? (
+                          <div className="mt-3">
+                            <input
+                              type="text"
+                              value={script.name}
+                              onChange={(e) => updateScriptInChain(script.id, { name: e.target.value })}
+                              className="w-full mb-2 text-sm"
+                              placeholder="Script name..."
+                            />
+                            <textarea
+                              value={script.script}
+                              onChange={(e) => updateScriptInChain(script.id, { script: e.target.value })}
+                              className="w-full font-mono text-xs"
+                              rows={8}
+                              spellCheck={false}
+                            />
+                            <div className="flex justify-end mt-2 space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const scriptToSave = scriptChain.find(s => s.id === script.id);
+                                  if (scriptToSave) {
+                                    setShowScriptLibrary(true);
+                                    // Pass the script to save to library
+                                  }
+                                }}
+                                className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow"
+                              >
+                                Save to Library
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingScriptId(null)}
+                                className="text-xs text-te-gray-600 dark:text-te-gray-400 hover:text-te-gray-900 dark:hover:text-te-yellow"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <pre className="mt-2 text-2xs font-mono bg-white dark:bg-te-gray-800 p-2 rounded overflow-x-auto max-h-32">
+                            {script.script.split('\n').slice(0, 5).join('\n')}
+                            {script.script.split('\n').length > 5 && '\n...'}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {scriptChain.length > 0 && (
+                  <div className="mt-4 p-3 bg-te-gray-200 dark:bg-te-gray-800 rounded">
+                    <p className="text-xs text-te-gray-600 dark:text-te-gray-400">
+                      <strong>{scriptChain.filter(s => s.enabled).length}</strong> of {scriptChain.length} scripts will be executed
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -680,6 +879,31 @@ fi`
           </div>
         )}
       </div>
+
+      {showScriptLibrary && (
+        <ScriptLibraryModal
+          mode="both"
+          onClose={() => setShowScriptLibrary(false)}
+          onSelectScript={(script) => {
+            addScriptToChain({
+              type: 'library',
+              libraryScriptId: script.id,
+              name: script.name,
+              script: script.scriptContent,
+              enabled: true
+            });
+            setShowScriptLibrary(false);
+          }}
+          onSaveScript={() => {
+            queryClient.invalidateQueries({ queryKey: ['scripts'] });
+          }}
+          initialScript={
+            editingScriptId 
+              ? scriptChain.find(s => s.id === editingScriptId)
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

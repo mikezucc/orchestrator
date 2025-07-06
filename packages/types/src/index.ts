@@ -116,6 +116,39 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+// Script Library types
+export interface ScriptLibraryItem {
+  id: string;
+  userId: string;
+  organizationId: string;
+  name: string;
+  description?: string;
+  script: string;
+  language: string;
+  tags: string[];
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateScriptRequest {
+  name: string;
+  description?: string;
+  script: string;
+  language?: string;
+  tags?: string[];
+  isPublic?: boolean;
+}
+
+export interface UpdateScriptRequest {
+  name?: string;
+  description?: string;
+  script?: string;
+  language?: string;
+  tags?: string[];
+  isPublic?: boolean;
+}
+
 // Wormhole types
 export interface WormholeClient {
   id: string;
