@@ -68,6 +68,19 @@ export default function ScriptExecutionDetailModal({ execution, onClose }: Scrip
     });
   };
 
+  const htmlMemoized = useMemo(() => {
+    if (!execution.logOutput) return '';
+    const convert = new Convert({
+      fg: '#10b981',
+      bg: '#111827',
+      newline: true,
+      escapeXML: true,
+      stream: true
+    });
+    const cleanedOutput = cleanAnsiOutput(execution.logOutput);
+    return convert.toHtml(cleanedOutput);
+  }, [execution.logOutput]);
+
   return (
     <div className="fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -183,17 +196,7 @@ export default function ScriptExecutionDetailModal({ execution, onClose }: Scrip
                   <pre 
                     className="p-4 text-xs font-mono whitespace-pre-wrap overflow-x-auto"
                     dangerouslySetInnerHTML={{
-                      __html: useMemo(() => {
-                        const convert = new Convert({
-                          fg: '#10b981',
-                          bg: '#111827',
-                          newline: true,
-                          escapeXML: true,
-                          stream: true
-                        });
-                        const cleanedOutput = cleanAnsiOutput(execution.logOutput);
-                        return convert.toHtml(cleanedOutput);
-                      }, [execution.logOutput])
+                      __html: htmlMemoized
                     }}
                   />
                 </div>
