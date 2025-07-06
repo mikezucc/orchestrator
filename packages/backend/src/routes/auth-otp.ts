@@ -108,7 +108,8 @@ authOTP.post('/verify-otp', async (c) => {
         email: user.email,
         name: user.name,
         emailVerified: user.emailVerified
-      }
+      },
+      hasOrganization: !!membership
     });
   } catch (error) {
     console.error('Error verifying OTP:', error);

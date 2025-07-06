@@ -119,8 +119,12 @@ export default function LoginOTP() {
       // Update auth context
       setIsAuthenticated(true);
 
-      // Redirect to dashboard
-      navigate('/');
+      // Redirect based on organization status
+      if (response.hasOrganization) {
+        navigate('/');
+      } else {
+        navigate('/create-organization');
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to verify OTP');
       // Clear OTP on error
