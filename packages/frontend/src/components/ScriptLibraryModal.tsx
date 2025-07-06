@@ -140,107 +140,152 @@ export default function ScriptLibraryModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-hidden">
           {(selectedTab === 'library' && mode !== 'save') && (
-            <div className="space-y-4">
-              {/* Search bar */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search scripts by name, description, or tags..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10"
-                />
-                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-te-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-
-              {/* Scripts grid */}
-              {isLoading ? (
-                <div className="text-center py-8 text-te-gray-500">Loading scripts...</div>
-              ) : filteredScripts.length === 0 ? (
-                <div className="text-center py-8 text-te-gray-500">
-                  {searchQuery ? 'No scripts found matching your search' : 'No scripts in library yet'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredScripts.map((script) => (
-                    <div
-                      key={script.id}
-                      onClick={() => setSelectedScript(script)}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        selectedScript?.id === script.id
-                          ? 'border-te-yellow bg-te-gray-100 dark:bg-te-gray-800'
-                          : 'border-te-gray-200 dark:border-te-gray-700 hover:border-te-gray-400 dark:hover:border-te-gray-500'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-sm">{script.name}</h3>
-                      </div>
-                      {script.description && (
-                        <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mb-2">
-                          {script.description}
-                        </p>
-                      )}
-                      {script.tags && script.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {script.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="text-2xs px-2 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-2 text-2xs text-te-gray-500">
-                        By {script.createdByUser?.email || 'Unknown'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Selected script preview */}
-              {selectedScript && (
-                <div className="mt-6 p-4 bg-te-gray-100 dark:bg-te-gray-900 rounded-lg">
-                  <h4 className="font-semibold text-sm mb-2">Script Preview</h4>
-                  <div className="rounded overflow-hidden">
-                    <SyntaxHighlighter
-                      language="bash"
-                      style={oneDark}
-                      customStyle={{
-                        margin: 0,
-                        fontSize: '0.75rem',
-                        maxHeight: '16rem',
-                        overflow: 'auto'
-                      }}
-                    >
-                      {selectedScript.scriptContent}
-                    </SyntaxHighlighter>
+            <div className="flex h-full">
+              {/* Left side - Script list */}
+              <div className="w-1/3 border-r border-te-gray-200 dark:border-te-gray-800 overflow-y-auto">
+                <div className="p-4 space-y-4">
+                  {/* Search bar */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search scripts..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 text-sm"
+                    />
+                    {/* <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-te-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg> */}
                   </div>
-                  {selectedScript.createdBy === (window as any).userId && (
-                    <button
-                      onClick={() => {
-                        if (confirm('Delete this script from your library?')) {
-                          deleteMutation.mutate(selectedScript.id);
-                        }
-                      }}
-                      className="mt-3 text-xs text-red-600 dark:text-te-orange hover:underline"
-                    >
-                      Delete Script
-                    </button>
+
+                  {/* Scripts list */}
+                  {isLoading ? (
+                    <div className="text-center py-8 text-te-gray-500 text-sm">Loading scripts...</div>
+                  ) : filteredScripts.length === 0 ? (
+                    <div className="text-center py-8 text-te-gray-500 text-sm">
+                      {searchQuery ? 'No scripts found' : 'No scripts in library yet'}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredScripts.map((script) => (
+                        <div
+                          key={script.id}
+                          onClick={() => setSelectedScript(script)}
+                          className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                            selectedScript?.id === script.id
+                              ? 'border-te-yellow bg-te-gray-100 dark:bg-te-gray-800'
+                              : 'border-te-gray-200 dark:border-te-gray-700 hover:border-te-gray-400 dark:hover:border-te-gray-500'
+                          }`}
+                        >
+                          <h3 className="font-semibold text-sm truncate">{script.name}</h3>
+                          {script.description && (
+                            <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mt-1 truncate">
+                              {script.description}
+                            </p>
+                          )}
+                          {script.tags && script.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {script.tags.slice(0, 2).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-2xs px-1.5 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded truncate max-w-[80px]"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                              {script.tags.length > 2 && (
+                                <span className="text-2xs text-te-gray-500">
+                                  +{script.tags.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
+
+              {/* Right side - Script details */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {selectedScript ? (
+                  <div className="flex flex-col h-full">
+                    {/* Header section - fixed */}
+                    <div className="p-6 pb-4">
+                      <h2 className="text-lg font-semibold">{selectedScript.name}</h2>
+                      {selectedScript.description && (
+                        <p className="text-sm text-te-gray-600 dark:text-te-gray-400 mt-1">
+                          {selectedScript.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 mt-2">
+                        <p className="text-xs text-te-gray-500">
+                          By {selectedScript.createdByUser?.email || 'Unknown'}
+                        </p>
+                        {selectedScript.tags && selectedScript.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedScript.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="text-2xs px-2 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Content section - scrollable */}
+                    <div className="flex-1 px-6 pb-6 overflow-y-scroll">
+                      <div className="rounded overflow-x-scroll">
+                        <SyntaxHighlighter
+                          language="bash"
+                          style={oneDark}
+                          customStyle={{
+                            margin: 0,
+                            fontSize: '0.75rem',
+                            minHeight: '100%'
+                          }}
+                        >
+                          {selectedScript.scriptContent}
+                        </SyntaxHighlighter>
+                      </div>
+                      
+                      {selectedScript.createdBy === (window as any).userId && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete this script from your library?')) {
+                              deleteMutation.mutate(selectedScript.id);
+                            }
+                          }}
+                          className="mt-4 text-xs text-red-600 dark:text-te-orange hover:underline"
+                        >
+                          Delete Script
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-te-gray-500">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 mx-auto mb-4 text-te-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-sm">Select a script to view details</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {(selectedTab === 'save' && mode !== 'select') && (
-            <div className="space-y-4">
+            <div className="p-6 space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                   Script Name *
