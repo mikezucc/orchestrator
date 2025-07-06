@@ -237,18 +237,50 @@ export default function ScriptLibraryModal({
                       )}
                     </div>
                     
-                    <div className="mt-4 rounded">
-                      <div className="overflow-x-auto">
-                        <SyntaxHighlighter
-                          language="bash"
-                          style={oneDark}
-                          customStyle={{
-                            margin: 0,
-                            fontSize: '0.75rem',
-                          }}
-                        >
-                          {selectedScript.scriptContent}
-                        </SyntaxHighlighter>
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-medium">Script Content</h3>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(selectedScript.scriptContent);
+                              showSuccess('Script copied to clipboard');
+                            }}
+                            className="btn-secondary text-xs px-3 py-1"
+                          >
+                            Copy Script
+                          </button>
+                          {mode === 'both' && (
+                            <button
+                              onClick={() => {
+                                setNewScript({
+                                  name: `${selectedScript.name} (Copy)`,
+                                  description: selectedScript.description || '',
+                                  scriptContent: selectedScript.scriptContent,
+                                  tags: selectedScript.tags || [],
+                                });
+                                setSelectedTab('save');
+                              }}
+                              className="btn-primary text-xs px-3 py-1"
+                            >
+                              Create From Script
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded overflow-hidden">
+                        <div className="overflow-x-auto">
+                          <SyntaxHighlighter
+                            language="bash"
+                            style={oneDark}
+                            customStyle={{
+                              margin: 0,
+                              fontSize: '0.75rem',
+                            }}
+                          >
+                            {selectedScript.scriptContent}
+                          </SyntaxHighlighter>
+                        </div>
                       </div>
                     </div>
                     
