@@ -140,7 +140,7 @@ export default function ScriptLibraryModal({
           </div>
         )}
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-scroll">
           {(selectedTab === 'library' && mode !== 'save') && (
             <div className="flex h-full">
               {/* Left side - Script list */}
@@ -210,65 +210,60 @@ export default function ScriptLibraryModal({
               </div>
 
               {/* Right side - Script details */}
-              <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 h-full">
                 {selectedScript ? (
-                  <div className="flex flex-col h-full">
-                    {/* Header section - fixed */}
-                    <div className="p-6 pb-4">
-                      <h2 className="text-lg font-semibold">{selectedScript.name}</h2>
-                      {selectedScript.description && (
-                        <p className="text-sm text-te-gray-600 dark:text-te-gray-400 mt-1">
-                          {selectedScript.description}
-                        </p>
+                  <div className="p-6 h-full overflow-y-auto">
+                    <h2 className="text-lg font-semibold">{selectedScript.name}</h2>
+                    {selectedScript.description && (
+                      <p className="text-sm text-te-gray-600 dark:text-te-gray-400 mt-1">
+                        {selectedScript.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 mt-2">
+                      <p className="text-xs text-te-gray-500">
+                        By {selectedScript.createdByUser?.email || 'Unknown'}
+                      </p>
+                      {selectedScript.tags && selectedScript.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedScript.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-2xs px-2 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       )}
-                      <div className="flex items-center gap-4 mt-2">
-                        <p className="text-xs text-te-gray-500">
-                          By {selectedScript.createdByUser?.email || 'Unknown'}
-                        </p>
-                        {selectedScript.tags && selectedScript.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {selectedScript.tags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="text-2xs px-2 py-0.5 bg-te-gray-200 dark:bg-te-gray-700 rounded"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
                     </div>
                     
-                    {/* Content section - scrollable */}
-                    <div className="flex-1 px-6 pb-6 overflow-y-scroll">
-                      <div className="rounded overflow-x-scroll">
+                    <div className="mt-4 rounded">
+                      <div className="overflow-x-auto">
                         <SyntaxHighlighter
                           language="bash"
                           style={oneDark}
                           customStyle={{
                             margin: 0,
                             fontSize: '0.75rem',
-                            minHeight: '100%'
                           }}
                         >
                           {selectedScript.scriptContent}
                         </SyntaxHighlighter>
                       </div>
-                      
-                      {selectedScript.createdBy === (window as any).userId && (
-                        <button
-                          onClick={() => {
-                            if (confirm('Delete this script from your library?')) {
-                              deleteMutation.mutate(selectedScript.id);
-                            }
-                          }}
-                          className="mt-4 text-xs text-red-600 dark:text-te-orange hover:underline"
-                        >
-                          Delete Script
-                        </button>
-                      )}
                     </div>
+                    
+                    {selectedScript.createdBy === (window as any).userId && (
+                      <button
+                        onClick={() => {
+                          if (confirm('Delete this script from your library?')) {
+                            deleteMutation.mutate(selectedScript.id);
+                          }
+                        }}
+                        className="mt-4 text-xs text-red-600 dark:text-te-orange hover:underline"
+                      >
+                        Delete Script
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-full text-te-gray-500">
