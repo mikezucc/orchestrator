@@ -8,6 +8,7 @@ import CreateVMModal from '../components/CreateVMModal';
 import CreateVMWithRepoModal from '../components/CreateVMWithRepoModal';
 import VMStatusBadge from '../components/VMStatusBadge';
 import DuplicateVMModal from '../components/DuplicateVMModal';
+import Dropdown from '../components/Dropdown';
 import { useToast } from '../contexts/ToastContext';
 import { useVMPostCreationSetup } from '../hooks/useVMPostCreationSetup';
 import type { VirtualMachine } from '@gce-platform/types';
@@ -18,7 +19,6 @@ export default function VMs() {
   const [showCreateWithRepoModal, setShowCreateWithRepoModal] = useState(false);
   const [showCreateOptions, setShowCreateOptions] = useState(false);
   const [duplicateVM, setDuplicateVM] = useState<VirtualMachine | null>(null);
-  const [openActionDropdown, setOpenActionDropdown] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -40,20 +40,6 @@ export default function VMs() {
     }
   }, [showCreateOptions]);
 
-  // Handle click outside for action dropdowns
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.action-dropdown')) {
-        setOpenActionDropdown(null);
-      }
-    }
-    
-    if (openActionDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [openActionDropdown]);
 
   // Fetch organization data to get configured projects
   const { data: organization } = useQuery({
@@ -175,8 +161,8 @@ export default function VMs() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between flex-shrink-0 mb-6">
         <div>
           <h1 className="text-xl font-bold uppercase tracking-wider mb-2">Virtual Machines</h1>
           <p className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-500">
@@ -245,9 +231,8 @@ export default function VMs() {
         </div>
       </div>
 
-      <div className="h-full card p-0 flex-1 overflow-hidden flex flex-col">
-        <div className="overflow-auto">
-          <table className="w-full">
+      <div className="card p-0 min-h-0 flex-1 overflow-auto">
+        <table className="w-full">
           <thead>
             <tr className="table-header">
               <th className="text-left px-4 py-3">Status</th>
@@ -323,24 +308,20 @@ export default function VMs() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="relative action-dropdown">
-                        <button 
-                          onClick={() => setOpenActionDropdown(openActionDropdown === vm.id ? null : vm.id)}
-                          className="btn-secondary text-xs"
-                        >
-                          Actions
-                          <svg className="w-3 h-3 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        {openActionDropdown === vm.id && (
-                          <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded shadow-lg z-50">
+                      <Dropdown
+                        trigger={
+                          <button className="btn-secondary text-xs">
+                            Actions
+                            <svg className="w-3 h-3 ml-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        }
+                      >
+                        <>
                           {vm.status === 'stopped' && (
                             <button
-                              onClick={() => {
-                                startMutation.mutate(vm.id);
-                                setOpenActionDropdown(null);
-                              }}
+                              onClick={() => startMutation.mutate(vm.id)}
                               disabled={startMutation.isPending}
                               className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-green-600 dark:text-te-yellow"
                             >
@@ -349,10 +330,7 @@ export default function VMs() {
                           )}
                           {vm.status === 'suspended' && (
                             <button
-                              onClick={() => {
-                                startMutation.mutate(vm.id);
-                                setOpenActionDropdown(null);
-                              }}
+                              onClick={() => startMutation.mutate(vm.id)}
                               disabled={startMutation.isPending}
                               className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-green-600 dark:text-te-yellow"
                             >
@@ -362,20 +340,14 @@ export default function VMs() {
                           {vm.status === 'running' && (
                             <>
                               <button
-                                onClick={() => {
-                                  stopMutation.mutate(vm.id);
-                                  setOpenActionDropdown(null);
-                                }}
+                                onClick={() => stopMutation.mutate(vm.id)}
                                 disabled={stopMutation.isPending}
                                 className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-yellow-600 dark:text-te-orange"
                               >
                                 Stop VM
                               </button>
                               <button
-                                onClick={() => {
-                                  suspendMutation.mutate(vm.id);
-                                  setOpenActionDropdown(null);
-                                }}
+                                onClick={() => suspendMutation.mutate(vm.id)}
                                 disabled={suspendMutation.isPending}
                                 className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-blue-600 dark:text-te-yellow"
                               >
@@ -391,10 +363,7 @@ export default function VMs() {
                             View Details
                           </Link>
                           <button
-                            onClick={() => {
-                              setDuplicateVM(vm);
-                              setOpenActionDropdown(null);
-                            }}
+                            onClick={() => setDuplicateVM(vm)}
                             className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-blue-600 dark:text-te-yellow"
                           >
                             Duplicate VM
@@ -404,16 +373,14 @@ export default function VMs() {
                             onClick={() => {
                               if (confirm(`Delete VM "${vm.name}"?`)) {
                                 deleteMutation.mutate(vm.id);
-                                setOpenActionDropdown(null);
                               }
                             }}
                             className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-50 dark:hover:bg-te-gray-700 text-red-600 dark:text-te-orange"
                           >
                             Delete VM
                           </button>
-                          </div>
-                        )}
-                      </div>
+                        </>
+                      </Dropdown>
                     </td>
                   </tr>
                 );
@@ -421,7 +388,6 @@ export default function VMs() {
             )}
           </tbody>
         </table>
-        </div>
       </div>
 
       {showCreateModal && (
