@@ -9,6 +9,11 @@ import VMCreationTracker from './VMCreationTracker';
 import ScriptLibraryModal from './ScriptLibraryModal';
 import { vmCreationProgress } from '../services/vm-creation-progress';
 import { scriptsApi } from '../api/scripts';
+import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
+import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
+import { vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+
+SyntaxHighlighter.registerLanguage('bash', bash);
 
 interface CreateVMWithRepoModalProps {
   onClose: () => void;
@@ -21,7 +26,6 @@ interface ScriptChainItem {
   libraryScriptId?: string;
   name: string;
   script: string;
-  enabled: boolean;
 }
 
 export default function CreateVMWithRepoModal({ onClose, onSuccess }: CreateVMWithRepoModalProps) {
@@ -244,12 +248,11 @@ fi`
     setScriptChain(newChain);
   };
 
-  // Combine all enabled scripts into a single boot script
+  // Combine all scripts into a single boot script
   const generateCombinedScript = () => {
-    const enabledScripts = scriptChain.filter(s => s.enabled);
-    if (enabledScripts.length === 0) return '';
+    if (scriptChain.length === 0) return '';
     
-    const scriptParts = enabledScripts.map((script, index) => {
+    const scriptParts = scriptChain.map((script, index) => {
       return `
 # ===== Script ${index + 1}: ${script.name} =====
 ${script.script}
@@ -727,8 +730,7 @@ echo "All scripts completed successfully!"`;
                                   addScriptToChain({
                                     type: 'premade',
                                     name: script.name,
-                                    script: script.script,
-                                    enabled: false
+                                    script: script.script
                                   });
                                 }
                               });
@@ -747,8 +749,7 @@ echo "All scripts completed successfully!"`;
                                   addScriptToChain({
                                     type: 'premade',
                                     name: script.name,
-                                    script: script.script,
-                                    enabled: true
+                                    script: script.script
                                   });
                                   setShowTemplateDropdown(false);
                                 }}
@@ -767,8 +768,7 @@ echo "All scripts completed successfully!"`;
                         addScriptToChain({
                           type: 'custom',
                           name: 'Custom Script',
-                          script: '#!/bin/bash\n# Add your custom script here',
-                          enabled: true
+                          script: '#!/bin/bash\n# Add your custom script here'
                         });
                         setEditingScriptId(scriptChain.length.toString());
                       }}
@@ -789,21 +789,13 @@ echo "All scripts completed successfully!"`;
                     {scriptChain.map((script, index) => (
                       <div key={script.id} className="border border-te-gray-200 dark:border-te-gray-700 rounded-lg p-4">
                         <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              checked={script.enabled}
-                              onChange={(e) => updateScriptInChain(script.id, { enabled: e.target.checked })}
-                              className="mt-0.5"
-                            />
-                            <div>
-                              <h4 className="text-sm font-medium">
-                                {index + 1}. {script.name}
-                              </h4>
-                              <span className="text-2xs text-te-gray-500">
-                                {script.type === 'library' ? 'From Library' : script.type === 'premade' ? 'Template' : 'Custom'}
-                              </span>
-                            </div>
+                          <div>
+                            <h4 className="text-sm font-medium">
+                              {index + 1}. {script.name}
+                            </h4>
+                            <span className="text-2xs text-te-gray-500">
+                              {script.type === 'library' ? 'From Library' : script.type === 'premade' ? 'Template' : 'Custom'}
+                            </span>
                           </div>
                           <div className="flex items-center space-x-1">
                             <button
@@ -893,10 +885,21 @@ echo "All scripts completed successfully!"`;
                             </div>
                           </div>
                         ) : (
-                          <pre className="mt-2 text-2xs font-mono bg-white dark:bg-te-gray-800 p-2 rounded overflow-x-auto max-h-32">
-                            {script.script.split('\n').slice(0, 5).join('\n')}
-                            {script.script.split('\n').length > 5 && '\n...'}
-                          </pre>
+                          <div className="mt-2 rounded overflow-hidden">
+                            <SyntaxHighlighter
+                              language="bash"
+                              style={vs2015}
+                              customStyle={{
+                                fontSize: '0.625rem',
+                                padding: '0.5rem',
+                                margin: 0,
+                                maxHeight: '12rem',
+                                overflow: 'auto'
+                              }}
+                            >
+                              {script.script}
+                            </SyntaxHighlighter>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -906,7 +909,7 @@ echo "All scripts completed successfully!"`;
                 {scriptChain.length > 0 && (
                   <div className="mt-4 p-3 bg-te-gray-200 dark:bg-te-gray-800 rounded">
                     <p className="text-xs text-te-gray-600 dark:text-te-gray-400">
-                      <strong>{scriptChain.filter(s => s.enabled).length}</strong> of {scriptChain.length} scripts will be executed
+                      <strong>{scriptChain.length}</strong> script{scriptChain.length > 1 ? 's' : ''} will be executed in order
                     </p>
                   </div>
                 )}
@@ -945,8 +948,7 @@ echo "All scripts completed successfully!"`;
               type: 'library',
               libraryScriptId: script.id,
               name: script.name,
-              script: script.scriptContent,
-              enabled: true
+              script: script.scriptContent
             });
             setShowScriptLibrary(false);
           }}
