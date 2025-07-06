@@ -285,3 +285,56 @@ export interface UpdateScriptRequest {
   timeout?: number;
   isPublic?: boolean;
 }
+
+// Script Execution types
+export interface ScriptExecution {
+  id: number;
+  scriptId?: string | null;
+  scriptName: string;
+  scriptContent: string;
+  vmId?: string | null;
+  executedBy: string;
+  executedByUser?: { email: string; name?: string | null } | null; // populated on fetch
+  executionType: 'manual' | 'boot' | 'scheduled' | 'api';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  exitCode?: number | null;
+  startedAt: Date;
+  completedAt?: Date | null;
+  durationMs?: number | null;
+  logOutput?: string | null;
+  errorOutput?: string | null;
+  metadata?: Record<string, any> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateScriptExecutionRequest {
+  scriptId?: string;
+  scriptName: string;
+  scriptContent: string;
+  vmId?: string;
+  executionType: 'manual' | 'boot' | 'scheduled' | 'api';
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateScriptExecutionRequest {
+  status?: 'running' | 'completed' | 'failed' | 'cancelled';
+  exitCode?: number;
+  completedAt?: Date;
+  durationMs?: number;
+  logOutput?: string;
+  errorOutput?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ScriptExecutionFilter {
+  vmId?: string;
+  scriptId?: string;
+  executedBy?: string;
+  status?: string;
+  executionType?: string;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
+  offset?: number;
+}

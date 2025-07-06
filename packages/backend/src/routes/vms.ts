@@ -2,8 +2,10 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
 import { organizations, authUsers } from '../db/schema-auth.js';
-import { eq, and, asc } from 'drizzle-orm';
-import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
+import { scripts } from '../db/schema-scripts.js';
+import { scriptExecutions } from '../db/schema-script-executions.js';
+import { eq, and, asc, desc } from 'drizzle-orm';
+import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse, ScriptExecution } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
 import { executeScriptViaSSH } from '../services/gcp-ssh-execute.js';
 import { executionSessionManager } from '../services/execution-sessions.js';
@@ -502,6 +504,27 @@ pwd
 exit
 `;
 
+                // Create script execution record for clone operation
+                const cloneStartTime = new Date();
+                const [cloneExecutionRecord] = await db
+                  .insert(scriptExecutions)
+                  .values({
+                    scriptName: `Clone GitHub Repository: ${body.githubRepository.full_name}`,
+                    scriptContent: cloneScript,
+                    vmId: vm.id,
+                    executedBy: userId,
+                    executionType: 'boot',
+                    status: 'running',
+                    startedAt: cloneStartTime,
+                    metadata: {
+                      vmCreation: true,
+                      trackingId: trackingId,
+                      githubRepo: body.githubRepository.full_name,
+                      repoClone: true,
+                    },
+                  })
+                  .returning();
+
                 const cloneSessionId = `vm-clone-${vm.id}-${Date.now()}`;
                 vmCreationProgress.reportScriptOutput(trackingId, 'stdout', '\n=== Starting Repository Clone ===\n');
                 
@@ -523,6 +546,23 @@ exit
                   },
                 });
                 
+                // Update execution record with results
+                const cloneEndTime = new Date();
+                const cloneDurationMs = cloneEndTime.getTime() - cloneStartTime.getTime();
+                
+                await db
+                  .update(scriptExecutions)
+                  .set({
+                    status: cloneResult.exitCode === 0 ? 'completed' : 'failed',
+                    exitCode: cloneResult.exitCode,
+                    completedAt: cloneEndTime,
+                    durationMs: cloneDurationMs,
+                    logOutput: cloneResult.stdout + (cloneResult.stderr ? '\n\n=== STDERR ===\n' + cloneResult.stderr : ''),
+                    errorOutput: cloneResult.stderr,
+                    updatedAt: cloneEndTime,
+                  })
+                  .where(eq(scriptExecutions.id, cloneExecutionRecord.id));
+
                 if (cloneResult.exitCode !== 0) {
                   vmCreationProgress.reportError(
                     trackingId,
@@ -575,6 +615,25 @@ exit
         'Running custom setup commands'
       );
 
+      // Create script execution record for boot script
+      const bootStartTime = new Date();
+      const [bootExecutionRecord] = await db
+        .insert(scriptExecutions)
+        .values({
+          scriptName: 'VM Boot Script',
+          scriptContent: userBootScript,
+          vmId: vm.id,
+          executedBy: userId,
+          executionType: 'boot',
+          status: 'running',
+          startedAt: bootStartTime,
+          metadata: {
+            vmCreation: true,
+            trackingId: trackingId,
+          },
+        })
+        .returning();
+
       try {
         const bootSessionId = `vm-boot-${vm.id}-${Date.now()}`;
 
@@ -599,6 +658,23 @@ exit
           },
         });
 
+        // Update execution record with results
+        const bootEndTime = new Date();
+        const bootDurationMs = bootEndTime.getTime() - bootStartTime.getTime();
+        
+        await db
+          .update(scriptExecutions)
+          .set({
+            status: bootResult.exitCode === 0 ? 'completed' : 'failed',
+            exitCode: bootResult.exitCode,
+            completedAt: bootEndTime,
+            durationMs: bootDurationMs,
+            logOutput: bootResult.stdout + (bootResult.stderr ? '\n\n=== STDERR ===\n' + bootResult.stderr : ''),
+            errorOutput: bootResult.stderr,
+            updatedAt: bootEndTime,
+          })
+          .where(eq(scriptExecutions.id, bootExecutionRecord.id));
+
         if (bootResult.exitCode !== 0) {
           vmCreationProgress.reportError(
             trackingId,
@@ -614,6 +690,22 @@ exit
         }
       } catch (error) {
         console.error('Failed to execute user boot script:', error);
+        
+        // Update execution record as failed
+        const bootEndTime = new Date();
+        const bootDurationMs = bootEndTime.getTime() - bootStartTime.getTime();
+        
+        await db
+          .update(scriptExecutions)
+          .set({
+            status: 'failed',
+            completedAt: bootEndTime,
+            durationMs: bootDurationMs,
+            errorOutput: error instanceof Error ? error.message : String(error),
+            updatedAt: bootEndTime,
+          })
+          .where(eq(scriptExecutions.id, bootExecutionRecord.id));
+        
         vmCreationProgress.reportError(
           trackingId, 
           `Failed to execute user boot script: ${error instanceof Error ? error.message : String(error)}`
@@ -817,6 +909,25 @@ vmRoutes.post('/:id/execute', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: 'VM must be running to execute scripts' }, 400);
   }
 
+  // Create script execution record
+  const startTime = new Date();
+  const [executionRecord] = await db
+    .insert(scriptExecutions)
+    .values({
+      scriptName: 'Manual Script Execution',
+      scriptContent: body.script,
+      vmId: vmId,
+      executedBy: userId,
+      executionType: 'manual',
+      status: 'running',
+      startedAt: startTime,
+      metadata: {
+        timeout: body.timeout,
+        githubSSHKey: body.githubSSHKey ? { configured: true } : undefined,
+      },
+    })
+    .returning();
+
   try {
     // Get organization to get GCP email for username
     const [organization] = await db.select().from(organizations)
@@ -849,12 +960,44 @@ vmRoutes.post('/:id/execute', async (c) => {
       githubSSHKey: body.githubSSHKey,
     });
 
+    // Update execution record with results
+    const endTime = new Date();
+    const durationMs = endTime.getTime() - startTime.getTime();
+    
+    await db
+      .update(scriptExecutions)
+      .set({
+        status: result.exitCode === 0 ? 'completed' : 'failed',
+        exitCode: result.exitCode,
+        completedAt: endTime,
+        durationMs: durationMs,
+        logOutput: result.stdout + (result.stderr ? '\n\n=== STDERR ===\n' + result.stderr : ''),
+        errorOutput: result.stderr,
+        updatedAt: endTime,
+      })
+      .where(eq(scriptExecutions.id, executionRecord.id));
+
     return c.json<ApiResponse<ExecuteScriptResponse>>({ 
       success: true, 
       data: result 
     });
   } catch (error: any) {
     console.error('Failed to execute script on VM:', error);
+    
+    // Update execution record as failed
+    const endTime = new Date();
+    const durationMs = endTime.getTime() - startTime.getTime();
+    
+    await db
+      .update(scriptExecutions)
+      .set({
+        status: 'failed',
+        completedAt: endTime,
+        durationMs: durationMs,
+        errorOutput: error.message || String(error),
+        updatedAt: endTime,
+      })
+      .where(eq(scriptExecutions.id, executionRecord.id));
     
     // Handle specific errors
     if (error.code === 403) {
@@ -1066,4 +1209,67 @@ vmRoutes.delete('/:id', async (c) => {
     success: true, 
     data: { message: 'VM deleted successfully' } 
   });
+});
+
+// Get script execution history for a VM
+vmRoutes.get('/:id/executions', async (c) => {
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
+  const vmId = c.req.param('id');
+
+  try {
+    // Verify VM exists and belongs to organization
+    const [vm] = await db
+      .select()
+      .from(virtualMachines)
+      .where(and(
+        eq(virtualMachines.id, vmId),
+        eq(virtualMachines.organizationId, organizationId)
+      ))
+      .limit(1);
+      
+    if (!vm) {
+      return c.json<ApiResponse<ScriptExecution[]>>({
+        success: false,
+        error: 'VM not found',
+      }, 404);
+    }
+
+    // Get executions for this VM
+    const executions = await db
+      .select({
+        execution: scriptExecutions,
+        executedByUser: {
+          email: authUsers.email,
+          name: authUsers.name,
+        },
+        script: {
+          id: scripts.id,
+          name: scripts.name,
+        },
+      })
+      .from(scriptExecutions)
+      .leftJoin(authUsers, eq(scriptExecutions.executedBy, authUsers.id))
+      .leftJoin(scripts, eq(scriptExecutions.scriptId, scripts.id))
+      .where(eq(scriptExecutions.vmId, vmId))
+      .orderBy(desc(scriptExecutions.startedAt))
+      .limit(100);
+
+    // Format response
+    const formattedExecutions: ScriptExecution[] = executions.map(({ execution, executedByUser }) => ({
+      ...execution,
+      executedByUser,
+    }));
+
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: true,
+      data: formattedExecutions,
+    });
+  } catch (error) {
+    console.error('Error fetching VM script executions:', error);
+    return c.json<ApiResponse<ScriptExecution[]>>({
+      success: false,
+      error: 'Failed to fetch script executions',
+    }, 500);
+  }
 });

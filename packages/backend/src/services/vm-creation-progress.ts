@@ -123,7 +123,7 @@ class VMCreationProgressService extends EventEmitter {
     });
   }
 
-  reportError(trackingId: string, error: string, message: string = 'VM creation failed'): void {
+  reportError(trackingId: string, error: string, message: string): void {
     this.addProgress(trackingId, {
       stage: 'error',
       message,
