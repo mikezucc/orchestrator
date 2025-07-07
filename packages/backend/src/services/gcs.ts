@@ -216,8 +216,12 @@ export class GCSService {
 
     // For organizations using refresh tokens, we need to handle auth differently
     // For now, we'll use the system GCS if available
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT_ID) {
-      return systemGCS;
+    if (org.gcpProjectIds && org.gcpProjectIds.length > 0) {
+      systemGCS = new GCSService({
+        projectId: org.gcpProjectIds[0],
+        keyFilename: org.gcpKeyFilePath, // Path to service account key file
+        credentials: org.gcpCredentials, // Use credentials if available
+      });
     }
 
     throw new Error('Primary organization GCS not properly configured');
@@ -225,7 +229,4 @@ export class GCSService {
 }
 
 // Export a default instance using environment credentials for system operations
-export const systemGCS = new GCSService({
-  projectId: process.env.GCP_PROJECT_ID || '',
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-});
+export let systemGCS: GCSService;

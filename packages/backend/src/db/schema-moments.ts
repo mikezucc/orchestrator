@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, jsonb, boolean, uniqueIndex, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, jsonb, boolean, index, integer } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
 import { organizations, authUsers } from './schema-auth';
 import { virtualMachines } from './schema';
@@ -33,14 +33,13 @@ export const moments = pgTable('moments', {
 }, (table) => {
   return {
     // Index for quick lookups by organization and git commit
-    orgCommitIndex: uniqueIndex('moments_org_commit_unique')
-      .on(table.organizationId, table.gitCommitHash)
-      .where('git_commit_hash IS NOT NULL'),
+    orgCommitIndex: index('moments_org_commit_idx')
+      .on(table.organizationId, table.gitCommitHash),
     // Index for filtering by branch
-    gitBranchIndex: uniqueIndex('moments_git_branch_idx')
+    gitBranchIndex: index('moments_git_branch_idx')
       .on(table.organizationId, table.gitBranch),
     // Index for soft deletes
-    notDeletedIndex: uniqueIndex('moments_not_deleted_idx')
+    notDeletedIndex: index('moments_not_deleted_idx')
       .on(table.organizationId, table.isDeleted),
   };
 });
@@ -90,10 +89,10 @@ export const momentAssets = pgTable('moment_assets', {
 }, (table) => {
   return {
     // Index for quick lookups by moment
-    momentIdIndex: uniqueIndex('moment_assets_moment_id_idx')
+    momentIdIndex: index('moment_assets_moment_id_idx')
       .on(table.momentId),
     // Index for finding assets by type
-    assetTypeIndex: uniqueIndex('moment_assets_type_idx')
+    assetTypeIndex: index('moment_assets_type_idx')
       .on(table.momentId, table.assetType),
   };
 });
