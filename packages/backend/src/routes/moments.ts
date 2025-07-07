@@ -71,9 +71,20 @@ const uploadAssetSchema = z.object({
 const listMomentsSchema = z.object({
   vmId: z.string().optional(),
   gitBranch: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  limit: z.number().min(1).max(100).optional().default(50),
-  offset: z.number().min(0).optional().default(0),
+  tags: z.union([z.string(), z.array(z.string())]).optional().transform((val) => {
+    if (!val) return undefined;
+    if (typeof val === 'string') return [val];
+    return val;
+  }),
+  limit: z.string().optional().default('50').transform((val) => {
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num < 1) return 50;
+    return Math.min(num, 100);
+  }),
+  offset: z.string().optional().default('0').transform((val) => {
+    const num = parseInt(val, 10);
+    return isNaN(num) || num < 0 ? 0 : num;
+  }),
 });
 
 // Create a new moment
