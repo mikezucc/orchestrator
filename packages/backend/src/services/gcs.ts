@@ -185,16 +185,42 @@ export class GCSService {
       throw new Error(`Organization ${organizationId} not found`);
     }
 
-    if (!org.gcpCredentials) {
+    if (!org.gcpRefreshToken) {
       throw new Error(`Organization ${organizationId} has no GCP credentials`);
     }
 
-    const credentials = JSON.parse(org.gcpCredentials);
-    
-    return new GCSService({
-      projectId: credentials.project_id,
-      credentials,
-    });
+    // TODO: Implement proper OAuth2 refresh token flow for GCS
+    // For now, organizations should use service account credentials
+    throw new Error('Organization-specific GCS not implemented. Using primary organization.');
+  }
+
+  /**
+   * Create a GCS service using the primary organization's credentials
+   * This is used when we want all storage to go through a single GCP account
+   */
+  static async forPrimaryOrganization(): Promise<GCSService> {
+    // Find the primary organization by slug or name
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.slug, 'slopboxprimary'))
+      .limit(1);
+
+    if (!org) {
+      throw new Error('Primary organization (slopboxprimary) not found');
+    }
+
+    if (!org.gcpRefreshToken) {
+      throw new Error('Primary organization has no GCP credentials');
+    }
+
+    // For organizations using refresh tokens, we need to handle auth differently
+    // For now, we'll use the system GCS if available
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GCP_PROJECT_ID) {
+      return systemGCS;
+    }
+
+    throw new Error('Primary organization GCS not properly configured');
   }
 }
 

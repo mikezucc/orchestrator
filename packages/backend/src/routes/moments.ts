@@ -55,7 +55,7 @@ const createMomentSchema = z.object({
   gitCommitMessage: z.string().optional(),
   gitAuthor: z.string().optional(),
   gitAuthorEmail: z.string().optional(),
-  gitCommitDate: z.string().datetime().optional(),
+  gitCommitDate: z.string().optional(),
   gitDiff: z.string().optional(),
   metadata: z.record(z.any()).optional().default({}),
 });
@@ -182,8 +182,8 @@ momentsRouter.post('/:momentId/assets/upload', zValidator('json', uploadAssetSch
       processingStatus: 'pending',
     });
 
-    // Generate signed upload URL
-    const gcsService = await GCSService.forOrganization(organizationId);
+    // Generate signed upload URL using primary organization's GCS
+    const gcsService = await GCSService.forPrimaryOrganization();
     const uploadUrl = await gcsService.generateUploadUrl(
       organizationId,
       momentId,
@@ -326,8 +326,8 @@ momentsRouter.get('/:momentId', async (c) => {
       .where(eq(momentAssets.momentId, momentId))
       .orderBy(desc(momentAssets.createdAt));
 
-    // Generate download URLs for assets
-    const gcsService = await GCSService.forOrganization(organizationId);
+    // Generate download URLs for assets using primary organization's GCS
+    const gcsService = await GCSService.forPrimaryOrganization();
     const assetsWithUrls = await Promise.all(
       assets.map(async (assetData) => {
         try {
@@ -519,7 +519,6 @@ momentsRouter.post('/vm/:momentId/assets/upload', vmAgentAuth, zValidator('json'
       .where(and(
         eq(moments.id, momentId),
         eq(moments.organizationId, organizationId),
-        eq(moments.vmId, vmId),
         eq(moments.isDeleted, false)
       ))
       .limit(1);
@@ -554,8 +553,8 @@ momentsRouter.post('/vm/:momentId/assets/upload', vmAgentAuth, zValidator('json'
       processingStatus: 'pending',
     });
 
-    // Generate signed upload URL
-    const gcsService = await GCSService.forOrganization(organizationId);
+    // Generate signed upload URL using primary organization's GCS
+    const gcsService = await GCSService.forPrimaryOrganization();
     const uploadUrl = await gcsService.generateUploadUrl(
       organizationId,
       momentId,
