@@ -107,8 +107,19 @@ If you didn't create an account, you can safely ignore this email.`;
     await this.sendEmail(email, subject, html, text);
   }
 
-  async sendTeamInvitation(email: string, inviterName: string, organizationName: string, invitationUrl: string, role: string) {
+  async sendTeamInvitation(email: string, inviterName: string, organizationName: string, invitationUrl: string, role: string, isNewUser: boolean = false) {
     const subject = `You've been invited to join ${organizationName} on DevBox Orchestrator`;
+    
+    const actionText = isNewUser ? 'Get Started' : 'Go to Login';
+    const introText = isNewUser 
+      ? `<strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong> on DevBox Orchestrator as a <span class="role-badge">${role}</span>.`
+      : `<strong>${inviterName}</strong> has added you to <strong>${organizationName}</strong> on DevBox Orchestrator as a <span class="role-badge">${role}</span>.`;
+    
+    const instructionText = isNewUser
+      ? `<p>An account has been created for you with this email address. Click the button below to log in and complete your account setup.</p>
+         <p><strong>Important:</strong> You'll need to set up two-factor authentication during your first login.</p>`
+      : `<p>You can now access ${organizationName} by logging in with your existing account.</p>`;
+    
     const html = `
       <!DOCTYPE html>
       <html>
@@ -121,6 +132,7 @@ If you didn't create an account, you can safely ignore this email.`;
             .button { display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 4px; }
             .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
             .role-badge { display: inline-block; padding: 4px 12px; background-color: #e9ecef; border-radius: 4px; font-size: 14px; }
+            .info-box { background-color: #e8f4f8; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; }
           </style>
         </head>
         <body>
@@ -129,16 +141,17 @@ If you didn't create an account, you can safely ignore this email.`;
               <h1>Team Invitation</h1>
             </div>
             <div class="content">
-              <p><strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong> on DevBox Orchestrator as a <span class="role-badge">${role}</span>.</p>
+              <p>${introText}</p>
               <p>DevBox Orchestrator helps teams manage virtual machines and development environments in Google Cloud Platform.</p>
+              ${instructionText}
               <p style="text-align: center; margin: 30px 0;">
-                <a href="${invitationUrl}" class="button">Accept Invitation</a>
+                <a href="${invitationUrl}" class="button">${actionText}</a>
               </p>
               <p>Or copy and paste this link into your browser:</p>
               <p style="word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
                 ${invitationUrl}
               </p>
-              <p>This invitation will expire in 7 days.</p>
+              ${isNewUser ? '<div class="info-box"><strong>Note:</strong> Your account has been created but you will need to verify your email and set up two-factor authentication when you first log in.</div>' : ''}
             </div>
             <div class="footer">
               <p>If you don't know ${inviterName} or weren't expecting this invitation, you can safely ignore this email.</p>
@@ -150,15 +163,19 @@ If you didn't create an account, you can safely ignore this email.`;
 
     const text = `You've been invited to join ${organizationName} on DevBox Orchestrator
 
-${inviterName} has invited you to join ${organizationName} as a ${role}.
+${isNewUser 
+  ? `${inviterName} has invited you to join ${organizationName} as a ${role}.` 
+  : `${inviterName} has added you to ${organizationName} as a ${role}.`}
 
 DevBox Orchestrator helps teams manage virtual machines and development environments in Google Cloud Platform.
 
-Accept the invitation by clicking the link below:
+${isNewUser 
+  ? 'An account has been created for you. You will need to set up two-factor authentication during your first login.' 
+  : 'You can now access the organization by logging in with your existing account.'}
+
+${actionText} by clicking the link below:
 
 ${invitationUrl}
-
-This invitation will expire in 7 days.
 
 If you don't know ${inviterName} or weren't expecting this invitation, you can safely ignore this email.`;
 

@@ -29,14 +29,18 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       return c.json({ success: false, error: 'Invalid role' }, 400);
     }
 
-    // Check if user is already a member
+    // Check if user exists
     const existingUser = await db
       .select()
       .from(authUsers)
       .where(eq(authUsers.email, email))
       .limit(1);
 
+    let userId: string;
+    let isNewUser = false;
+
     if (existingUser.length > 0) {
+      // User exists, check if already a member
       const existingMember = await db
         .select()
         .from(organizationMembers)
@@ -51,6 +55,18 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       if (existingMember.length > 0) {
         return c.json({ success: false, error: 'User is already a member' }, 400);
       }
+      
+      userId = existingUser[0].id;
+    } else {
+      // Create new user with unverified status
+      const [newUser] = await db.insert(authUsers).values({
+        email,
+        emailVerified: false,
+        totpEnabled: false,
+      }).returning();
+      
+      userId = newUser.id;
+      isNewUser = true;
     }
 
     // Check for pending invitation
@@ -91,14 +107,26 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       expiresAt,
     }).returning();
 
+    // Add user to organization members
+    await db.insert(organizationMembers).values({
+      organizationId,
+      userId,
+      role,
+    });
+
     // Send invitation email
-    const invitationUrl = `${process.env.FRONTEND_URL}/accept-invitation?token=${token}`;
+    const invitationUrl = `${process.env.FRONTEND_URL}/login`;
+    const emailSubject = isNewUser 
+      ? `You've been invited to join ${organization.name}` 
+      : `You've been added to ${organization.name}`;
+    
     await emailService.sendTeamInvitation(
       email,
       (c as any).user.name || (c as any).user.email,
       organization.name,
       invitationUrl,
-      role
+      role,
+      isNewUser
     );
 
     // Log the action
@@ -108,7 +136,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       action: 'invitation.sent',
       resourceType: 'invitation',
       resourceId: invitation.id,
-      metadata: { email, role },
+      metadata: { email, role, newUserCreated: isNewUser },
       ipAddress: c.env?.remoteAddr || '',
       userAgent: c.req.header('user-agent'),
     });
@@ -120,7 +148,8 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       role: invitation.role,
       invitedBy: invitation.invitedBy,
       expiresAt: invitation.expiresAt,
-      createdAt: invitation.createdAt
+      createdAt: invitation.createdAt,
+      newUserCreated: isNewUser
     });
   } catch (error) {
     console.error('Send invitation error:', error);
@@ -316,15 +345,15 @@ invitationRoutes.post('/:invitationId/resend', requireRole('owner', 'admin'), as
   }
 });
 
-// Accept invitation (public endpoint)
+// Accept invitation (public endpoint) - Now just marks invitation as accepted since user is already added
 invitationRoutes.post('/accept', async (c) => {
   try {
-    const { token, userId } = await c.req.json();
+    const { token } = await c.req.json();
 
-    if (!token || !userId) {
+    if (!token) {
       return c.json({ 
         success: false, 
-        error: 'Invitation token and user ID are required' 
+        error: 'Invitation token is required' 
       }, 400);
     }
 
@@ -355,46 +384,6 @@ invitationRoutes.post('/accept', async (c) => {
       }, 400);
     }
 
-    // Get user
-    const [user] = await db
-      .select()
-      .from(authUsers)
-      .where(eq(authUsers.id, userId))
-      .limit(1);
-
-    if (!user || user.email !== invitation.email) {
-      return c.json({ 
-        success: false, 
-        error: 'Invalid user or email mismatch' 
-      }, 400);
-    }
-
-    // Check if already a member
-    const existingMember = await db
-      .select()
-      .from(organizationMembers)
-      .where(
-        and(
-          eq(organizationMembers.userId, userId),
-          eq(organizationMembers.organizationId, invitation.organizationId)
-        )
-      )
-      .limit(1);
-
-    if (existingMember.length > 0) {
-      return c.json({ 
-        success: false, 
-        error: 'You are already a member of this organization' 
-      }, 400);
-    }
-
-    // Add user to organization
-    await db.insert(organizationMembers).values({
-      organizationId: invitation.organizationId,
-      userId,
-      role: invitation.role,
-    });
-
     // Mark invitation as accepted
     await db
       .update(teamInvitations)
@@ -407,18 +396,6 @@ invitationRoutes.post('/accept', async (c) => {
       .from(organizations)
       .where(eq(organizations.id, invitation.organizationId))
       .limit(1);
-
-    // Log the action
-    await db.insert(auditLogs).values({
-      organizationId: invitation.organizationId,
-      userId,
-      action: 'invitation.accepted',
-      resourceType: 'invitation',
-      resourceId: invitation.id,
-      metadata: { role: invitation.role },
-      ipAddress: c.env?.remoteAddr || '',
-      userAgent: c.req.header('user-agent'),
-    });
 
     return c.json({ 
       success: true, 
