@@ -2,7 +2,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import ThemeToggle from '../components/ThemeToggle';
-import '../styles/graphite.css';
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth();
