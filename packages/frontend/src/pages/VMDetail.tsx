@@ -11,6 +11,7 @@ import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
 import ExecuteScriptModal from '../components/ExecuteScriptModal';
 import ScriptExecutionsList from '../components/ScriptExecutionsList';
+import AddFavoritePortModal from '../components/AddFavoritePortModal';
 import { useToast } from '../contexts/ToastContext';
 
 export default function VMDetail() {
@@ -24,6 +25,7 @@ export default function VMDetail() {
   const [showExecuteScriptModal, setShowExecuteScriptModal] = useState(false);
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showVMInfo, setShowVMInfo] = useState(false);
+  const [showAddFavoritePortModal, setShowAddFavoritePortModal] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'executions'>('overview');
 
@@ -416,6 +418,19 @@ export default function VMDetail() {
           </div>
 
           <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-semibold uppercase tracking-wider">Ports & Services</h3>
+              <button
+                onClick={() => setShowAddFavoritePortModal(true)}
+                className="btn-secondary text-xs flex items-center space-x-1"
+                title="Add a favorite port without wormhole connection"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add Favorite Port</span>
+              </button>
+            </div>
             <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
           </div>
 
@@ -464,6 +479,13 @@ export default function VMDetail() {
           }}
           output={consoleOutput}
           setOutput={setConsoleOutput}
+        />
+      )}
+
+      {showAddFavoritePortModal && (
+        <AddFavoritePortModal
+          vmId={id!}
+          onClose={() => setShowAddFavoritePortModal(false)}
         />
       )}
     </div>

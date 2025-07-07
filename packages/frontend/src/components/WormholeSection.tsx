@@ -529,7 +529,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
           </span>
           {connectionStatus === 'disconnected' ? (
             <button
-              onClick={handleConnect}
+              onClick={() => handleConnect()}
               disabled={!publicIp}
               className="btn-primary"
               title={!publicIp ? 'No public IP available' : 'Connect to Wormhole service'}
