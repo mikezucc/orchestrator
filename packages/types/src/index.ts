@@ -335,3 +335,133 @@ export interface ScriptExecutionFilter {
   limit?: number;
   offset?: number;
 }
+
+// Moment types
+export interface Moment {
+  id: string;
+  organizationId: string;
+  createdBy: string;
+  vmId?: string;
+  gitBranch?: string;
+  gitCommitHash?: string;
+  gitCommitMessage?: string;
+  gitAuthor?: string;
+  gitAuthorEmail?: string;
+  gitCommitDate?: Date;
+  gitDiff?: string;
+  title: string;
+  description?: string;
+  tags: string[];
+  metadata: Record<string, any>;
+  isDeleted: boolean;
+  deletedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MomentAsset {
+  id: string;
+  momentId: string;
+  organizationId: string;
+  assetType: 'screenshot' | 'screen_recording' | 'log_file' | 'config_file' | 'other';
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  gcsBucket: string;
+  gcsPath: string;
+  gcsGeneration?: string;
+  metadata: {
+    width?: number;
+    height?: number;
+    duration?: number;
+    encoding?: string;
+    thumbnail?: string;
+    [key: string]: any;
+  };
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  processingError?: string;
+  uploadedBy: string;
+  uploadMethod: 'web_ui' | 'api' | 'vm_agent' | 'cli';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateMomentRequest {
+  vmId?: string;
+  title: string;
+  description?: string;
+  tags?: string[];
+  gitBranch?: string;
+  gitCommitHash?: string;
+  gitCommitMessage?: string;
+  gitAuthor?: string;
+  gitAuthorEmail?: string;
+  gitCommitDate?: string;
+  gitDiff?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface UploadAssetRequest {
+  assetType: 'screenshot' | 'screen_recording' | 'log_file' | 'config_file' | 'other';
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  uploadMethod: 'web_ui' | 'api' | 'vm_agent' | 'cli';
+}
+
+export interface UploadAssetResponse {
+  success: boolean;
+  assetId: string;
+  uploadUrl: string;
+  gcsPath: string;
+}
+
+export interface ListMomentsRequest {
+  vmId?: string;
+  gitBranch?: string;
+  tags?: string[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface ListMomentsResponse {
+  success: boolean;
+  moments: Array<{
+    moment: Moment;
+    createdByUser: {
+      id: string;
+      email: string;
+      name?: string;
+    };
+    vm?: {
+      id: string;
+      name: string;
+    };
+    assetCount: number;
+  }>;
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface MomentDetailResponse {
+  success: boolean;
+  moment: {
+    moment: Moment;
+    createdByUser: {
+      id: string;
+      email: string;
+      name?: string;
+    };
+    vm?: VirtualMachine;
+  };
+  assets: Array<{
+    asset: MomentAsset;
+    uploadedByUser: {
+      id: string;
+      email: string;
+      name?: string;
+    };
+    downloadUrl: string | null;
+  }>;
+}

@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@gce-platform/types": "^1.0.0",
+    "@google-cloud/storage": "^7.16.0",
     "@hono/node-server": "^1.8.0",
     "@hono/node-ws": "^1.1.7",
     "@octokit/rest": "^22.0.0",
