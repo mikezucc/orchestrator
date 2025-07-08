@@ -9,3 +9,4 @@ dist/
 drizzle/
 packages/backend/certs/
 packages/frontend/certs/
+packages/backend/wormhole-binaries/
