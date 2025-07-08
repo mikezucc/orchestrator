@@ -29,11 +29,14 @@ authRoutes.post('/signup', async (c) => {
       }, 400);
     }
 
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+
     // Check if user already exists
     const existingUser = await db
       .select()
       .from(authUsers)
-      .where(eq(authUsers.email, email))
+      .where(eq(authUsers.email, normalizedEmail))
       .limit(1);
 
     if (existingUser.length > 0) {
@@ -61,7 +64,7 @@ authRoutes.post('/signup', async (c) => {
     verificationExpires.setHours(verificationExpires.getHours() + 24);
 
     const [user] = await db.insert(authUsers).values({
-      email,
+      email: normalizedEmail,
       name,
       emailVerificationToken: verificationToken,
       emailVerificationExpires: verificationExpires,
@@ -88,14 +91,14 @@ authRoutes.post('/signup', async (c) => {
       action: 'user.signup',
       resourceType: 'user',
       resourceId: user.id,
-      metadata: { email, organizationName },
+      metadata: { email: normalizedEmail, organizationName },
       ipAddress: c.env?.remoteAddr || '',
       userAgent: c.req.header('user-agent'),
     });
 
     // Send verification email
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-    await emailService.sendVerificationEmail(email, verificationUrl);
+    await emailService.sendVerificationEmail(normalizedEmail, verificationUrl);
 
     return c.json({ 
       success: true, 
@@ -203,7 +206,7 @@ authRoutes.post('/setup-totp', async (c) => {
     }
 
     // Generate TOTP secret
-    const { secret, url } = generateTOTPSecret(user.email);
+    const { secret, url } = generateTOTPSecret(user.email.toLowerCase());
     const qrCode = await generateQRCode(url);
 
     // Store encrypted secret temporarily (will be confirmed when user verifies)
@@ -318,11 +321,14 @@ authRoutes.post('/login', async (c) => {
       }, 400);
     }
 
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+
     // Get user
     const [user] = await db
       .select()
       .from(authUsers)
-      .where(eq(authUsers.email, email))
+      .where(eq(authUsers.email, normalizedEmail))
       .limit(1);
 
     if (!user || !user.totpEnabled || !user.totpSecret) {

@@ -20,16 +20,19 @@ authOTP.post('/request-otp', async (c) => {
       return c.json({ error: 'Invalid email address' }, 400);
     }
 
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+
     // Generate and store OTP
     const otp = generateOTP();
-    storeOTP(email, otp);
+    storeOTP(normalizedEmail, otp);
     
     // Send OTP email
-    await emailService.sendOTPEmail(email, otp);
+    await emailService.sendOTPEmail(normalizedEmail, otp);
     
     return c.json({ 
       message: 'OTP sent to your email', 
-      email 
+      email: normalizedEmail 
     });
   } catch (error) {
     console.error('Error sending OTP:', error);
@@ -45,15 +48,18 @@ authOTP.post('/verify-otp', async (c) => {
     if (!email || !otp) {
       return c.json({ error: 'Email and OTP are required' }, 400);
     }
+
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
     
     // Verify OTP
-    if (!verifyOTP(email, otp)) {
+    if (!verifyOTP(normalizedEmail, otp)) {
       return c.json({ error: 'Invalid or expired OTP' }, 401);
     }
     
     // Check if user exists or create new user
     let user = await db.query.authUsers.findFirst({
-      where: eq(authUsers.email, email)
+      where: eq(authUsers.email, normalizedEmail)
     });
     
     if (!user) {
@@ -70,7 +76,7 @@ authOTP.post('/verify-otp', async (c) => {
       
       // Create new user
       const [newUser] = await db.insert(authUsers).values({
-        email,
+        email: normalizedEmail,
         emailVerified: true // Since they verified via OTP
       }).returning();
       user = newUser;

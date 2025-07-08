@@ -29,11 +29,14 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       return c.json({ success: false, error: 'Invalid role' }, 400);
     }
 
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase();
+
     // Check if user exists
     const existingUser = await db
       .select()
       .from(authUsers)
-      .where(eq(authUsers.email, email))
+      .where(eq(authUsers.email, normalizedEmail))
       .limit(1);
 
     let userId: string;
@@ -60,7 +63,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
     } else {
       // Create new user with unverified status
       const [newUser] = await db.insert(authUsers).values({
-        email,
+        email: normalizedEmail,
         emailVerified: false,
         totpEnabled: false,
       }).returning();
@@ -76,7 +79,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       .where(
         and(
           eq(teamInvitations.organizationId, organizationId),
-          eq(teamInvitations.email, email),
+          eq(teamInvitations.email, normalizedEmail),
           isNull(teamInvitations.acceptedAt)
         )
       )
@@ -100,7 +103,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
 
     const [invitation] = await db.insert(teamInvitations).values({
       organizationId,
-      email,
+      email: normalizedEmail,
       role,
       invitedBy: (c as any).user.id,
       token,
@@ -121,7 +124,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       : `You've been added to ${organization.name}`;
     
     await emailService.sendTeamInvitation(
-      email,
+      normalizedEmail,
       (c as any).user.name || (c as any).user.email,
       organization.name,
       invitationUrl,
@@ -136,7 +139,7 @@ invitationRoutes.post('/', requireRole('owner', 'admin'), async (c) => {
       action: 'invitation.sent',
       resourceType: 'invitation',
       resourceId: invitation.id,
-      metadata: { email, role, newUserCreated: isNewUser },
+      metadata: { email: normalizedEmail, role, newUserCreated: isNewUser },
       ipAddress: c.env?.remoteAddr || '',
       userAgent: c.req.header('user-agent'),
     });
