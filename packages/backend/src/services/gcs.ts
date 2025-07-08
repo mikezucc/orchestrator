@@ -10,6 +10,7 @@ interface GCSConfig {
   keyFilename?: string;
   credentials?: any;
   authClient?: OAuth2Client;
+  serviceAccountKeyFile?: string; // Path to service account key file for signed URLs
 }
 
 interface SignedUrlOptions {
@@ -21,6 +22,7 @@ interface SignedUrlOptions {
 
 export class GCSService {
   private storage: Storage;
+  private signedUrlStorage?: Storage; // Separate instance for signed URLs
   private bucketPrefix = 'moments';
 
   constructor(config: GCSConfig) {
@@ -42,6 +44,19 @@ export class GCSService {
     }
 
     this.storage = new Storage(storageConfig);
+
+    // If a service account key file is provided, create a separate Storage instance for signed URLs
+    if (config.serviceAccountKeyFile) {
+      try {
+        this.signedUrlStorage = new Storage({
+          projectId: config.projectId,
+          keyFilename: config.serviceAccountKeyFile,
+        });
+      } catch (error) {
+        console.warn('Failed to initialize signed URL storage with service account:', error);
+        // Continue without signed URL support
+      }
+    }
   }
 
   /**
@@ -110,7 +125,10 @@ export class GCSService {
     
     const bucketName = this.getBucketName(organizationId);
     const filePath = `${momentId}/${assetId}-${fileName}`;
-    const bucket = this.storage.bucket(bucketName);
+    
+    // Use signedUrlStorage if available, otherwise fall back to regular storage
+    const storageInstance = this.signedUrlStorage || this.storage;
+    const bucket = storageInstance.bucket(bucketName);
     const file = bucket.file(filePath);
 
     const options: SignedUrlOptions = {
@@ -133,7 +151,10 @@ export class GCSService {
     expiresInMinutes: number = 60
   ): Promise<string> {
     const bucketName = this.getBucketName(organizationId);
-    const bucket = this.storage.bucket(bucketName);
+    
+    // Use signedUrlStorage if available, otherwise fall back to regular storage
+    const storageInstance = this.signedUrlStorage || this.storage;
+    const bucket = storageInstance.bucket(bucketName);
     const file = bucket.file(gcsPath);
 
     const options: SignedUrlOptions = {
@@ -223,6 +244,7 @@ export class GCSService {
     return new GCSService({
       projectId: org.gcpProjectIds[0],
       authClient: oauth2Client,
+      serviceAccountKeyFile: new URL('./vibespace-463323-2e7d5f7ca7c8.json', import.meta.url).pathname,
     });
   }
 
@@ -264,6 +286,7 @@ export class GCSService {
     return new GCSService({
       projectId: org.gcpProjectIds[0],
       authClient: oauth2Client,
+      serviceAccountKeyFile: new URL('./vibespace-463323-2e7d5f7ca7c8.json', import.meta.url).pathname,
     });
   }
 }
