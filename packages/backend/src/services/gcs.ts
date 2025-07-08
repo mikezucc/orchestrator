@@ -1,12 +1,15 @@
 import { Storage } from '@google-cloud/storage';
+import { OAuth2Client } from 'google-auth-library';
 import { organizations } from '../db/schema-auth.js';
 import { db } from '../db/index.js';
 import { eq } from 'drizzle-orm';
+import { getOrganizationAccessToken } from './organization-auth.js';
 
 interface GCSConfig {
   projectId: string;
   keyFilename?: string;
   credentials?: any;
+  authClient?: OAuth2Client;
 }
 
 interface SignedUrlOptions {
@@ -21,11 +24,24 @@ export class GCSService {
   private bucketPrefix = 'moments';
 
   constructor(config: GCSConfig) {
-    this.storage = new Storage({
+    const storageConfig: any = {
       projectId: config.projectId,
-      keyFilename: config.keyFilename,
-      credentials: config.credentials,
-    });
+    };
+
+    // Use authClient if provided (for OAuth2 access token auth)
+    if (config.authClient) {
+      storageConfig.authClient = config.authClient;
+    } else {
+      // Fall back to service account auth
+      if (config.keyFilename) {
+        storageConfig.keyFilename = config.keyFilename;
+      }
+      if (config.credentials) {
+        storageConfig.credentials = config.credentials;
+      }
+    }
+
+    this.storage = new Storage(storageConfig);
   }
 
   /**
@@ -189,9 +205,25 @@ export class GCSService {
       throw new Error(`Organization ${organizationId} has no GCP credentials`);
     }
 
-    // TODO: Implement proper OAuth2 refresh token flow for GCS
-    // For now, organizations should use service account credentials
-    throw new Error('Organization-specific GCS not implemented. Using primary organization.');
+    // Get access token from refresh token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      throw new Error(`Failed to get access token for organization ${organizationId}`);
+    }
+
+    // Create OAuth2Client with the access token
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({ access_token: accessToken });
+
+    // Use the first project ID if available
+    if (!org.gcpProjectIds || org.gcpProjectIds.length === 0) {
+      throw new Error(`Organization ${organizationId} has no GCP project IDs`);
+    }
+
+    return new GCSService({
+      projectId: org.gcpProjectIds[0],
+      authClient: oauth2Client,
+    });
   }
 
   /**
@@ -214,17 +246,25 @@ export class GCSService {
       throw new Error('Primary organization has no GCP credentials');
     }
 
-    // For organizations using refresh tokens, we need to handle auth differently
-    // For now, we'll use the system GCS if available
-    if (org.gcpProjectIds && org.gcpProjectIds.length > 0) {
-      systemGCS = new GCSService({
-        projectId: org.gcpProjectIds[0],
-        keyFilename: org.gcpKeyFilePath, // Path to service account key file
-        credentials: org.gcpCredentials, // Use credentials if available
-      });
+    // Get access token from refresh token
+    const accessToken = await getOrganizationAccessToken(org.id);
+    if (!accessToken) {
+      throw new Error('Failed to get access token for primary organization');
     }
 
-    throw new Error('Primary organization GCS not properly configured');
+    // Create OAuth2Client with the access token
+    const oauth2Client = new OAuth2Client();
+    oauth2Client.setCredentials({ access_token: accessToken });
+
+    // Use the first project ID if available
+    if (!org.gcpProjectIds || org.gcpProjectIds.length === 0) {
+      throw new Error('Primary organization has no GCP project IDs');
+    }
+
+    return new GCSService({
+      projectId: org.gcpProjectIds[0],
+      authClient: oauth2Client,
+    });
   }
 }
 
