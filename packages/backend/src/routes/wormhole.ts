@@ -252,7 +252,7 @@ wormholeRoutes.get('/debug/all-daemons', flexibleAuth, async (c) => {
     }
     
     // Fetch all daemon statuses from central server
-    const response = await axios.get('https://ws.slopbox.dev/api/debug/all-clients');
+    const response = await axios.get('https://ws.slopbox.dev/debug/all-clients');
     
     return c.json<ApiResponse<any>>({ 
       success: true, 
