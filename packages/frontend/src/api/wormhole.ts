@@ -46,8 +46,8 @@ export const wormholeApi = {
 
   // Debug endpoint for slopboxprimary members
   getAllDaemonStatuses: async () => {
-    const { data } = await api.get<ApiResponse<any>>('/wormhole/debug/all-daemons');
-    return data;
+    const client = new FetchClient(`https://ws.slopbox.dev/debug`);
+    return client.get('/all-clients', { skipAuth: true });
   },
 
   // Direct API calls to the Wormhole server

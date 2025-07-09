@@ -42,6 +42,7 @@ export default function Layout() {
   const isActive = (path: string) => {
     return location.pathname === path || 
            (path === '/vms' && location.pathname.startsWith('/vms')) ||
+           (path === '/projects' && location.pathname.startsWith('/projects')) ||
            (path === '/scripts' && location.pathname.startsWith('/scripts')) ||
            (path === '/organization/settings' && location.pathname.startsWith('/organization')) ||
            (path === '/user/settings' && location.pathname.startsWith('/user'));
@@ -67,6 +68,16 @@ export default function Layout() {
                   }`}
                 >
                   Virtual Machines
+                </Link>
+                <Link
+                  to="/projects"
+                  className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
+                    isActive('/projects')
+                      ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
+                      : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
+                  }`}
+                >
+                  Projects
                 </Link>
                 <Link
                   to="/scripts"

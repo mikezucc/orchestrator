@@ -16,10 +16,11 @@ export default function WormholeDebugPanel({ organizationSlug }: WormholeDebugPa
     queryKey: ['wormhole-debug-all-daemons'],
     queryFn: async () => {
       const response = await wormholeApi.getAllDaemonStatuses();
-      if (!response.success) {
+      console.log('response', response);
+      if (!response) {
         throw new Error(response.error || 'Failed to fetch daemon statuses');
       }
-      return response.data;
+      return response;
     },
     enabled: organizationSlug === 'slopboxprimary' && isExpanded,
     refetchInterval: isExpanded ? 5000 : false, // Auto-refresh every 5 seconds when expanded
@@ -56,7 +57,7 @@ export default function WormholeDebugPanel({ organizationSlug }: WormholeDebugPa
           {isExpanded && (
             <>
               <span className="text-xs text-purple-600 dark:text-purple-400">
-                {debugData ? `${Object.keys(debugData.clients || {}).length} connected clients` : 'Loading...'}
+                {debugData ? `${(debugData.clients || []).length} connected clients` : 'Loading...'}
               </span>
               <button
                 onClick={(e) => {

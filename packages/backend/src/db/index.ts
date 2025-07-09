@@ -4,6 +4,8 @@ import * as schema from './schema.js';
 import * as authSchema from './schema-auth.js';
 import * as scriptSchema from './schema-scripts.js';
 import * as scriptExecutionSchema from './schema-script-executions.js';
+import * as momentsSchema from './schema-moments.js';
+import * as projectSchema from './schema-projects.js';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -16,7 +18,9 @@ export const db = drizzle(sql, {
     ...schema, 
     ...authSchema, 
     ...scriptSchema,
-    ...scriptExecutionSchema 
+    ...scriptExecutionSchema,
+    ...momentsSchema,
+    ...projectSchema 
   } 
 });
 

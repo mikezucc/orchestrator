@@ -465,3 +465,173 @@ export interface MomentDetailResponse {
     downloadUrl: string | null;
   }>;
 }
+
+// Project types
+export interface Project {
+  id: string;
+  organizationId: string;
+  name: string;
+  description?: string;
+  createdBy: string;
+  tags: any[];
+  metadata: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProjectWithStats {
+  project: Project;
+  memberRole?: 'owner' | 'admin' | 'member' | 'viewer';
+  memberCount: number;
+  repositoryCount: number;
+  vmCount: number;
+  momentCount?: number;
+  favoritePortCount?: number;
+  creator: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface ProjectRepository {
+  id: string;
+  projectId: string;
+  repositoryUrl: string;
+  branch?: string;
+  wormholeDaemonId?: string;
+  addedBy: string;
+  addedAt: Date;
+  metadata: Record<string, any>;
+}
+
+export interface ProjectRepositoryWithUser {
+  repository: ProjectRepository;
+  addedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface ProjectVirtualMachine {
+  id: string;
+  projectId: string;
+  vmId: string;
+  role?: 'development' | 'staging' | 'production' | 'testing';
+  addedBy: string;
+  addedAt: Date;
+  metadata: Record<string, any>;
+}
+
+export interface ProjectVirtualMachineWithDetails {
+  projectVm: ProjectVirtualMachine;
+  vm: VirtualMachine;
+  addedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface ProjectMoment {
+  id: string;
+  projectId: string;
+  momentId: string;
+  addedBy: string;
+  addedAt: Date;
+}
+
+export interface ProjectMomentWithDetails {
+  projectMoment: ProjectMoment;
+  moment: Moment;
+  assetCount: number;
+  addedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface ProjectMember {
+  projectId: string;
+  userId: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  permissions: Record<string, any>;
+  addedBy: string;
+  addedAt: Date;
+}
+
+export interface ProjectMemberWithUser {
+  member: ProjectMember;
+  user: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+  addedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface ProjectFavoritePort {
+  id: string;
+  projectId: string;
+  port: string;
+  name?: string;
+  description?: string;
+  addedBy: string;
+  addedAt: Date;
+  metadata: Record<string, any>;
+}
+
+export interface ProjectFavoritePortWithUser {
+  port: ProjectFavoritePort;
+  addedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+}
+
+export interface AddProjectRepositoryRequest {
+  repositoryUrl: string;
+  branch?: string;
+  wormholeDaemonId?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AddProjectVMRequest {
+  vmId: string;
+  role?: 'development' | 'staging' | 'production' | 'testing';
+  metadata?: Record<string, any>;
+}
+
+export interface AddProjectMemberRequest {
+  userId: string;
+  role?: 'owner' | 'admin' | 'member' | 'viewer';
+  permissions?: Record<string, any>;
+}
+
+export interface AddProjectFavoritePortRequest {
+  port: string | number;
+  name?: string;
+  description?: string;
+  metadata?: Record<string, any>;
+}
