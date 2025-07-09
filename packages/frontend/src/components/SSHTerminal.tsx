@@ -17,6 +17,8 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   const [terminal, setTerminal] = useState<Terminal | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const prevMinimizedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const isConnectedRef = useRef(false);
@@ -44,6 +46,15 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       allowProposedApi: true,
       unicode11: true,
+      convertEol: true,
+      scrollback: 10000,
+      wordSeparator: ' ()[]{}\'"',
+      cols: 80,
+      rows: 24,
+      letterSpacing: 0,
+      lineHeight: 1.0,
+      rendererType: 'canvas',
+      windowsMode: false,
       theme: {
         background: '#1a1a1a',
         foreground: '#d4d4d4',
@@ -74,32 +85,54 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
     term.loadAddon(webLinksAddon);
     
     term.open(terminalRef.current);
-    fitAddon.fit();
+    
+    // Delay fit to ensure DOM is ready
+    setTimeout(() => {
+      fitAddon.fit();
+      const { cols, rows } = term;
+      console.log('Initial terminal size:', { cols, rows });
+    }, 50);
+    
     fitAddonRef.current = fitAddon;
     
     setTerminal(term);
 
     // Handle window resize
     const handleResize = () => {
-      fitAddon.fit();
-      // Send new size to backend
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        const { cols, rows } = term;
-        wsRef.current.send(JSON.stringify({
-          type: 'resize',
-          cols,
-          rows
-        }));
+      if (!isMinimized && fitAddon && terminalRef.current) {
+        // Use requestAnimationFrame for smoother resizing
+        requestAnimationFrame(() => {
+          fitAddon.fit();
+          // Send new size to backend
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && term) {
+            const { cols, rows } = term;
+            console.log('Resizing terminal:', { cols, rows });
+            wsRef.current.send(JSON.stringify({
+              type: 'resize',
+              cols,
+              rows
+            }));
+          }
+        });
       }
     };
-    window.addEventListener('resize', handleResize);
+    
+    // Debounce resize events
+    let resizeTimeout: NodeJS.Timeout;
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(handleResize, 100);
+    };
+    
+    window.addEventListener('resize', debouncedResize);
 
     // Setup WebSocket SSH connection
     setupWebSocketConnection(term);
 
     return () => {
       console.log('Cleaning up terminal');
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(resizeTimeout);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -107,6 +140,37 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       term.dispose();
     };
   }, []); // Empty dependency to run only once
+
+  // Handle minimize/restore
+  useEffect(() => {
+    if (prevMinimizedRef.current && !isMinimized && terminal && fitAddonRef.current) {
+      // Terminal was just restored from minimized state
+      console.log('Restoring terminal from minimized state');
+      
+      // Force a fit to recalculate dimensions
+      setTimeout(() => {
+        if (fitAddonRef.current && terminal) {
+          fitAddonRef.current.fit();
+          
+          // Refresh the terminal display
+          terminal.refresh(0, terminal.rows - 1);
+          
+          // Send resize event to backend
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            const { cols, rows } = terminal;
+            console.log('Sending resize after restore:', { cols, rows });
+            wsRef.current.send(JSON.stringify({
+              type: 'resize',
+              cols,
+              rows
+            }));
+          }
+        }
+      }, 50);
+    }
+    
+    prevMinimizedRef.current = isMinimized;
+  }, [isMinimized, terminal]);
 
   const setupWebSocketConnection = async (term: Terminal) => {
     try {
@@ -175,8 +239,11 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
               setIsConnecting(false);
               term.clear();
               showSuccess('SSH connection established');
-              // Send terminal size after connection
+              // Force a fit and send terminal size after connection
               setTimeout(() => {
+                if (fitAddonRef.current) {
+                  fitAddonRef.current.fit();
+                }
                 const { cols, rows } = term;
                 console.log('Sending terminal size after connection:', { cols, rows });
                 ws.send(JSON.stringify({
@@ -184,7 +251,9 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
                   cols,
                   rows
                 }));
-              }, 100);
+                // Force terminal refresh
+                term.refresh(0, term.rows - 1);
+              }, 200);
               break;
               
             case 'data':
@@ -347,8 +416,41 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-te-gray-900 dark:bg-te-gray-950 rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
+    <>
+      {/* Floating button when minimized */}
+      {isMinimized && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <div 
+            className="bg-te-gray-900 dark:bg-te-gray-950 rounded-full shadow-xl p-4 cursor-pointer hover:bg-te-gray-800 transition-colors"
+            onClick={() => {
+              setIsMinimized(false);
+              // Force terminal to be visible immediately
+              if (terminal) {
+                terminal.focus();
+              }
+            }}
+            title="Click to restore SSH terminal"
+          >
+            <div className="relative">
+              <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {isConnected && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+              )}
+            </div>
+          </div>
+          <div className="absolute bottom-full right-0 mb-2 bg-te-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity">
+            SSH: {vm.name}
+          </div>
+        </div>
+      )}
+
+      {/* Terminal window - keep mounted but hidden when minimized */}
+      <div 
+        className={`fixed inset-0 bg-te-gray-950 bg-opacity-50 flex items-center justify-center p-4 z-50 ${isMinimized ? 'invisible' : 'visible'}`}
+      >
+        <div className="bg-te-gray-900 dark:bg-te-gray-950 rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-te-gray-800">
           <div className="flex items-center space-x-3">
             <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -378,21 +480,36 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
               </button>
             )}
             <button
-              onClick={_onClose}
-              className="p-1 hover:text-te-yellow transition-colors"
+              onClick={() => setIsMinimized(true)}
+              className="p-2 rounded-md bg-te-gray-800 hover:bg-te-gray-700 text-te-gray-300 hover:text-te-yellow transition-all duration-200"
+              title="Minimize"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <button
+              onClick={_onClose}
+              className="p-2 rounded-md bg-te-gray-800 hover:bg-red-600 text-te-gray-300 hover:text-white transition-all duration-200"
+              title="Close"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
         </div>
         
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-4 overflow-hidden">
           <div 
             ref={terminalRef} 
-            className="h-full"
-            style={{ opacity: isConnecting ? 0.7 : 1 }}
+            className="h-full w-full"
+            style={{ 
+              opacity: isConnecting ? 0.7 : 1,
+              fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+              fontSize: '14px',
+              lineHeight: '1.0'
+            }}
           />
         </div>
 
@@ -409,5 +526,6 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
         )}
       </div>
     </div>
+    </>
   );
 }
