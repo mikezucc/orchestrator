@@ -230,6 +230,50 @@ wormholeRoutes.post('/:vmId/branch-switch', async (c) => {
 // WebSocket proxy endpoint - This will be handled separately in the main server
 // as Hono doesn't directly support WebSocket proxying
 
+// Get all connected daemons status from central server (slopboxprimary only)
+wormholeRoutes.get('/debug/all-daemons', flexibleAuth, async (c) => {
+  try {
+    const userId = (c as any).userId;
+    
+    if (!userId) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Authentication required' 
+      }, 401);
+    }
+    
+    // Check if user is member of slopboxprimary
+    const isMember = await isSlopboxPrimaryMember(userId);
+    if (!isMember) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Only members of slopboxprimary organization can access debug information' 
+      }, 403);
+    }
+    
+    // Fetch all daemon statuses from central server
+    const response = await axios.get('https://ws.slopbox.dev/api/debug/all-clients');
+    
+    return c.json<ApiResponse<any>>({ 
+      success: true, 
+      data: response.data 
+    });
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: axiosError.response?.data || 'Failed to fetch daemon statuses' 
+      }, axiosError.response?.status || 500);
+    }
+    console.error('Error fetching all daemon statuses:', error);
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: 'Failed to fetch daemon statuses' 
+    }, 500);
+  }
+});
+
 // Download wormhole daemon binary
 wormholeRoutes.get('/daemon/download', async (c) => {
   try {

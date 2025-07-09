@@ -7,18 +7,21 @@ import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
 import WormholeSection from '../components/WormholeSection';
+import WormholeDebugPanel from '../components/WormholeDebugPanel';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
 import ExecuteScriptModal from '../components/ExecuteScriptModal';
 import ScriptExecutionsList from '../components/ScriptExecutionsList';
 import AddFavoritePortModal from '../components/AddFavoritePortModal';
 import { useToast } from '../contexts/ToastContext';
+import { useOrganization } from '../contexts/OrganizationContext';
 
 export default function VMDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
+  const { currentOrganization } = useOrganization();
   const [showPortSelector, setShowPortSelector] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showSSHTerminal, setShowSSHTerminal] = useState(false);
@@ -433,6 +436,9 @@ export default function VMDetail() {
             </div>
             <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
           </div>
+
+          {/* Debug panel for slopboxprimary members */}
+          <WormholeDebugPanel organizationSlug={currentOrganization?.slug} />
 
           <div>
             <FirewallRules vmId={id!} rules={rules} />

@@ -44,6 +44,12 @@ export const wormholeApi = {
     return data;
   },
 
+  // Debug endpoint for slopboxprimary members
+  getAllDaemonStatuses: async () => {
+    const { data } = await api.get<ApiResponse<any>>('/wormhole/debug/all-daemons');
+    return data;
+  },
+
   // Direct API calls to the Wormhole server
   directApi: {
     getStatus: async (publicIp: string) => {
