@@ -79,9 +79,8 @@ export const wormholeApi = {
 
   // WebSocket connection helper
   connectWebSocket: (vmId: string, publicIp: string): WebSocket => {
-    // For now, connect directly to the VM's Wormhole service
-    // In production, this might go through a proxy
-    const ws = new WebSocket(`ws://${publicIp}:8080`);
+    // Connect to the hardcoded wormhole server
+    const ws = new WebSocket('wss://ws.slopbox.dev/');
     return ws;
   },
 };

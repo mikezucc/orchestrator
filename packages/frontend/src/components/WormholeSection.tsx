@@ -1119,7 +1119,7 @@ export default function WormholeSection({ vmId, publicIp, autoConnect = true }: 
         <div className="card">
           <div className="text-center py-8 text-te-gray-600 dark:text-te-gray-500">
             <p className="mb-2">Not connected to Wormhole service</p>
-            <p className="text-xs">Click Connect to establish WebSocket connection on port 8080</p>
+            <p className="text-xs">Click Connect to establish WebSocket connection to Wormhole service</p>
           </div>
         </div>
       )}
