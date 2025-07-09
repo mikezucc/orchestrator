@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '../api/projects';
 import { vmApi } from '../api/vms';
+import { portsApi } from '../api/ports';
 import { useToast } from '../contexts/ToastContext';
 import VMStatusBadge from './VMStatusBadge';
 import { Link } from 'react-router-dom';
 import type { AddProjectVMRequest, VirtualMachine } from '@gce-platform/types';
+import type { PortDescription } from '../api/ports';
 
 interface ProjectVMsProps {
   projectId: string;
@@ -32,6 +34,27 @@ export default function ProjectVMs({ projectId, canEdit }: ProjectVMsProps) {
       return response.data?.filter((vm: VirtualMachine) => !projectVmIds.includes(vm.id)) || [];
     },
     enabled: showAddForm && !!projectVms,
+  });
+
+  // Fetch favorite ports for all project VMs
+  const vmIds = projectVms?.map(pvm => pvm.vm.id) || [];
+  const { data: allFavoritePorts = {} } = useQuery({
+    queryKey: ['project-vm-favorite-ports', vmIds],
+    queryFn: async () => {
+      const portsByVm: Record<string, PortDescription[]> = {};
+      await Promise.all(
+        vmIds.map(async (vmId) => {
+          try {
+            const ports = await portsApi.getPortDescriptions(vmId);
+            portsByVm[vmId] = ports.filter(p => p.isFavorite);
+          } catch (error) {
+            portsByVm[vmId] = [];
+          }
+        })
+      );
+      return portsByVm;
+    },
+    enabled: vmIds.length > 0,
   });
 
   const addMutation = useMutation({
@@ -158,54 +181,90 @@ export default function ProjectVMs({ projectId, canEdit }: ProjectVMsProps) {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projectVms?.map(({ projectVm, vm, addedBy }) => (
-            <div
-              key={projectVm.id}
-              className="border border-te-gray-300 dark:border-te-gray-800 p-4"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <Link
-                  to={`/vms/${vm.id}`}
-                  className="text-sm font-medium hover:text-te-gray-700 dark:hover:text-te-gray-300 transition-colors"
-                >
-                  {vm.name}
-                </Link>
-                <VMStatusBadge status={vm.status} />
-              </div>
-
-              <div className="space-y-2 mb-3">
-                <div className="flex justify-between text-xs">
-                  <span className="text-te-gray-500 dark:text-te-gray-600">Role</span>
-                  <span className="uppercase tracking-wider text-te-gray-700 dark:text-te-gray-400">
-                    {projectVm.role}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-te-gray-500 dark:text-te-gray-600">Machine Type</span>
-                  <span className="text-te-gray-700 dark:text-te-gray-400">{vm.machineType}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-te-gray-500 dark:text-te-gray-600">Zone</span>
-                  <span className="text-te-gray-700 dark:text-te-gray-400">{vm.zone}</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-3 border-t border-te-gray-200 dark:border-te-gray-800">
-                <span className="text-2xs text-te-gray-500 dark:text-te-gray-600">
-                  Added by {addedBy.name || addedBy.email}
-                </span>
-                {canEdit && (
-                  <button
-                    onClick={() => removeMutation.mutate(projectVm.id)}
-                    className="text-2xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 uppercase tracking-wider"
-                    disabled={removeMutation.isPending}
+          {projectVms?.map(({ projectVm, vm, addedBy }) => {
+            const favoritePorts = allFavoritePorts[vm.id] || [];
+            
+            return (
+              <div
+                key={projectVm.id}
+                className="border border-te-gray-300 dark:border-te-gray-800 p-4"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <Link
+                    to={`/vms/${vm.id}`}
+                    className="text-sm font-medium hover:text-te-gray-700 dark:hover:text-te-gray-300 transition-colors"
                   >
-                    Remove
-                  </button>
+                    {vm.name}
+                  </Link>
+                  <VMStatusBadge status={vm.status} />
+                </div>
+
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-te-gray-500 dark:text-te-gray-600">Role</span>
+                    <span className="uppercase tracking-wider text-te-gray-700 dark:text-te-gray-400">
+                      {projectVm.role}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-te-gray-500 dark:text-te-gray-600">Machine Type</span>
+                    <span className="text-te-gray-700 dark:text-te-gray-400">{vm.machineType}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-te-gray-500 dark:text-te-gray-600">Zone</span>
+                    <span className="text-te-gray-700 dark:text-te-gray-400">{vm.zone}</span>
+                  </div>
+                </div>
+
+                {/* Favorite Ports Section */}
+                {favoritePorts.length > 0 && (
+                  <div className="mb-3 pt-3 border-t border-te-gray-200 dark:border-te-gray-800">
+                    <div className="text-xs uppercase tracking-wider text-te-gray-500 dark:text-te-gray-600 mb-2">
+                      Favorite Ports
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {favoritePorts.map((port) => (
+                        <button
+                          key={`${port.port}-${port.protocol}`}
+                          onClick={() => {
+                            if (vm.publicIp) {
+                              const protocol = port.protocol.toLowerCase() === 'tcp' ? 'http' : port.protocol.toLowerCase();
+                              const url = `${protocol}://${vm.publicIp}:${port.port}`;
+                              window.open(url, '_blank');
+                            } else {
+                              showError('VM does not have a public IP address');
+                            }
+                          }}
+                          className="inline-flex items-center px-2 py-1 bg-green-600 dark:bg-te-yellow text-white dark:text-te-gray-900 text-2xs rounded hover:bg-green-700 dark:hover:bg-te-orange transition-colors"
+                          title={port.description || `Open ${port.name}`}
+                        >
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          {port.name}:{port.port}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
+
+                <div className="flex justify-between items-center pt-3 border-t border-te-gray-200 dark:border-te-gray-800">
+                  <span className="text-2xs text-te-gray-500 dark:text-te-gray-600">
+                    Added by {addedBy.name || addedBy.email}
+                  </span>
+                  {canEdit && (
+                    <button
+                      onClick={() => removeMutation.mutate(projectVm.id)}
+                      className="text-2xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 uppercase tracking-wider"
+                      disabled={removeMutation.isPending}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

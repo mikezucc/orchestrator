@@ -342,6 +342,7 @@ export interface Moment {
   organizationId: string;
   createdBy: string;
   vmId?: string;
+  repositoryUrl?: string;
   gitBranch?: string;
   gitCommitHash?: string;
   gitCommitMessage?: string;
@@ -388,6 +389,7 @@ export interface MomentAsset {
 
 export interface CreateMomentRequest {
   vmId?: string;
+  repositoryUrl?: string;
   title: string;
   description?: string;
   tags?: string[];

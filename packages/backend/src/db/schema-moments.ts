@@ -9,6 +9,9 @@ export const moments = pgTable('moments', {
   createdBy: text('created_by').references(() => authUsers.id).notNull(),
   vmId: text('vm_id').references(() => virtualMachines.id),
   
+  // Repository information
+  repositoryUrl: text('repository_url'),
+  
   // Git information
   gitBranch: text('git_branch'),
   gitCommitHash: text('git_commit_hash'),
@@ -41,6 +44,9 @@ export const moments = pgTable('moments', {
     // Index for soft deletes
     notDeletedIndex: index('moments_not_deleted_idx')
       .on(table.organizationId, table.isDeleted),
+    // Index for repository lookups
+    repositoryUrlIndex: index('moments_repository_url_idx')
+      .on(table.organizationId, table.repositoryUrl),
   };
 });
 

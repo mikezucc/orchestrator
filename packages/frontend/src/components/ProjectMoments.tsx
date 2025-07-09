@@ -50,6 +50,14 @@ export default function ProjectMoments({ projectId }: ProjectMomentsProps) {
           )}
 
           <div className="space-y-1 mb-3">
+            {moment.repositoryUrl && (
+              <div className="flex justify-between text-xs">
+                <span className="text-te-gray-500 dark:text-te-gray-600">Repository</span>
+                <span className="text-te-gray-700 dark:text-te-gray-400 truncate max-w-[200px]" title={moment.repositoryUrl}>
+                  {moment.repositoryUrl.split('/').slice(-2).join('/')}
+                </span>
+              </div>
+            )}
             {moment.gitBranch && (
               <div className="flex justify-between text-xs">
                 <span className="text-te-gray-500 dark:text-te-gray-600">Branch</span>
