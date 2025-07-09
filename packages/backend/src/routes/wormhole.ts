@@ -35,7 +35,7 @@ initBinariesDir();
 
 // Helper function to get Wormhole server URL for a VM
 function getWormholeUrl(publicIp: string): string {
-  return `https://ws.slopbox.dev/`;
+  return `https://ws.slopbox.dev`;
 }
 
 // Helper function to check if user is member of slopboxprimary org
