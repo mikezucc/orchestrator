@@ -47,32 +47,32 @@ export const wormholeApi = {
   // Direct API calls to the Wormhole server
   directApi: {
     getStatus: async (publicIp: string) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.get('/status', { skipAuth: true });
     },
     
     getRepositories: async (publicIp: string) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.get('/repositories', { skipAuth: true });
     },
     
     getPorts: async (publicIp: string) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.get('/ports', { skipAuth: true });
     },
     
     getDaemons: async (publicIp: string) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.get('/daemons', { skipAuth: true });
     },
     
     switchBranch: async (publicIp: string, request: WormholeBranchSwitchRequest) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.post('/branch-switch', request, { skipAuth: true });
     },
     
     triggerScan: async (publicIp: string) => {
-      const client = new FetchClient(`http://${publicIp}:8080/api`);
+      const client = new FetchClient(`https://ws.slopbox.dev//api`);
       return client.post('/scan', undefined, { skipAuth: true });
     },
   },
