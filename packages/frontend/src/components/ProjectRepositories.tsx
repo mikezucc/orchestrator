@@ -114,7 +114,7 @@ export default function ProjectRepositories({ projectId, canEdit }: ProjectRepos
         showError('Please select a repository');
         return;
       }
-      repoUrl = selectedRepo.ssh_url;
+      repoUrl = selectedRepo.full_name;
     }
 
     addMutation.mutate({
