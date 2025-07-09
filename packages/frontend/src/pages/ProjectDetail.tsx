@@ -62,7 +62,7 @@ export default function ProjectDetail() {
   }
 
   const { project, memberRole, memberCount, repositoryCount, vmCount, momentCount, favoritePortCount, creator } = projectData;
-  const canEdit = memberRole === 'owner' || memberRole === 'admin';
+  const canEdit = true; // memberRole === 'owner' || memberRole === 'admin';
   const canDelete = memberRole === 'owner';
 
   const handleDelete = () => {
