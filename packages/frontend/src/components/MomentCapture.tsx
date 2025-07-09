@@ -35,6 +35,7 @@ export const MomentCapture: React.FC<MomentCaptureProps> = ({
   const [tagInput, setTagInput] = useState('');
   
   // Git info
+  const [repositoryUrl, setRepositoryUrl] = useState('');
   const [gitBranch, setGitBranch] = useState('');
   const [gitCommitHash, setGitCommitHash] = useState('');
   const [gitCommitMessage, setGitCommitMessage] = useState('');
@@ -154,6 +155,7 @@ export const MomentCapture: React.FC<MomentCaptureProps> = ({
         title: title.trim(),
         description: description.trim(),
         tags,
+        repositoryUrl: repositoryUrl.trim() || undefined,
         gitBranch: gitBranch.trim() || undefined,
         gitCommitHash: gitCommitHash.trim() || undefined,
         gitCommitMessage: gitCommitMessage.trim() || undefined,
@@ -287,6 +289,17 @@ export const MomentCapture: React.FC<MomentCaptureProps> = ({
               </h3>
               
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1">Repository URL</label>
+                  <input
+                    type="text"
+                    value={repositoryUrl}
+                    onChange={(e) => setRepositoryUrl(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                    placeholder="https://github.com/username/repo.git"
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-1">Branch</label>
                   <input

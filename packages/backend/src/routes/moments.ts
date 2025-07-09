@@ -50,6 +50,7 @@ const createMomentSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
   tags: z.array(z.string()).optional().default([]),
+  repositoryUrl: z.string().optional(),
   gitBranch: z.string().optional(),
   gitCommitHash: z.string().optional(),
   gitCommitMessage: z.string().optional(),
@@ -70,6 +71,7 @@ const uploadAssetSchema = z.object({
 
 const listMomentsSchema = z.object({
   vmId: z.string().optional(),
+  repositoryUrl: z.string().optional(),
   gitBranch: z.string().optional(),
   tags: z.union([z.string(), z.array(z.string())]).optional().transform((val) => {
     if (!val) return undefined;
@@ -122,6 +124,7 @@ momentsRouter.post('/create', zValidator('json', createMomentSchema), async (c) 
         title: data.title,
         description: data.description,
         tags: data.tags,
+        repositoryUrl: data.repositoryUrl,
         gitBranch: data.gitBranch,
         gitCommitHash: data.gitCommitHash,
         gitCommitMessage: data.gitCommitMessage,
@@ -219,6 +222,10 @@ momentsRouter.get('/list', zValidator('query', listMomentsSchema), async (c) => 
 
     if (query.vmId) {
       conditions.push(eq(moments.vmId, query.vmId));
+    }
+
+    if (query.repositoryUrl) {
+      conditions.push(eq(moments.repositoryUrl, query.repositoryUrl));
     }
 
     if (query.gitBranch) {
