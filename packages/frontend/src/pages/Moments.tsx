@@ -67,10 +67,9 @@ export default function Moments() {
       setLoadingAssets(prev => new Set(prev).add(momentId));
       const response = await momentsApi.getMomentDetail(momentId);
       
-      if (response.success && response.data) {
+      if (response.assets) {
         // Extract the asset objects from the response
-        const assetsWithUrls = response.data.assets || [];
-        const assets = assetsWithUrls.map((item: any) => ({
+        const assets = response.assets.map((item: any) => ({
           ...item.asset,
           downloadUrl: item.downloadUrl
         }));
