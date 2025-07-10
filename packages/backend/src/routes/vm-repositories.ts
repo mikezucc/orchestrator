@@ -2,15 +2,14 @@ import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { vmRepositories } from '../db/schema-vm-repositories.js';
 import { virtualMachines } from '../db/schema.js';
-import { projectRepositories } from '../db/schema-projects.js';
-import { authUsers } from '../db/schema-auth.js';
 import { eq, and, isNull } from 'drizzle-orm';
 import { daemonSyncService } from '../services/daemon-sync.js';
-import type { ApiResponse } from '@gce-platform/types';
+import axios from 'axios';
+import type { ApiResponse, WormholeRepository, WormholeClient } from '@gce-platform/types';
 
 export const vmRepositoryRoutes = new Hono();
 
-// Get all repositories for a VM
+// Get all repositories for a VM with wormhole data
 vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
   const userId = c.req.header('x-user-id');
   if (!userId) {
@@ -20,7 +19,7 @@ vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
   const vmId = c.req.param('vmId');
 
   try {
-    // Verify VM exists and user has access
+    // Verify VM exists
     const [vm] = await db
       .select()
       .from(virtualMachines)
@@ -31,39 +30,19 @@ vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
       return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
     }
 
-    // Get all active repositories for this VM
-    const repositories = await db
+    // Get all active repositories for this VM from database
+    const dbRepositories = await db
       .select({
         id: vmRepositories.id,
         vmId: vmRepositories.vmId,
-        repositoryId: vmRepositories.repositoryId,
+        repoFullName: vmRepositories.repoFullName,
         localPath: vmRepositories.localPath,
-        status: vmRepositories.status,
         lastSyncedAt: vmRepositories.lastSyncedAt,
         syncError: vmRepositories.syncError,
         addedAt: vmRepositories.addedAt,
-        repository: {
-          id: projectRepositories.id,
-          projectId: projectRepositories.projectId,
-          repositoryUrl: projectRepositories.repositoryUrl,
-          branch: projectRepositories.branch,
-          wormholeDaemonId: projectRepositories.wormholeDaemonId,
-        },
-        addedBy: {
-          id: authUsers.id,
-          email: authUsers.email,
-          name: authUsers.name,
-        }
+        metadata: vmRepositories.metadata,
       })
       .from(vmRepositories)
-      .innerJoin(
-        projectRepositories,
-        eq(vmRepositories.repositoryId, projectRepositories.id)
-      )
-      .innerJoin(
-        authUsers,
-        eq(vmRepositories.addedBy, authUsers.id)
-      )
       .where(
         and(
           eq(vmRepositories.vmId, vmId),
@@ -71,9 +50,84 @@ vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
         )
       );
 
-    return c.json<ApiResponse<typeof repositories>>({ 
+    // Try to fetch live wormhole data if VM has public IP
+    const wormholeData: {
+      status?: any;
+      repositories?: WormholeRepository[];
+      daemons?: {
+        daemons: {
+          repository: any;
+          status: string;
+          uptime: number;
+        }[];
+      };
+    } = {};
+
+    if (vm.publicIp) {
+      try {
+        // Fetch wormhole status from central server
+        const [statusRes, reposRes, daemonsRes] = await Promise.allSettled([
+          axios.get(`https://ws.slopbox.dev/api/status`),
+          axios.get(`https://ws.slopbox.dev/api/repositories`), 
+          axios.get(`https://ws.slopbox.dev/api/daemons`)
+        ]);
+
+        if (statusRes.status === 'fulfilled') {
+          wormholeData.status = statusRes.value.data;
+        }
+
+        console.log('Wormhole Repositories Response:', JSON.stringify(reposRes.value!.data));
+        if (reposRes.status === 'fulfilled') {
+          wormholeData.repositories = reposRes.value.data;
+        }
+        if (daemonsRes.status === 'fulfilled') {
+          wormholeData.daemons = daemonsRes.value.data;
+        }
+      } catch (error) {
+        // Silently fail - wormhole data is optional enhancement
+        console.warn('Failed to fetch wormhole data:', error);
+      }
+    }
+
+    // Combine database repositories with wormhole data
+    const enrichedRepositories = dbRepositories.map(dbRepo => {
+      // Find matching wormhole repository by path
+      const wormholeRepo = wormholeData.repositories?.find(
+        wr => wr.repoPath === dbRepo.repoFullName
+      );
+
+      // Find daemon managing this repository
+      const daemon = wormholeData.daemons?.daemons.find(
+        d => d.repository?.path === dbRepo.repoFullName
+      );
+
+      // Extract clients for this repository from status
+      const clients = wormholeData.status?.clients?.filter(
+        (client: WormholeClient) => client.repoPath === dbRepo.repoFullName
+      ) || [];
+
+      return {
+        ...dbRepo,
+        wormhole: wormholeRepo ? {
+          branches: wormholeRepo.branches,
+          availableBranches: wormholeRepo.availableBranches,
+          activeBranches: wormholeRepo.activeBranches,
+          clientCount: wormholeRepo.clientCount,
+        } : null,
+        daemon: daemon ? {
+          pid: daemon.pid,
+          status: daemon.status,
+          uptime: daemon.uptime,
+          branch: daemon.repository?.branch,
+          originUrl: daemon.repository?.originUrl,
+        } : null,
+        clients,
+      };
+    });
+
+    return c.json<ApiResponse<typeof enrichedRepositories>>({ 
       success: true, 
-      data: repositories 
+      data: enrichedRepositories 
     });
   } catch (error) {
     console.error('Error fetching VM repositories:', error);
@@ -107,76 +161,6 @@ vmRepositoryRoutes.post('/sync/:clientId', async (c) => {
     return c.json<ApiResponse<never>>({ 
       success: false, 
       error: 'Failed to trigger sync' 
-    }, 500);
-  }
-});
-
-// Get repository history for a VM (including removed ones)
-vmRepositoryRoutes.get('/:vmId/repositories/history', async (c) => {
-  const userId = c.req.header('x-user-id');
-  if (!userId) {
-    return c.json<ApiResponse<never>>({ success: false, error: 'User ID is required' }, 401);
-  }
-
-  const vmId = c.req.param('vmId');
-
-  try {
-    // Verify VM exists
-    const [vm] = await db
-      .select()
-      .from(virtualMachines)
-      .where(eq(virtualMachines.id, vmId))
-      .limit(1);
-
-    if (!vm) {
-      return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
-    }
-
-    // Get all repositories (including removed) for this VM
-    const repositories = await db
-      .select({
-        id: vmRepositories.id,
-        vmId: vmRepositories.vmId,
-        repositoryId: vmRepositories.repositoryId,
-        localPath: vmRepositories.localPath,
-        status: vmRepositories.status,
-        lastSyncedAt: vmRepositories.lastSyncedAt,
-        syncError: vmRepositories.syncError,
-        addedAt: vmRepositories.addedAt,
-        removedAt: vmRepositories.removedAt,
-        repository: {
-          id: projectRepositories.id,
-          projectId: projectRepositories.projectId,
-          repositoryUrl: projectRepositories.repositoryUrl,
-          branch: projectRepositories.branch,
-        },
-        addedBy: {
-          id: authUsers.id,
-          email: authUsers.email,
-          name: authUsers.name,
-        }
-      })
-      .from(vmRepositories)
-      .innerJoin(
-        projectRepositories,
-        eq(vmRepositories.repositoryId, projectRepositories.id)
-      )
-      .innerJoin(
-        authUsers,
-        eq(vmRepositories.addedBy, authUsers.id)
-      )
-      .where(eq(vmRepositories.vmId, vmId))
-      .orderBy(vmRepositories.addedAt);
-
-    return c.json<ApiResponse<typeof repositories>>({ 
-      success: true, 
-      data: repositories 
-    });
-  } catch (error) {
-    console.error('Error fetching VM repository history:', error);
-    return c.json<ApiResponse<never>>({ 
-      success: false, 
-      error: 'Failed to fetch VM repository history' 
     }, 500);
   }
 });

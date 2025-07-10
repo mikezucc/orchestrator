@@ -7,6 +7,7 @@ import FirewallRules from '../components/FirewallRules';
 import VMStatusBadge from '../components/VMStatusBadge';
 import PortSelectorModal from '../components/PortSelectorModal';
 import WormholeSection from '../components/WormholeSection';
+import VMRepositoriesSection from '../components/VMRepositoriesSection';
 import WormholeDebugPanel from '../components/WormholeDebugPanel';
 import DuplicateVMModal from '../components/DuplicateVMModal';
 import SSHTerminal from '../components/SSHTerminal';
@@ -434,6 +435,10 @@ export default function VMDetail() {
                 <span>Add an App</span>
               </button>
             </div>
+            {/* VM Repositories from database */}
+            <VMRepositoriesSection vmId={id!} publicIp={vm.publicIp} />
+            
+            {/* Wormhole ports and status */}
             <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
           </div>
 

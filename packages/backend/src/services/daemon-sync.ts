@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
-import { projectRepositories } from '../db/schema-projects.js';
 import { vmRepositories } from '../db/schema-vm-repositories.js';
-import { eq, and, isNull, inArray, ne, isNotNull } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 import type { WormholeClient } from '@gce-platform/types';
 
 interface DaemonStatusResponse {
@@ -181,18 +180,14 @@ class DaemonSyncService {
     }
   }
 
-  private async cleanupRemovedRepositories(vmId: string, daemonId: string) {
+  private async cleanupRemovedRepositories(vmId: string, clientId: string) {
     // Get all active repositories currently associated with this VM
     const activeAssociations = await db
       .select({
-        vmRepoId: vmRepositories.id,
-        daemonId: projectRepositories.wormholeDaemonId
+        id: vmRepositories.id,
+        repoFullName: vmRepositories.repoFullName
       })
       .from(vmRepositories)
-      .innerJoin(
-        projectRepositories,
-        eq(vmRepositories.repositoryId, projectRepositories.id)
-      )
       .where(
         and(
           eq(vmRepositories.vmId, vmId),
@@ -200,67 +195,69 @@ class DaemonSyncService {
         )
       );
 
-    // Find associations where the daemon ID doesn't match (repository moved to another VM)
-    // or where daemon ID is null (daemon disconnected)
-    const toRemove = activeAssociations.filter(
-      assoc => assoc.daemonId !== daemonId
-    );
+    // Get current client info to see which repos it's managing
+    try {
+      const response = await axios.get<DaemonStatusResponse>('https://ws.slopbox.dev/api/status');
+      const client = response.data.clients.find(c => c.id === clientId);
+      
+      if (!client || !client.repoPath) {
+        return;
+      }
 
-    if (toRemove.length > 0) {
-      // Soft delete these associations
-      await db
-        .update(vmRepositories)
-        .set({
-          removedAt: new Date()
-        })
-        .where(
-          inArray(
-            vmRepositories.id,
-            toRemove.map(r => r.vmRepoId)
-          )
-        );
+      // Find repos that are no longer managed by this client
+      const toRemove = activeAssociations.filter(
+        assoc => assoc.repoFullName !== client.repoPath
+      );
 
-      console.log(`Removed ${toRemove.length} repositories from VM ${vmId}`);
+      if (toRemove.length > 0) {
+        // Soft delete these associations
+        await db
+          .update(vmRepositories)
+          .set({
+            removedAt: new Date()
+          })
+          .where(
+            inArray(
+              vmRepositories.id,
+              toRemove.map(r => r.id)
+            )
+          );
+
+        console.log(`Removed ${toRemove.length} repositories from VM ${vmId}`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up removed repositories:', error);
     }
   }
 
   private async cleanupDisconnectedDaemons(connectedClients: WormholeClient[]) {
-    // Get all daemon IDs that are currently connected
-    const connectedDaemonIds = connectedClients.map(c => c.id);
+    // Get all connected client IDs and their repository paths
+    const connectedRepos = new Set(
+      connectedClients
+        .filter(c => c.connected && c.repoPath)
+        .map(c => c.repoPath)
+    );
 
-    if (connectedDaemonIds.length === 0) {
-      // If no daemons are connected, don't remove everything
+    if (connectedRepos.size === 0) {
+      // If no repos are connected, don't remove everything
       return;
     }
 
-    // Find all repositories with daemon IDs that are no longer connected
-    const disconnectedRepos = await db
+    // Find all VM repositories that are no longer connected
+    const allVmRepos = await db
       .select({
-        id: projectRepositories.id,
-        daemonId: projectRepositories.wormholeDaemonId
+        id: vmRepositories.id,
+        repoFullName: vmRepositories.repoFullName
       })
-      .from(projectRepositories)
-      .where(
-        and(
-          isNotNull(projectRepositories.wormholeDaemonId),
-          ne(projectRepositories.wormholeDaemonId, ''),
-          inArray(projectRepositories.wormholeDaemonId, connectedDaemonIds)
-        )
-      );
+      .from(vmRepositories)
+      .where(isNull(vmRepositories.removedAt));
 
-    if (disconnectedRepos.length > 0) {
-      // Clear the daemon ID for disconnected repositories
-      await db
-        .update(projectRepositories)
-        .set({ wormholeDaemonId: null })
-        .where(
-          inArray(
-            projectRepositories.id,
-            disconnectedRepos.map(r => r.id)
-          )
-        );
+    const toRemove = allVmRepos.filter(
+      repo => !connectedRepos.has(repo.repoFullName)
+    );
 
-      // Soft delete VM associations for these repositories
+    if (toRemove.length > 0) {
+      // Soft delete VM associations for disconnected repositories
       await db
         .update(vmRepositories)
         .set({
@@ -268,16 +265,13 @@ class DaemonSyncService {
           syncError: 'Daemon disconnected'
         })
         .where(
-          and(
-            inArray(
-              vmRepositories.repositoryId,
-              disconnectedRepos.map(r => r.id)
-            ),
-            isNull(vmRepositories.removedAt)
+          inArray(
+            vmRepositories.id,
+            toRemove.map(r => r.id)
           )
         );
 
-      console.log(`Cleaned up ${disconnectedRepos.length} disconnected repositories`);
+      console.log(`Cleaned up ${toRemove.length} disconnected repositories`);
     }
   }
 
