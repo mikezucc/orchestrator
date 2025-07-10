@@ -23,6 +23,8 @@ import { userSSHKeysRoutes } from './routes/user-ssh-keys.js';
 import scriptsRouter from './routes/scripts.js';
 import { momentsRouter } from './routes/moments.js';
 import { projectRoutes } from './routes/projects.js';
+import { vmRepositoryRoutes } from './routes/vm-repositories.js';
+import { daemonSyncService } from './services/daemon-sync.js';
 
 dotenv.config();
 
@@ -79,6 +81,7 @@ app.route('/api/invitations', invitationRoutes);
 app.route('/api/scripts', scriptsRouter);
 app.route('/api/moments', momentsRouter);
 app.route('/api/projects', projectRoutes);
+app.route('/api/vms', vmRepositoryRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

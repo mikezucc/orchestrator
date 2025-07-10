@@ -1,5 +1,5 @@
 import { db } from './index.js';
-import { virtualMachines } from './schema.js';
+import { virtualMachines } from './schema';
 import { sql } from 'drizzle-orm';
 
 async function cleanupDuplicateVMs() {
