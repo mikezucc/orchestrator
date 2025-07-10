@@ -24,7 +24,6 @@ import scriptsRouter from './routes/scripts.js';
 import { momentsRouter } from './routes/moments.js';
 import { projectRoutes } from './routes/projects.js';
 import { vmRepositoryRoutes } from './routes/vm-repositories.js';
-import { daemonSyncService } from './services/daemon-sync.js';
 
 dotenv.config();
 

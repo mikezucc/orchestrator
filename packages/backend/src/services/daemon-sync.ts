@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { virtualMachines } from '../db/schema.js';
 import { projectRepositories } from '../db/schema-projects.js';
 import { vmRepositories } from '../db/schema-vm-repositories.js';
-import { eq, and, isNull, inArray, ne } from 'drizzle-orm';
+import { eq, and, isNull, inArray, ne, isNotNull } from 'drizzle-orm';
 import type { WormholeClient } from '@gce-platform/types';
 
 interface DaemonStatusResponse {
@@ -110,33 +110,33 @@ class DaemonSyncService {
         return;
       }
 
-      // Extract repository URL from repoPath
-      const repositoryUrl = this.extractRepositoryUrl(client.repoPath);
-      if (!repositoryUrl) {
-        console.warn(`Could not extract repository URL from path: ${client.repoPath}`);
-        return;
-      }
+      // USE THE REPO PATH AS THE CANONICAL IDENTIFIER FOR THE REPOSITORY
+      // const repositoryUrl = client.repoPath;
+      // let repositoryUrl = this.extractRepositoryUrl(client.repoPath);
+      // if (!repositoryUrl) {
+      //   console.warn(`Could not extract repository URL from path: ${client.repoPath}`);
+      // }
 
       // Find the repository in projectRepositories
-      const [repository] = await db
-        .select()
-        .from(projectRepositories)
-        .where(eq(projectRepositories.repositoryUrl, repositoryUrl))
-        .limit(1);
+      // const [repository] = await db
+      //   .select()
+      //   .from(projectRepositories)
+      //   .where(eq(projectRepositories.repositoryUrl, repositoryUrl))
+      //   .limit(1);
 
-      if (!repository) {
-        console.warn(`No repository found with URL: ${repositoryUrl}`);
-        return;
-      }
+      // if (!repository) {
+      //   console.warn(`No repository found with URL: ${repositoryUrl}`);
+      //   return;
+      // }
 
       // Update the repository's daemon ID and branch
-      await db
-        .update(projectRepositories)
-        .set({
-          wormholeDaemonId: client.id,
-          branch: client.branch
-        })
-        .where(eq(projectRepositories.id, repository.id));
+      // await db
+      //   .update(projectRepositories)
+      //   .set({
+      //     wormholeDaemonId: client.id,
+      //     branch: client.branch
+      //   })
+      //   .where(eq(projectRepositories.id, repository.id));
 
       // Check if this VM-repository association already exists
       const [existingAssociation] = await db
@@ -145,7 +145,7 @@ class DaemonSyncService {
         .where(
           and(
             eq(vmRepositories.vmId, vm.id),
-            eq(vmRepositories.repositoryId, repository.id),
+            eq(vmRepositories.repoFullName, client.repoPath),
             isNull(vmRepositories.removedAt)
           )
         )
@@ -155,31 +155,27 @@ class DaemonSyncService {
         // Create new association
         await db.insert(vmRepositories).values({
           vmId: vm.id,
-          repositoryId: repository.id,
-          localPath: client.repoPath,
-          status: 'active',
+          repoFullName: client.repoPath,
           lastSyncedAt: new Date(),
-          addedBy: vm.createdBy || vm.userId, // Use createdBy if available, fallback to userId
         });
 
-        console.log(`Associated repository ${repositoryUrl} with VM ${hostname}`);
+        console.log(`Associated repository ${client.repoPath} with VM ${hostname}`);
       } else {
         // Update existing association
         await db
           .update(vmRepositories)
           .set({
             localPath: client.repoPath,
-            status: 'active',
             lastSyncedAt: new Date(),
             syncError: null
           })
-          .where(eq(vmRepositories.id, existingAssociation.id));
+          .where(eq(vmRepositories.repoFullName, client.repoPath));
 
-        console.log(`Updated repository ${repositoryUrl} association with VM ${hostname}`);
+        console.log(`Updated repository ${client.repoPath} association with VM ${hostname}`);
       }
 
       // Clean up removed repositories (those not reported by this daemon)
-      await this.cleanupRemovedRepositories(vm.id, client.id);
+      // await this.cleanupRemovedRepositories(vm.id, client.id);
     } catch (error) {
       console.error(`Error syncing repository for client ${client.id}:`, error);
     }
@@ -190,7 +186,6 @@ class DaemonSyncService {
     const activeAssociations = await db
       .select({
         vmRepoId: vmRepositories.id,
-        repositoryId: vmRepositories.repositoryId,
         daemonId: projectRepositories.wormholeDaemonId
       })
       .from(vmRepositories)
@@ -216,8 +211,7 @@ class DaemonSyncService {
       await db
         .update(vmRepositories)
         .set({
-          removedAt: new Date(),
-          status: 'removed'
+          removedAt: new Date()
         })
         .where(
           inArray(
@@ -248,9 +242,9 @@ class DaemonSyncService {
       .from(projectRepositories)
       .where(
         and(
-          isNull(projectRepositories.wormholeDaemonId).not(),
+          isNotNull(projectRepositories.wormholeDaemonId),
           ne(projectRepositories.wormholeDaemonId, ''),
-          inArray(projectRepositories.wormholeDaemonId, connectedDaemonIds).not()
+          inArray(projectRepositories.wormholeDaemonId, connectedDaemonIds)
         )
       );
 
@@ -271,7 +265,6 @@ class DaemonSyncService {
         .update(vmRepositories)
         .set({
           removedAt: new Date(),
-          status: 'removed',
           syncError: 'Daemon disconnected'
         })
         .where(
