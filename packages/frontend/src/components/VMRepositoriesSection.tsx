@@ -13,8 +13,10 @@ interface VMRepositoriesSectionProps {
 export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositoriesSectionProps) {
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
+  const [switchingClientBranch, setSwitchingClientBranch] = useState<string | null>(null);
   const [githubBranches, setGithubBranches] = useState<Record<string, Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }>>>({});
   const [loadingGithubBranches, setLoadingGithubBranches] = useState<Set<string>>(new Set());
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
 
@@ -98,6 +100,42 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
   const handleBranchSwitch = (repoPath: string, targetBranch: string) => {
     setSwitchingBranch(`${repoPath}:${targetBranch}`);
     switchBranchMutation.mutate({ repoPath, targetBranch });
+  };
+
+  // Client branch switch mutation
+  const switchClientBranchMutation = useMutation({
+    mutationFn: async ({ clientId, repoPath, targetBranch }: { clientId: string; repoPath: string; targetBranch: string }) => {
+      return vmRepositoriesApi.switchClientBranch(vmId, clientId, { repoPath, targetBranch });
+    },
+    onSuccess: () => {
+      showSuccess('Client branch switch initiated');
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['vm-repositories', vmId] });
+      }, 2000);
+    },
+    onError: (error) => {
+      showError(`Failed to switch client branch: ${error.message}`);
+    },
+    onSettled: () => {
+      setSwitchingClientBranch(null);
+    }
+  });
+
+  const handleClientBranchSwitch = (clientId: string, repoPath: string, targetBranch: string) => {
+    setSwitchingClientBranch(`${clientId}:${targetBranch}`);
+    switchClientBranchMutation.mutate({ clientId, repoPath, targetBranch });
+  };
+
+  const toggleClient = (clientId: string) => {
+    setExpandedClients(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(clientId)) {
+        newSet.delete(clientId);
+      } else {
+        newSet.add(clientId);
+      }
+      return newSet;
+    });
   };
 
   if (isLoading) {
@@ -210,27 +248,118 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
                   {/* Connected Clients */}
                   {repo.clients.length > 0 && (
                     <div>
+                      <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
+                        Connected Clients
+                      </h4>
                       <div className="space-y-2">
-                        {repo.clients.map((client) => (
-                          <div 
-                            key={client.id}
-                            className="flex items-center justify-between text-xs bg-te-gray-50 dark:bg-te-gray-900 p-2 rounded"
-                          >
-                            <span className="font-mono">{client.id}</span>
-                            <div className="flex items-center space-x-2">
-                              <span className={`px-2 py-0.5 rounded ${
-                                client.branch === currentBranch
-                                  ? 'bg-te-gray-800 dark:bg-te-yellow text-white dark:text-te-gray-900'
-                                  : 'bg-green-600 dark:bg-green-500 text-white'
-                              }`}>
-                                {client.branch}
-                              </span>
-                              <span className="text-te-gray-500 dark:text-te-gray-600">
-                                {new Date(client.lastActivity).toLocaleTimeString()}
-                              </span>
+                        {repo.clients.map((client) => {
+                          const isClientExpanded = expandedClients.has(client.id);
+                          return (
+                            <div key={client.id} className="bg-te-gray-50 dark:bg-te-gray-900 rounded">
+                              <div 
+                                className="flex items-center justify-between text-xs p-2 cursor-pointer"
+                                onClick={() => toggleClient(client.id)}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <svg 
+                                    className={`w-3 h-3 text-te-gray-600 dark:text-te-gray-400 transform transition-transform ${
+                                      isClientExpanded ? 'rotate-90' : ''
+                                    }`} 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                  <span className="font-mono">{client.id}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`px-2 py-0.5 rounded ${
+                                    client.branch === currentBranch
+                                      ? 'bg-te-gray-800 dark:bg-te-yellow text-white dark:text-te-gray-900'
+                                      : 'bg-green-600 dark:bg-green-500 text-white'
+                                  }`}>
+                                    {client.branch}
+                                  </span>
+                                  <span className="text-te-gray-500 dark:text-te-gray-600">
+                                    {new Date(client.lastActivity).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Client Branch Selector */}
+                              {isClientExpanded && publicIp && (
+                                <div className="px-2 pb-2">
+                                  <div className="text-xs text-te-gray-600 dark:text-te-gray-400 mb-1">
+                                    Switch to branch (affects all clients):
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(() => {
+                                      // Use GitHub branches if available, otherwise fall back to daemon branches
+                                      const gitBranches = githubBranches[repo.id];
+                                      const daemonBranches = repo.wormhole?.availableBranches?.all || repo.wormhole?.branches || [];
+                                      
+                                      if (gitBranches && gitBranches.length > 0) {
+                                        return gitBranches.map((branch) => {
+                                          const isCurrent = branch.name === client.branch;
+                                          const isDisabled = switchingClientBranch === `${client.id}:${branch.name}` || isCurrent;
+                                          
+                                          return (
+                                            <button
+                                              key={branch.name}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleClientBranchSwitch(client.id, repo.repoFullName, branch.name);
+                                              }}
+                                              disabled={isDisabled}
+                                              className={`
+                                                px-2 py-0.5 text-xs rounded transition-colors
+                                                ${isCurrent 
+                                                  ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default' 
+                                                  : 'bg-te-gray-200 dark:bg-te-gray-700 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
+                                                }
+                                                ${isDisabled && !isCurrent ? 'opacity-50 cursor-not-allowed' : ''}
+                                              `}
+                                            >
+                                              {branch.name}
+                                              {branch.isDefault && ' ⭐'}
+                                            </button>
+                                          );
+                                        });
+                                      } else if (daemonBranches.length > 0) {
+                                        return daemonBranches.map((branch) => {
+                                          const isCurrent = branch === client.branch;
+                                          const isDisabled = switchingClientBranch === `${client.id}:${branch}` || isCurrent;
+                                          
+                                          return (
+                                            <button
+                                              key={branch}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleClientBranchSwitch(client.id, repo.repoFullName, branch);
+                                              }}
+                                              disabled={isDisabled}
+                                              className={`
+                                                px-2 py-0.5 text-xs rounded transition-colors
+                                                ${isCurrent 
+                                                  ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default' 
+                                                  : 'bg-te-gray-200 dark:bg-te-gray-700 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
+                                                }
+                                                ${isDisabled && !isCurrent ? 'opacity-50 cursor-not-allowed' : ''}
+                                              `}
+                                            >
+                                              {branch}
+                                            </button>
+                                          );
+                                        });
+                                      }
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

@@ -64,4 +64,11 @@ export const vmRepositoriesApi = {
     }
     throw new Error(response.data.error || 'Failed to fetch GitHub branches');
   },
+
+  switchClientBranch: async (vmId: string, clientId: string, data: { targetBranch: string; repoPath: string }): Promise<void> => {
+    const response = await api.post<ApiResponse<{ success: boolean; message?: string }>>(`/vms/${vmId}/client/${clientId}/switch-branch`, data);
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to switch client branch');
+    }
+  },
 };

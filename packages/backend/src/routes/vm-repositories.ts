@@ -220,4 +220,72 @@ vmRepositoryRoutes.get('/:vmId/repositories/:repoId/github-branches', async (c) 
   }
 });
 
+// Switch branch for a specific client
+vmRepositoryRoutes.post('/:vmId/client/:clientId/switch-branch', async (c) => {
+  const userId = c.req.header('x-user-id');
+  if (!userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'User ID is required' }, 401);
+  }
+
+  const vmId = c.req.param('vmId');
+  const clientId = c.req.param('clientId');
+
+  try {
+    const body = await c.req.json<{ targetBranch: string; repoPath: string }>();
+    
+    if (!body.targetBranch || !body.repoPath) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'targetBranch and repoPath are required' 
+      }, 400);
+    }
+
+    // Get VM details to find public IP
+    const [vm] = await db.select().from(virtualMachines).where(
+      eq(virtualMachines.id, vmId)
+    );
+
+    if (!vm) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+    }
+
+    if (!vm.publicIp) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'VM does not have a public IP' }, 400);
+    }
+
+    // Make request to wormhole server to switch branch
+    // Note: Currently the wormhole server switches branches for all clients
+    // TODO: When wormhole server supports per-client branch switching, update this endpoint
+    const response = await axios.post(
+      `https://ws.slopbox.dev/api/branch-switch`,
+      {
+        targetBranch: body.targetBranch,
+        repoPath: body.repoPath
+      }
+    );
+
+    // Trigger sync after branch switch
+    setTimeout(() => {
+      daemonSyncService.syncDaemonUpdate(clientId, body.targetBranch, body.repoPath);
+    }, 2000);
+
+    return c.json<ApiResponse<{ success: boolean; message?: string }>>({ 
+      success: true, 
+      data: response.data 
+    });
+  } catch (error) {
+    console.error('Error switching client branch:', error);
+    if (axios.isAxiosError(error)) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: error.response?.data?.error || 'Failed to switch client branch' 
+      }, error.response?.status || 500);
+    }
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: 'Failed to switch client branch' 
+    }, 500);
+  }
+});
+
 export default vmRepositoryRoutes;
