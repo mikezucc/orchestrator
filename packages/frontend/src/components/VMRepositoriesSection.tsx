@@ -13,6 +13,8 @@ interface VMRepositoriesSectionProps {
 export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositoriesSectionProps) {
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
+  const [githubBranches, setGithubBranches] = useState<Record<string, Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }>>>({});
+  const [loadingGithubBranches, setLoadingGithubBranches] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
 
@@ -60,16 +62,37 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
     }
   });
 
-  const toggleRepo = (repoPath: string) => {
+  const toggleRepo = async (repoId: string, repoPath: string) => {
     setExpandedRepos(prev => {
       const newSet = new Set(prev);
       if (newSet.has(repoPath)) {
         newSet.delete(repoPath);
       } else {
         newSet.add(repoPath);
+        // Fetch GitHub branches when expanding
+        if (!githubBranches[repoId] && !loadingGithubBranches.has(repoId)) {
+          fetchGitHubBranches(repoId);
+        }
       }
       return newSet;
     });
+  };
+
+  const fetchGitHubBranches = async (repoId: string) => {
+    setLoadingGithubBranches(prev => new Set(prev).add(repoId));
+    try {
+      const branches = await vmRepositoriesApi.getGitHubBranches(vmId, repoId);
+      setGithubBranches(prev => ({ ...prev, [repoId]: branches }));
+    } catch (error) {
+      console.error('Failed to fetch GitHub branches:', error);
+      // Don't show error toast - fallback to daemon branches silently
+    } finally {
+      setLoadingGithubBranches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(repoId);
+        return newSet;
+      });
+    }
   };
 
   const handleBranchSwitch = (repoPath: string, targetBranch: string) => {
@@ -141,7 +164,7 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
               {/* Repository Header */}
               <div 
                 className="flex items-center justify-between cursor-pointer"
-                onClick={() => toggleRepo(repo.repoFullName)}
+                onClick={() => toggleRepo(repo.id, repo.repoFullName)}
               >
                 <div className="flex items-center space-x-3">
                   <svg 
@@ -213,57 +236,116 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
                   )}
 
                   {/* Branch Management */}
-                  {repo.wormhole && publicIp && (
+                  {publicIp && (
                     <div>
                       <h4 className="text-xs uppercase tracking-wider text-te-gray-600 dark:text-te-gray-400 mb-2">
                         Change Branch
                       </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          const branches = repo.wormhole.availableBranches?.all || repo.wormhole.branches || [];
-                          const localBranches = repo.wormhole.availableBranches?.local || [];
-                          const remoteBranches = repo.wormhole.availableBranches?.remote || [];
-                          
-                          return branches.map((branch) => {
-                            const isLocal = localBranches.includes(branch);
-                            const isRemote = remoteBranches.includes(branch);
-                            const isCurrent = branch === currentBranch;
-                            const clientCount = repo.wormhole?.activeBranches?.[branch] || 0;
-                            const isDisabled = switchingBranch === `${repo.repoFullName}:${branch}` || isCurrent;
+                      {loadingGithubBranches.has(repo.id) ? (
+                        <div className="flex items-center space-x-2 text-sm text-te-gray-600 dark:text-te-gray-500">
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Fetching branches from GitHub...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {(() => {
+                            // Use GitHub branches if available, otherwise fall back to daemon branches
+                            const gitBranches = githubBranches[repo.id];
+                            const daemonBranches = repo.wormhole?.availableBranches?.all || repo.wormhole?.branches || [];
+                            const localBranches = repo.wormhole?.availableBranches?.local || [];
+                            const remoteBranches = repo.wormhole?.availableBranches?.remote || [];
                             
-                            return (
-                              <button
-                                key={branch}
-                                onClick={() => handleBranchSwitch(repo.repoFullName, branch)}
-                                disabled={isDisabled}
-                                className={`
-                                  px-3 py-1 text-xs rounded transition-colors
-                                  ${isCurrent 
-                                    ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default' 
-                                    : 'bg-te-gray-200 dark:bg-te-gray-700 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
-                                  }
-                                  ${isDisabled && !isCurrent ? 'opacity-50 cursor-not-allowed' : ''}
-                                `}
-                              >
-                                <span className="flex items-center space-x-1">
-                                  <span>{branch}</span>
-                                  {clientCount > 0 && branch !== currentBranch && (
-                                    <span className="text-xs bg-te-gray-800 dark:bg-te-gray-900 text-white px-1 rounded">
-                                      {clientCount}
+                            if (gitBranches && gitBranches.length > 0) {
+                              // Use GitHub branches
+                              return gitBranches.map((branch) => {
+                                const isCurrent = branch.name === currentBranch;
+                                const clientCount = repo.wormhole?.activeBranches?.[branch.name] || 0;
+                                const isDisabled = switchingBranch === `${repo.repoFullName}:${branch.name}` || isCurrent;
+                                
+                                return (
+                                  <button
+                                    key={branch.name}
+                                    onClick={() => handleBranchSwitch(repo.repoFullName, branch.name)}
+                                    disabled={isDisabled}
+                                    className={`
+                                      px-3 py-1 text-xs rounded transition-colors
+                                      ${isCurrent 
+                                        ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default' 
+                                        : 'bg-te-gray-200 dark:bg-te-gray-700 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
+                                      }
+                                      ${isDisabled && !isCurrent ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                  >
+                                    <span className="flex items-center space-x-1">
+                                      <span>{branch.name}</span>
+                                      {branch.isDefault && (
+                                        <span className="text-xs text-te-gray-500" title="Default branch">⭐</span>
+                                      )}
+                                      {branch.protected && (
+                                        <span className="text-xs text-te-gray-500" title="Protected branch">🔒</span>
+                                      )}
+                                      {clientCount > 0 && branch.name !== currentBranch && (
+                                        <span className="text-xs bg-te-gray-800 dark:bg-te-gray-900 text-white px-1 rounded">
+                                          {clientCount}
+                                        </span>
+                                      )}
                                     </span>
-                                  )}
-                                  {isLocal && !isRemote && (
-                                    <span className="text-xs text-te-gray-500" title="Local branch only">L</span>
-                                  )}
-                                  {!isLocal && isRemote && (
-                                    <span className="text-xs text-te-gray-500" title="Remote branch only">R</span>
-                                  )}
+                                  </button>
+                                );
+                              });
+                            } else if (daemonBranches.length > 0) {
+                              // Fall back to daemon branches
+                              return daemonBranches.map((branch) => {
+                                const isLocal = localBranches.includes(branch);
+                                const isRemote = remoteBranches.includes(branch);
+                                const isCurrent = branch === currentBranch;
+                                const clientCount = repo.wormhole?.activeBranches?.[branch] || 0;
+                                const isDisabled = switchingBranch === `${repo.repoFullName}:${branch}` || isCurrent;
+                                
+                                return (
+                                  <button
+                                    key={branch}
+                                    onClick={() => handleBranchSwitch(repo.repoFullName, branch)}
+                                    disabled={isDisabled}
+                                    className={`
+                                      px-3 py-1 text-xs rounded transition-colors
+                                      ${isCurrent 
+                                        ? 'bg-te-gray-900 dark:bg-te-yellow text-white dark:text-te-gray-900 cursor-default' 
+                                        : 'bg-te-gray-200 dark:bg-te-gray-700 hover:bg-te-gray-300 dark:hover:bg-te-gray-600'
+                                      }
+                                      ${isDisabled && !isCurrent ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                  >
+                                    <span className="flex items-center space-x-1">
+                                      <span>{branch}</span>
+                                      {clientCount > 0 && branch !== currentBranch && (
+                                        <span className="text-xs bg-te-gray-800 dark:bg-te-gray-900 text-white px-1 rounded">
+                                          {clientCount}
+                                        </span>
+                                      )}
+                                      {isLocal && !isRemote && (
+                                        <span className="text-xs text-te-gray-500" title="Local branch only">L</span>
+                                      )}
+                                      {!isLocal && isRemote && (
+                                        <span className="text-xs text-te-gray-500" title="Remote branch only">R</span>
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              });
+                            } else {
+                              return (
+                                <span className="text-xs text-te-gray-600 dark:text-te-gray-500">
+                                  No branches available
                                 </span>
-                              </button>
-                            );
-                          });
-                        })()}
-                      </div>
+                              );
+                            }
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

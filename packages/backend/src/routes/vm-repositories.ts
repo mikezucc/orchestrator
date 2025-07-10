@@ -6,8 +6,10 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { daemonSyncService } from '../services/daemon-sync.js';
 import axios from 'axios';
 import type { ApiResponse, WormholeRepository, WormholeClient } from '@gce-platform/types';
+import { GitHubAPIService } from '../services/github-api.js';
 
 export const vmRepositoryRoutes = new Hono();
+const githubApi = new GitHubAPIService();
 
 // Get all repositories for a VM with wormhole data
 vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
@@ -161,6 +163,59 @@ vmRepositoryRoutes.post('/sync/:clientId', async (c) => {
     return c.json<ApiResponse<never>>({ 
       success: false, 
       error: 'Failed to trigger sync' 
+    }, 500);
+  }
+});
+
+// Get branches for a repository from GitHub API
+vmRepositoryRoutes.get('/:vmId/repositories/:repoId/github-branches', async (c) => {
+  const userId = c.req.header('x-user-id');
+  if (!userId) {
+    return c.json<ApiResponse<never>>({ success: false, error: 'User ID is required' }, 401);
+  }
+
+  const vmId = c.req.param('vmId');
+  const repoId = c.req.param('repoId');
+
+  try {
+    // Get repository details
+    const [repo] = await db
+      .select({
+        repoFullName: vmRepositories.repoFullName,
+      })
+      .from(vmRepositories)
+      .where(
+        and(
+          eq(vmRepositories.id, repoId),
+          eq(vmRepositories.vmId, vmId),
+          isNull(vmRepositories.removedAt)
+        )
+      )
+      .limit(1);
+
+    if (!repo) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'Repository not found' }, 404);
+    }
+
+    // Fetch branches from GitHub API
+    const branches = await githubApi.getRepositoryBranches(userId, repo.repoFullName);
+
+    if (!branches) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Failed to fetch branches from GitHub. Please ensure you have authorized GitHub access.' 
+      }, 400);
+    }
+
+    return c.json<ApiResponse<typeof branches>>({ 
+      success: true, 
+      data: branches 
+    });
+  } catch (error) {
+    console.error('Error fetching GitHub branches:', error);
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: 'Failed to fetch branches from GitHub' 
     }, 500);
   }
 });

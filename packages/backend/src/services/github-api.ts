@@ -40,9 +40,10 @@ export class GitHubAPIService {
 
       console.log(`Added SSH key to GitHub for user ${userId}: ${title}`);
       return { id: response.data.id, key: response.data.key };
-    } catch (error: any) {
-      console.error(`Failed to add SSH key to GitHub: ${error.message}`);
-      throw new Error(`Failed to add SSH key to GitHub: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to add SSH key to GitHub: ${message}`);
+      throw new Error(`Failed to add SSH key to GitHub: ${message}`);
     }
   }
 
@@ -57,8 +58,9 @@ export class GitHubAPIService {
 
       console.log(`Removed SSH key ${keyId} from GitHub for user ${userId}`);
       return true;
-    } catch (error: any) {
-      console.error(`Failed to remove SSH key from GitHub: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to remove SSH key from GitHub: ${message}`);
       return false;
     }
   }
@@ -77,8 +79,9 @@ export class GitHubAPIService {
         key: key.key,
         title: key.title || 'Untitled',
       }));
-    } catch (error: any) {
-      console.error(`Failed to list SSH keys from GitHub: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to list SSH keys from GitHub: ${message}`);
       return null;
     }
   }
@@ -108,6 +111,53 @@ export class GitHubAPIService {
       };
     } catch (error) {
       console.error(`Failed to get authenticated GitHub user for user ${userId}`);
+      return null;
+    }
+  }
+
+  async getRepositoryBranches(userId: string, repoFullName: string): Promise<Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }> | null> {
+    const octokit = await this.getOctokit(userId);
+    if (!octokit) return null;
+
+    try {
+      const [owner, repo] = repoFullName.split('/');
+      if (!owner || !repo) {
+        console.error(`Invalid repository name format: ${repoFullName}`);
+        return null;
+      }
+
+      // Get default branch info
+      const repoInfo = await octokit.repos.get({ owner, repo });
+      const defaultBranch = repoInfo.data.default_branch;
+
+      // Get all branches
+      const branches: Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }> = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await octokit.repos.listBranches({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+
+        branches.push(...response.data.map(branch => ({
+          name: branch.name,
+          protected: branch.protected,
+          commit: { sha: branch.commit.sha },
+          isDefault: branch.name === defaultBranch,
+        })));
+
+        hasMore = response.data.length === 100;
+        page++;
+      }
+
+      return branches;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to get branches for ${repoFullName}: ${message}`);
       return null;
     }
   }

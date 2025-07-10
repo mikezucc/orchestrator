@@ -56,4 +56,12 @@ export const vmRepositoriesApi = {
       throw new Error(response.data.error || 'Failed to trigger sync');
     }
   },
+
+  getGitHubBranches: async (vmId: string, repoId: string): Promise<Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }>> => {
+    const response = await api.get<ApiResponse<Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }>>>(`/vms/${vmId}/repositories/${repoId}/github-branches`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to fetch GitHub branches');
+  },
 };
