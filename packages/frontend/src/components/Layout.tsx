@@ -71,16 +71,6 @@ export default function Layout() {
                   Virtual Machines
                 </Link>
                 <Link
-                  to="/projects"
-                  className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
-                    isActive('/projects')
-                      ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
-                      : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
-                  }`}
-                >
-                  Projects
-                </Link>
-                <Link
                   to="/scripts"
                   className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
                     isActive('/scripts')
