@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, integer, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import { organizations, authUsers } from './schema-auth';
 
@@ -90,3 +91,20 @@ export const scriptLibrary = pgTable('script_library', {
       .on(table.userId, table.name),
   };
 });
+
+export const virtualMachinesRelations = relations(virtualMachines, ({ one, many }) => ({
+  user: one(users, {
+    fields: [virtualMachines.userId],
+    references: [users.id],
+  }),
+  organization: one(organizations, {
+    fields: [virtualMachines.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(authUsers, {
+    fields: [virtualMachines.createdBy],
+    references: [authUsers.id],
+  }),
+  firewallRules: many(firewallRules),
+  portDescriptions: many(portDescriptions),
+}));

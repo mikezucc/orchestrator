@@ -4,7 +4,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 export default {
-  schema: ['./src/db/schema-auth.ts', './src/db/schema-scripts.ts', './src/db/schema.ts', './src/db/schema-script-executions.ts', './src/db/schema-moments.ts', './src/db/schema-projects.ts'],
+  schema: ['./src/db/schema-auth.ts', './src/db/schema-scripts.ts', './src/db/schema.ts', './src/db/schema-script-executions.ts', './src/db/schema-moments.ts', './src/db/schema-projects.ts', './src/db/schema-vm-repositories.ts'],
   out: './drizzle',
   driver: 'pg',
   dbCredentials: {

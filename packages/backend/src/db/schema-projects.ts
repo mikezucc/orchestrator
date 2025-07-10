@@ -80,7 +80,7 @@ export const projectRepositories = pgTable(
   })
 );
 
-export const projectRepositoriesRelations = relations(projectRepositories, ({ one }) => ({
+export const projectRepositoriesRelations = relations(projectRepositories, ({ one, many }) => ({
   project: one(projects, {
     fields: [projectRepositories.projectId],
     references: [projects.id],
