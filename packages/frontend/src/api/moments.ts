@@ -12,26 +12,12 @@ import { fetchClient } from './fetchClient';
 export const momentsApi = {
   // Create a new moment
   createMoment: async (data: CreateMomentRequest): Promise<ApiResponse<{ moment: any }>> => {
-    const response = await fetchClient('/api/moments/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    return response.json();
+    return fetchClient.post('/moments/create', data);
   },
 
   // Get upload URL for asset
-  getUploadUrl: async (momentId: string, data: UploadAssetRequest): Promise<UploadAssetResponse> => {
-    const response = await fetchClient(`/api/moments/${momentId}/assets/upload`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    return response.json();
+  getUploadUrl: async (momentId: string, data: UploadAssetRequest): Promise<ApiResponse<UploadAssetResponse>> => {
+    return fetchClient.post(`/moments/${momentId}/assets/upload`, data);
   },
 
   // Upload asset to GCS using signed URL
@@ -73,22 +59,17 @@ export const momentsApi = {
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.offset) searchParams.append('offset', params.offset.toString());
 
-    const response = await fetchClient(`/api/moments/list?${searchParams}`);
-    return response.json();
+    return fetchClient.get(`/moments/list?${searchParams}`);
   },
 
   // Get moment details with assets
-  getMomentDetail: async (momentId: string): Promise<MomentDetailResponse> => {
-    const response = await fetchClient(`/api/moments/${momentId}`);
-    return response.json();
+  getMomentDetail: async (momentId: string): Promise<ApiResponse<MomentDetailResponse>> => {
+    return fetchClient.get(`/moments/${momentId}`);
   },
 
   // Delete moment
   deleteMoment: async (momentId: string): Promise<ApiResponse<void>> => {
-    const response = await fetchClient(`/api/moments/${momentId}`, {
-      method: 'DELETE',
-    });
-    return response.json();
+    return fetchClient.delete(`/moments/${momentId}`);
   },
 
   // Update asset status (for internal use)
@@ -98,13 +79,6 @@ export const momentsApi = {
     error?: string,
     metadata?: any
   ): Promise<ApiResponse<void>> => {
-    const response = await fetchClient(`/api/moments/assets/${assetId}/status`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status, error, metadata }),
-    });
-    return response.json();
+    return fetchClient.post(`/moments/assets/${assetId}/status`, { status, error, metadata });
   },
 };
