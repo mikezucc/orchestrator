@@ -24,6 +24,8 @@ import scriptsRouter from './routes/scripts.js';
 import { momentsRouter } from './routes/moments.js';
 import { projectRoutes } from './routes/projects.js';
 import { vmRepositoryRoutes } from './routes/vm-repositories.js';
+import { adminRoutes } from './routes/admin.js';
+import { daemonRoutes } from './routes/daemon.js';
 
 dotenv.config();
 
@@ -81,6 +83,8 @@ app.route('/api/scripts', scriptsRouter);
 app.route('/api/moments', momentsRouter);
 app.route('/api/projects', projectRoutes);
 app.route('/api/vms', vmRepositoryRoutes);
+app.route('/api/admin', adminRoutes);
+app.route('/daemon', daemonRoutes);
 
 // Check required environment variables
 const requiredEnvVars = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI'];

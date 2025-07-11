@@ -7,6 +7,7 @@ import * as scriptExecutionSchema from './schema-script-executions.js';
 import * as momentsSchema from './schema-moments.js';
 import * as projectSchema from './schema-projects.js';
 import * as vmRepositorySchema from './schema-vm-repositories.js';
+import * as daemonSchema from './schema-daemon.js';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -22,7 +23,8 @@ export const db = drizzle(sql, {
     ...scriptExecutionSchema,
     ...momentsSchema,
     ...projectSchema,
-    ...vmRepositorySchema 
+    ...vmRepositorySchema,
+    ...daemonSchema 
   } 
 });
 

@@ -4,10 +4,12 @@ import { useOrganization } from '../contexts/OrganizationContext';
 import ThemeToggle from './ThemeToggle';
 import OrganizationSwitcher from './OrganizationSwitcher';
 import { useEffect } from 'react';
+import { useCurrentUserRole } from '../hooks/useCurrentUserRole';
 
 export default function Layout() {
   const { isAuthenticated, logout, isLoading, hasOrganizations } = useAuth();
   const { isLoading: orgLoading } = useOrganization();
+  const { isOwnerOrAdmin } = useCurrentUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,7 +48,8 @@ export default function Layout() {
            (path === '/scripts' && location.pathname.startsWith('/scripts')) ||
            (path === '/moments' && location.pathname.startsWith('/moments')) ||
            (path === '/organization/settings' && location.pathname.startsWith('/organization')) ||
-           (path === '/user/settings' && location.pathname.startsWith('/user'));
+           (path === '/user/settings' && location.pathname.startsWith('/user')) ||
+           (path === '/admin' && location.pathname.startsWith('/admin'));
   };
 
   return (
@@ -110,6 +113,18 @@ export default function Layout() {
                 >
                   Account
                 </Link>
+                {isOwnerOrAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`px-4 py-2 text-xs uppercase tracking-wider transition-colors ${
+                      isActive('/admin')
+                        ? 'text-te-gray-900 dark:text-te-yellow border-b-2 border-te-gray-900 dark:border-te-yellow' 
+                        : 'text-te-gray-600 dark:text-te-gray-500 hover:text-te-gray-900 dark:hover:text-te-gray-100'
+                    }`}
+                  >
+                    Admin
+                  </Link>
+                )}
               </div>
             </div>
             

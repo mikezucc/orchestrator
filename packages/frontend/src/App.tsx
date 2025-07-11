@@ -17,6 +17,7 @@ import OrganizationSettings from './pages/OrganizationSettings';
 import CreateOrganization from './pages/CreateOrganization';
 import UserSettings from './pages/UserSettings';
 import Moments from './pages/Moments';
+import Admin from './pages/Admin';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ function App() {
                     <Route path="moments" element={<Moments />} />
                     <Route path="organization/settings" element={<OrganizationSettings />} />
                     <Route path="user/settings" element={<UserSettings />} />
+                    <Route path="admin" element={<Admin />} />
                   </Route>
                 </Routes>
               </Router>
