@@ -1,12 +1,12 @@
 #!/bin/bash
 
-echo "Fixing HSTS issues for slopbox.dev"
+echo "Fixing HSTS issues for onfacet.dev"
 echo ""
 echo "To clear HSTS in Chrome:"
 echo "1. Go to chrome://net-internals/#hsts"
-echo "2. In 'Delete domain security policies', enter: slopbox.dev"
+echo "2. In 'Delete domain security policies', enter: onfacet.dev"
 echo "3. Click 'Delete'"
-echo "4. Also delete: api.slopbox.dev"
+echo "4. Also delete: api.onfacet.dev"
 echo ""
 echo "Alternative: Use a different browser or incognito mode"
 echo ""
@@ -14,19 +14,19 @@ echo "Updating nginx configuration to avoid HSTS issues..."
 
 # Update nginx configuration without HSTS headers
 sudo tee /etc/nginx/sites-available/slopbox > /dev/null << 'EOF'
-# Frontend - slopbox.dev
+# Frontend - onfacet.dev
 server {
     listen 80;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/slopbox.dev.crt;
-    ssl_certificate_key /etc/nginx/ssl/slopbox.dev.key;
+    ssl_certificate /etc/nginx/ssl/onfacet.dev.crt;
+    ssl_certificate_key /etc/nginx/ssl/onfacet.dev.key;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -53,19 +53,19 @@ server {
     }
 }
 
-# Backend API - api.slopbox.dev
+# Backend API - api.onfacet.dev
 server {
     listen 80;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/api.slopbox.dev.crt;
-    ssl_certificate_key /etc/nginx/ssl/api.slopbox.dev.key;
+    ssl_certificate /etc/nginx/ssl/api.onfacet.dev.crt;
+    ssl_certificate_key /etc/nginx/ssl/api.onfacet.dev.key;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;

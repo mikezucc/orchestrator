@@ -25,7 +25,7 @@ const forceRegenerate = args.includes('--force');
 const domains = args.filter(arg => !arg.startsWith('--'));
 
 // Default domains if none specified
-const defaultDomains = ['localhost', 'slopbox.dev', '*.slopbox.dev', 'api.slopbox.dev'];
+const defaultDomains = ['localhost', 'onfacet.dev', '*.onfacet.dev', 'api.onfacet.dev'];
 const allDomains = domains.length > 0 ? domains : defaultDomains;
 
 // Check if certificates already exist

@@ -1,15 +1,15 @@
 server {
     listen 80;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/slopbox.dev.cert.key.pem;
-    ssl_certificate_key /etc/nginx/ssl/slopbox.dev.private.key.pem;
+    ssl_certificate /etc/nginx/ssl/onfacet.dev.cert.key.pem;
+    ssl_certificate_key /etc/nginx/ssl/onfacet.dev.private.key.pem;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -36,19 +36,19 @@ server {
     }
 }
 
-# Backend API - api.slopbox.dev
+# Backend API - api.onfacet.dev
 server {
     listen 80;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/api.slopbox.dev.crt;
-    ssl_certificate_key /etc/nginx/ssl/api.slopbox.dev.key;
+    ssl_certificate /etc/nginx/ssl/api.onfacet.dev.crt;
+    ssl_certificate_key /etc/nginx/ssl/api.onfacet.dev.key;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -72,19 +72,19 @@ server {
     }
 }
 
-# WebSocket Server - ws.slopbox.dev
+# WebSocket Server - ws.onfacet.dev
 server {
     listen 80;
-    server_name ws.slopbox.dev;
+    server_name ws.onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name ws.slopbox.dev;
+    server_name ws.onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/slopbox.dev.cert.key.pem;
-    ssl_certificate_key /etc/nginx/ssl/slopbox.dev.private.key.pem;
+    ssl_certificate /etc/nginx/ssl/onfacet.dev.cert.key.pem;
+    ssl_certificate_key /etc/nginx/ssl/onfacet.dev.private.key.pem;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;

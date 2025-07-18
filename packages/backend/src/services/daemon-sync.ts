@@ -43,7 +43,7 @@ class DaemonSyncService {
 
     try {
       // Fetch all connected daemons from the central server
-      const response = await axios.get<DaemonStatusResponse>('https://ws.slopbox.dev/api/status');
+      const response = await axios.get<DaemonStatusResponse>('https://ws.onfacet.dev/api/status');
       
       if (response.data && response.data.clients) {
         console.log(`Polling daemon status: ${response.data.clients.length} clients connected`);
@@ -73,7 +73,7 @@ class DaemonSyncService {
     
     try {
       // Fetch the specific client's information
-      const response = await axios.get<DaemonStatusResponse>('https://ws.slopbox.dev/api/status');
+      const response = await axios.get<DaemonStatusResponse>('https://ws.onfacet.dev/api/status');
       
       const client = response.data.clients.find(c => c.id === clientId);
       if (client && client.connected) {
@@ -197,7 +197,7 @@ class DaemonSyncService {
 
     // Get current client info to see which repos it's managing
     try {
-      const response = await axios.get<DaemonStatusResponse>('https://ws.slopbox.dev/api/status');
+      const response = await axios.get<DaemonStatusResponse>('https://ws.onfacet.dev/api/status');
       const client = response.data.clients.find(c => c.id === clientId);
       
       if (!client || !client.repoPath) {

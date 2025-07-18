@@ -86,7 +86,7 @@ export default function Admin() {
           <div>
             <p className="text-xs text-te-gray-600 dark:text-te-gray-400 mb-4">
               Upload a new daemon binary that will be available for download by virtual machines.
-              The binary will be served from api.slopbox.dev/daemon/latest
+              The binary will be served from api.onfacet.dev/daemon/latest
             </p>
           </div>
 
@@ -152,7 +152,7 @@ export default function Admin() {
 
 # Download the latest daemon binary from Slopbox
 echo "Downloading latest daemon binary..."
-curl -o /tmp/slopbox-daemon https://api.slopbox.dev/daemon/latest
+curl -o /tmp/slopbox-daemon https://api.onfacet.dev/daemon/latest
 
 # Make it executable
 chmod +x /tmp/slopbox-daemon
@@ -165,7 +165,7 @@ echo "Starting Slopbox daemon..."
           <div className="text-xs text-te-gray-600 dark:text-te-gray-400">
             <p className="font-medium mb-1">One-liner command:</p>
             <pre className="bg-te-gray-100 dark:bg-te-gray-800 border border-te-gray-200 dark:border-te-gray-700 rounded p-2 overflow-x-auto">
-              <code>curl -s https://api.slopbox.dev/daemon/install.sh | bash</code>
+              <code>curl -s https://api.onfacet.dev/daemon/install.sh | bash</code>
             </pre>
           </div>
         </div>

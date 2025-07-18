@@ -22,7 +22,7 @@ class EmailService {
 
   async sendEmail(to: string, subject: string, html: string, text?: string) {
     const from = {
-      email: process.env.SENDGRID_FROM_EMAIL || 'noreply@slopbox.dev',
+      email: process.env.SENDGRID_FROM_EMAIL || 'noreply@onfacet.dev',
       name: process.env.SENDGRID_FROM_NAME || 'Slopbox'
     };
 

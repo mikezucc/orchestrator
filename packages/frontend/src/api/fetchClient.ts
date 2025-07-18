@@ -144,9 +144,9 @@ const getApiBaseURL = () => {
   
   // Production mode with specific domain handling
   if (process.env.NODE_ENV === 'production') {
-    // If on slopbox.dev or www.slopbox.dev, use api.slopbox.dev
-    if (hostname === 'slopbox.dev' || hostname === 'www.slopbox.dev') {
-      return `${protocol}//api.slopbox.dev/api`;
+    // If on onfacet.dev or www.onfacet.dev, use api.onfacet.dev
+    if (hostname === 'onfacet.dev' || hostname === 'www.onfacet.dev') {
+      return `${protocol}//api.onfacet.dev/api`;
     }
     // Otherwise use relative path (same domain)
     return '/api';

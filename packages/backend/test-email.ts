@@ -9,7 +9,7 @@ async function testEmailService() {
 
   // Check configuration
   const apiKey = process.env.SENDGRID_API_KEY;
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@slopbox.dev';
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@onfacet.dev';
   
   console.log('Configuration:');
   console.log(`- API Key: ${apiKey ? '✅ Set' : '❌ Not set'}`);
@@ -35,7 +35,7 @@ async function testEmailService() {
   try {
     await emailService.sendVerificationEmail(
       'test@example.com',
-      'https://slopbox.dev/verify?token=test-token'
+      'https://onfacet.dev/verify?token=test-token'
     );
     console.log('✅ Verification email test passed\n');
   } catch (error) {
@@ -49,7 +49,7 @@ async function testEmailService() {
       'test@example.com',
       'John Doe',
       'Acme Corp',
-      'https://slopbox.dev/invite?token=test-token',
+      'https://onfacet.dev/invite?token=test-token',
       'Developer'
     );
     console.log('✅ Team invitation email test passed\n');
@@ -70,7 +70,7 @@ async function testEmailService() {
   console.log('\nNote: To test actual email sending:');
   console.log('1. Get your SendGrid API key from https://app.sendgrid.com/settings/api_keys');
   console.log('2. Set SENDGRID_API_KEY in your .env file');
-  console.log('3. Make sure noreply@slopbox.dev is verified in SendGrid');
+  console.log('3. Make sure noreply@onfacet.dev is verified in SendGrid');
   console.log('4. Run this test again with a real email address');
 }
 

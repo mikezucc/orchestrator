@@ -202,9 +202,9 @@ export default function SSHTerminal({ vm, onClose }: SSHTerminalProps) {
       
       let wsHost: string;
       let protocol: string | undefined;
-      if (import.meta.env.VITE_API_URL === 'https://api.slopbox.dev/api') {
-        // In production, check if we're on slopbox.dev
-        wsHost = 'api.slopbox.dev';
+      if (import.meta.env.VITE_API_URL === 'https://api.onfacet.dev/api') {
+        // In production, check if we're on onfacet.dev
+        wsHost = 'api.onfacet.dev';
         protocol = 'wss';
       } else {
         wsHost = 'localhost:3000';

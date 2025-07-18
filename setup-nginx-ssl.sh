@@ -3,24 +3,24 @@
 # Exit on any error
 set -e
 
-echo "Setting up nginx with self-signed SSL certificates for slopbox.dev"
+echo "Setting up nginx with self-signed SSL certificates for onfacet.dev"
 
 # Create directory for SSL certificates
 sudo mkdir -p /etc/nginx/ssl
 
-# Generate self-signed certificate for slopbox.dev (frontend)
-echo "Generating SSL certificate for slopbox.dev..."
+# Generate self-signed certificate for onfacet.dev (frontend)
+echo "Generating SSL certificate for onfacet.dev..."
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/slopbox.dev.key \
-    -out /etc/nginx/ssl/slopbox.dev.crt \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=slopbox.dev"
+    -keyout /etc/nginx/ssl/onfacet.dev.key \
+    -out /etc/nginx/ssl/onfacet.dev.crt \
+    -subj "/C=US/ST=State/L=City/O=Organization/CN=onfacet.dev"
 
-# Generate self-signed certificate for api.slopbox.dev (backend)
-echo "Generating SSL certificate for api.slopbox.dev..."
+# Generate self-signed certificate for api.onfacet.dev (backend)
+echo "Generating SSL certificate for api.onfacet.dev..."
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-    -keyout /etc/nginx/ssl/api.slopbox.dev.key \
-    -out /etc/nginx/ssl/api.slopbox.dev.crt \
-    -subj "/C=US/ST=State/L=City/O=Organization/CN=api.slopbox.dev"
+    -keyout /etc/nginx/ssl/api.onfacet.dev.key \
+    -out /etc/nginx/ssl/api.onfacet.dev.crt \
+    -subj "/C=US/ST=State/L=City/O=Organization/CN=api.onfacet.dev"
 
 # Set proper permissions
 sudo chmod 600 /etc/nginx/ssl/*.key
@@ -43,19 +43,19 @@ sudo rm -f /etc/nginx/sites-available/*
 # Create nginx configuration
 echo "Creating nginx configuration..."
 sudo tee /etc/nginx/sites-available/slopbox > /dev/null << 'EOF'
-# Frontend - slopbox.dev
+# Frontend - onfacet.dev
 server {
     listen 80;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name slopbox.dev;
+    server_name onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/slopbox.dev.crt;
-    ssl_certificate_key /etc/nginx/ssl/slopbox.dev.key;
+    ssl_certificate /etc/nginx/ssl/onfacet.dev.crt;
+    ssl_certificate_key /etc/nginx/ssl/onfacet.dev.key;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -76,19 +76,19 @@ server {
     }
 }
 
-# Backend API - api.slopbox.dev
+# Backend API - api.onfacet.dev
 server {
     listen 80;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
 
-    ssl_certificate /etc/nginx/ssl/api.slopbox.dev.crt;
-    ssl_certificate_key /etc/nginx/ssl/api.slopbox.dev.key;
+    ssl_certificate /etc/nginx/ssl/api.onfacet.dev.crt;
+    ssl_certificate_key /etc/nginx/ssl/api.onfacet.dev.key;
 
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -126,14 +126,14 @@ sudo systemctl reload nginx
 echo "Setup complete!"
 echo ""
 echo "SSL certificates created:"
-echo "  - /etc/nginx/ssl/slopbox.dev.crt"
-echo "  - /etc/nginx/ssl/api.slopbox.dev.crt"
+echo "  - /etc/nginx/ssl/onfacet.dev.crt"
+echo "  - /etc/nginx/ssl/api.onfacet.dev.crt"
 echo ""
 echo "Your services should now be accessible at:"
-echo "  - https://slopbox.dev (frontend on port 5173)"
-echo "  - https://api.slopbox.dev (backend on port 3000)"
+echo "  - https://onfacet.dev (frontend on port 5173)"
+echo "  - https://api.onfacet.dev (backend on port 3000)"
 echo ""
 echo "Note: Since these are self-signed certificates, browsers will show a security warning."
 echo "You can add these domains to /etc/hosts if not already done:"
-echo "  127.0.0.1 slopbox.dev"
-echo "  127.0.0.1 api.slopbox.dev"
+echo "  127.0.0.1 onfacet.dev"
+echo "  127.0.0.1 api.onfacet.dev"

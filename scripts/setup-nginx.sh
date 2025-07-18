@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Setup nginx configuration for slopbox.dev and api.slopbox.dev
+# Setup nginx configuration for onfacet.dev and api.onfacet.dev
 # This script creates nginx configuration files for the orchestrator
 
 set -e
@@ -12,12 +12,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Default values
-DOMAIN="slopbox.dev"
-API_SUBDOMAIN="api.slopbox.dev"
+DOMAIN="onfacet.dev"
+API_SUBDOMAIN="api.onfacet.dev"
 FRONTEND_PORT="5173"
 BACKEND_PORT="3000"
-SSL_CERT_PATH="/etc/letsencrypt/live/slopbox.dev/fullchain.pem"
-SSL_KEY_PATH="/etc/letsencrypt/live/slopbox.dev/privkey.pem"
+SSL_CERT_PATH="/etc/letsencrypt/live/onfacet.dev/fullchain.pem"
+SSL_KEY_PATH="/etc/letsencrypt/live/onfacet.dev/privkey.pem"
 USE_SSL="yes"
 NGINX_SITES_PATH="/etc/nginx/sites-available"
 NGINX_ENABLED_PATH="/etc/nginx/sites-enabled"
@@ -51,7 +51,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [options]"
       echo ""
       echo "Options:"
-      echo "  --domain DOMAIN          Set the main domain (default: slopbox.dev)"
+      echo "  --domain DOMAIN          Set the main domain (default: onfacet.dev)"
       echo "  --frontend-port PORT     Frontend port (default: 5173)"
       echo "  --backend-port PORT      Backend port (default: 3000)"
       echo "  --no-ssl                 Disable SSL configuration"

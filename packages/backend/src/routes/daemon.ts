@@ -36,7 +36,7 @@ sudo mkdir -p $INSTALL_DIR
 
 # Download the latest daemon binary
 echo "Downloading latest daemon binary..."
-sudo curl -L -o $INSTALL_DIR/slopbox-daemon https://api.slopbox.dev/daemon/latest
+sudo curl -L -o $INSTALL_DIR/slopbox-daemon https://api.onfacet.dev/daemon/latest
 
 # Make it executable
 sudo chmod +x $INSTALL_DIR/slopbox-daemon

@@ -10,10 +10,10 @@ The wormhole daemon binary can be downloaded by anyone without authentication.
 
 ```bash
 # Download the default linux-amd64 binary
-curl -O https://api.slopbox.dev/api/wormhole/daemon/download
+curl -O https://api.onfacet.dev/api/wormhole/daemon/download
 
 # Save with a custom filename
-curl -o wormhole-daemon https://api.slopbox.dev/api/wormhole/daemon/download
+curl -o wormhole-daemon https://api.onfacet.dev/api/wormhole/daemon/download
 ```
 
 ### Platform-Specific Downloads
@@ -22,16 +22,16 @@ Specify the platform using the `platform` query parameter:
 
 ```bash
 # Linux AMD64 (default)
-curl -O https://api.slopbox.dev/api/wormhole/daemon/download?platform=linux-amd64
+curl -O https://api.onfacet.dev/api/wormhole/daemon/download?platform=linux-amd64
 
 # Linux ARM64
-curl -O https://api.slopbox.dev/api/wormhole/daemon/download?platform=linux-arm64
+curl -O https://api.onfacet.dev/api/wormhole/daemon/download?platform=linux-arm64
 
 # macOS AMD64
-curl -O https://api.slopbox.dev/api/wormhole/daemon/download?platform=darwin-amd64
+curl -O https://api.onfacet.dev/api/wormhole/daemon/download?platform=darwin-amd64
 
 # macOS ARM64 (Apple Silicon)
-curl -O https://api.slopbox.dev/api/wormhole/daemon/download?platform=darwin-arm64
+curl -O https://api.onfacet.dev/api/wormhole/daemon/download?platform=darwin-arm64
 ```
 
 ### Make Executable and Run
@@ -40,7 +40,7 @@ After downloading, make the binary executable:
 
 ```bash
 # Download the binary
-curl -o wormhole-daemon https://api.slopbox.dev/api/wormhole/daemon/download
+curl -o wormhole-daemon https://api.onfacet.dev/api/wormhole/daemon/download
 
 # Make it executable
 chmod +x wormhole-daemon
@@ -55,10 +55,10 @@ For quick installation on Linux/macOS:
 
 ```bash
 # Linux AMD64
-curl -L https://api.slopbox.dev/api/wormhole/daemon/download?platform=linux-amd64 -o /usr/local/bin/wormhole-daemon && chmod +x /usr/local/bin/wormhole-daemon
+curl -L https://api.onfacet.dev/api/wormhole/daemon/download?platform=linux-amd64 -o /usr/local/bin/wormhole-daemon && chmod +x /usr/local/bin/wormhole-daemon
 
 # macOS ARM64 (Apple Silicon)
-curl -L https://api.slopbox.dev/api/wormhole/daemon/download?platform=darwin-arm64 -o /usr/local/bin/wormhole-daemon && chmod +x /usr/local/bin/wormhole-daemon
+curl -L https://api.onfacet.dev/api/wormhole/daemon/download?platform=darwin-arm64 -o /usr/local/bin/wormhole-daemon && chmod +x /usr/local/bin/wormhole-daemon
 ```
 
 ## Uploading New Binaries (Admin Only)
@@ -74,12 +74,12 @@ Uploading new wormhole daemon binaries is restricted to members of the `slopboxp
 
 ```bash
 # Upload a new binary for linux-amd64
-curl -X POST https://api.slopbox.dev/api/wormhole/daemon/upload?platform=linux-amd64 \
+curl -X POST https://api.onfacet.dev/api/wormhole/daemon/upload?platform=linux-amd64 \
   -H "Authorization: Bearer YOUR_AUTH_TOKEN" \
   -F "binary=@/path/to/new/wormhole-daemon"
 
 # Upload for a different platform
-curl -X POST https://api.slopbox.dev/api/wormhole/daemon/upload?platform=darwin-arm64 \
+curl -X POST https://api.onfacet.dev/api/wormhole/daemon/upload?platform=darwin-arm64 \
   -H "Authorization: Bearer YOUR_AUTH_TOKEN" \
   -F "binary=@/path/to/new/wormhole-daemon-darwin-arm64"
 ```
@@ -136,24 +136,24 @@ The following platform identifiers are commonly used:
 
 ```bash
 # Use HEAD request to check without downloading
-curl -I https://api.slopbox.dev/api/wormhole/daemon/download?platform=linux-arm64
+curl -I https://api.onfacet.dev/api/wormhole/daemon/download?platform=linux-arm64
 ```
 
 ### Download with Progress Bar
 
 ```bash
 # Using curl with progress bar
-curl -# -o wormhole-daemon https://api.slopbox.dev/api/wormhole/daemon/download
+curl -# -o wormhole-daemon https://api.onfacet.dev/api/wormhole/daemon/download
 
 # Using wget
-wget https://api.slopbox.dev/api/wormhole/daemon/download -O wormhole-daemon
+wget https://api.onfacet.dev/api/wormhole/daemon/download -O wormhole-daemon
 ```
 
 ### Verify Download
 
 ```bash
 # Download and show file info
-curl -o wormhole-daemon https://api.slopbox.dev/api/wormhole/daemon/download && \
+curl -o wormhole-daemon https://api.onfacet.dev/api/wormhole/daemon/download && \
   file wormhole-daemon && \
   ls -la wormhole-daemon
 ```

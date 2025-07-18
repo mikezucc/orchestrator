@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 NGINX_SITES_PATH="/etc/nginx/sites-available"
 NGINX_ENABLED_PATH="/etc/nginx/sites-enabled"
 CONFIG_DB_FILE="$HOME/.nginx-proxy-configs.json"
-DEFAULT_DOMAIN="slopbox.dev"
+DEFAULT_DOMAIN="onfacet.dev"
 SSL_CERT_PATH="/etc/letsencrypt/live"
 
 # Initialize config database if it doesn't exist

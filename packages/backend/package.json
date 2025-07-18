@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "PORT=3000 tsx watch src/index.ts",
-    "dev:prod": "PORT=3000 BACKEND_URL=https://api.slopbox.dev FRONTEND_URL=https://slopbox.dev GOOGLE_REDIRECT_URI=https://api.slopbox.dev/api/auth/google/callback GITHUB_REDIRECT_URI=https://api.slopbox.dev/api/github-auth/callback tsx watch src/index.ts",
+    "dev:prod": "PORT=3000 BACKEND_URL=https://api.onfacet.dev FRONTEND_URL=https://onfacet.dev GOOGLE_REDIRECT_URI=https://api.onfacet.dev/api/auth/google/callback GITHUB_REDIRECT_URI=https://api.onfacet.dev/api/github-auth/callback tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",

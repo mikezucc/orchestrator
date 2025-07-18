@@ -34,8 +34,8 @@ CORS_ORIGINS=http://localhost:5173,https://localhost:5173
 # Local network access
 CORS_ORIGINS=http://localhost:5173,http://192.168.1.100:5173,http://192.168.1.100:3000
 
-# Production domain (e.g., slopbox.dev)
-CORS_ORIGINS=http://slopbox.dev,https://slopbox.dev,http://localhost:5173
+# Production domain (e.g., onfacet.dev)
+CORS_ORIGINS=http://onfacet.dev,https://onfacet.dev,http://localhost:5173
 
 # Multiple environments
 CORS_ORIGINS=http://localhost:5173,https://app.example.com,http://staging.example.com
@@ -120,32 +120,32 @@ To access the application from other devices on your network:
 
 ## Production Deployment with Custom Domain
 
-When deploying to production with a custom domain (e.g., slopbox.dev):
+When deploying to production with a custom domain (e.g., onfacet.dev):
 
 ### 1. Update Environment Variables
 
 ```bash
 # CORS configuration for production domain
-CORS_ORIGINS=http://slopbox.dev,https://slopbox.dev,http://www.slopbox.dev,https://www.slopbox.dev
+CORS_ORIGINS=http://onfacet.dev,https://onfacet.dev,http://www.onfacet.dev,https://www.onfacet.dev
 
 # OAuth configuration
-FRONTEND_URL=https://slopbox.dev
-GOOGLE_REDIRECT_URI=https://api.slopbox.dev/api/auth/google/callback
-GITHUB_REDIRECT_URI=https://api.slopbox.dev/api/github-auth/callback
+FRONTEND_URL=https://onfacet.dev
+GOOGLE_REDIRECT_URI=https://api.onfacet.dev/api/auth/google/callback
+GITHUB_REDIRECT_URI=https://api.onfacet.dev/api/github-auth/callback
 
 # Frontend (optional - only if not using automatic detection)
-VITE_API_URL=https://api.slopbox.dev/api
+VITE_API_URL=https://api.onfacet.dev/api
 ```
 
 ### API Subdomain Configuration
 
-The application supports serving the API from a subdomain (e.g., api.slopbox.dev):
+The application supports serving the API from a subdomain (e.g., api.onfacet.dev):
 
-1. **Automatic Detection**: The frontend automatically detects when accessed from slopbox.dev and routes API calls to api.slopbox.dev
+1. **Automatic Detection**: The frontend automatically detects when accessed from onfacet.dev and routes API calls to api.onfacet.dev
 
 2. **Manual Configuration**: You can override this by setting `VITE_API_URL` in the frontend's .env file
 
-3. **Certificate Requirements**: Ensure your SSL certificate includes api.slopbox.dev (the default multi-domain script includes this)
+3. **Certificate Requirements**: Ensure your SSL certificate includes api.onfacet.dev (the default multi-domain script includes this)
 
 ### 2. Web Server Configuration
 
@@ -154,26 +154,26 @@ The application supports serving the API from a subdomain (e.g., api.slopbox.dev
 We provide scripts to automatically configure nginx:
 
 ```bash
-# For API subdomain setup (api.slopbox.dev)
-sudo ./scripts/setup-nginx.sh --domain slopbox.dev
+# For API subdomain setup (api.onfacet.dev)
+sudo ./scripts/setup-nginx.sh --domain onfacet.dev
 
 # For simple single-domain setup
-sudo ./scripts/setup-nginx-simple.sh --domain slopbox.dev
+sudo ./scripts/setup-nginx-simple.sh --domain onfacet.dev
 
 # With self-signed certificates
-sudo ./scripts/setup-nginx.sh --domain slopbox.dev --self-signed
+sudo ./scripts/setup-nginx.sh --domain onfacet.dev --self-signed
 ```
 
 See [Nginx Setup Guide](./nginx-setup.md) for detailed instructions.
 
 #### Manual Configuration (Nginx example)
 
-#### Frontend Server (slopbox.dev)
+#### Frontend Server (onfacet.dev)
 ```nginx
 server {
     listen 80;
     listen 443 ssl;
-    server_name slopbox.dev www.slopbox.dev;
+    server_name onfacet.dev www.onfacet.dev;
 
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
@@ -188,21 +188,21 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
-    # Redirect API calls to api.slopbox.dev (optional if using subdomain)
+    # Redirect API calls to api.onfacet.dev (optional if using subdomain)
     location /api {
-        return 301 https://api.slopbox.dev$request_uri;
+        return 301 https://api.onfacet.dev$request_uri;
     }
 }
 ```
 
-#### API Server (api.slopbox.dev)
+#### API Server (api.onfacet.dev)
 ```nginx
 server {
     listen 80;
     listen 443 ssl;
-    server_name api.slopbox.dev;
+    server_name api.onfacet.dev;
 
-    ssl_certificate /path/to/cert.pem;  # Same cert that includes api.slopbox.dev
+    ssl_certificate /path/to/cert.pem;  # Same cert that includes api.onfacet.dev
     ssl_certificate_key /path/to/key.pem;
 
     # Backend API
@@ -240,7 +240,7 @@ If you prefer to run everything on one domain without the api subdomain:
 server {
     listen 80;
     listen 443 ssl;
-    server_name slopbox.dev www.slopbox.dev;
+    server_name onfacet.dev www.onfacet.dev;
 
     # Frontend
     location / {
@@ -267,15 +267,15 @@ server {
 For Google OAuth:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Add authorized redirect URIs:
-   - `https://api.slopbox.dev/api/auth/google/callback` (if using api subdomain)
-   - `https://slopbox.dev/api/auth/google/callback` (if using single domain)
-   - `http://api.slopbox.dev/api/auth/google/callback` (if supporting HTTP)
+   - `https://api.onfacet.dev/api/auth/google/callback` (if using api subdomain)
+   - `https://onfacet.dev/api/auth/google/callback` (if using single domain)
+   - `http://api.onfacet.dev/api/auth/google/callback` (if supporting HTTP)
 
 For GitHub OAuth:
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Update Authorization callback URL:
-   - `https://api.slopbox.dev/api/github-auth/callback` (if using api subdomain)
-   - `https://slopbox.dev/api/github-auth/callback` (if using single domain)
+   - `https://api.onfacet.dev/api/github-auth/callback` (if using api subdomain)
+   - `https://onfacet.dev/api/github-auth/callback` (if using single domain)
 
 ## Troubleshooting
 

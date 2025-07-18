@@ -46,39 +46,39 @@ export const wormholeApi = {
 
   // Debug endpoint for slopboxprimary members
   getAllDaemonStatuses: async () => {
-    const client = new FetchClient(`https://ws.slopbox.dev/debug`);
+    const client = new FetchClient(`https://ws.onfacet.dev/debug`);
     return client.get('/all-clients', { skipAuth: true });
   },
 
   // Direct API calls to the Wormhole server
   directApi: {
     getStatus: async (publicIp: string) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.get('/status', { skipAuth: true });
     },
     
     getRepositories: async (publicIp: string) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.get('/repositories', { skipAuth: true });
     },
     
     getPorts: async (publicIp: string) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.get('/ports', { skipAuth: true });
     },
     
     getDaemons: async (publicIp: string) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.get('/daemons', { skipAuth: true });
     },
     
     switchBranch: async (publicIp: string, request: WormholeBranchSwitchRequest) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.post('/branch-switch', request, { skipAuth: true });
     },
     
     triggerScan: async (publicIp: string) => {
-      const client = new FetchClient(`https://ws.slopbox.dev/api`);
+      const client = new FetchClient(`https://ws.onfacet.dev/api`);
       return client.post('/scan', undefined, { skipAuth: true });
     },
   },
@@ -86,7 +86,7 @@ export const wormholeApi = {
   // WebSocket connection helper
   connectWebSocket: (vmId: string, publicIp: string): WebSocket => {
     // Connect to the hardcoded wormhole server
-    const ws = new WebSocket('wss://ws.slopbox.dev/');
+    const ws = new WebSocket('wss://ws.onfacet.dev/');
     return ws;
   },
 };

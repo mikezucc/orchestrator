@@ -69,9 +69,9 @@ vmRepositoryRoutes.get('/:vmId/repositories', async (c) => {
       try {
         // Fetch wormhole status from central server
         const [statusRes, reposRes, daemonsRes] = await Promise.allSettled([
-          axios.get(`https://ws.slopbox.dev/api/status`),
-          axios.get(`https://ws.slopbox.dev/api/repositories`), 
-          axios.get(`https://ws.slopbox.dev/api/daemons`)
+          axios.get(`https://ws.onfacet.dev/api/status`),
+          axios.get(`https://ws.onfacet.dev/api/repositories`), 
+          axios.get(`https://ws.onfacet.dev/api/daemons`)
         ]);
 
         if (statusRes.status === 'fulfilled') {
@@ -257,7 +257,7 @@ vmRepositoryRoutes.post('/:vmId/client/:clientId/switch-branch', async (c) => {
     // Note: Currently the wormhole server switches branches for all clients
     // TODO: When wormhole server supports per-client branch switching, update this endpoint
     const response = await axios.post(
-      `https://ws.slopbox.dev/api/branch-switch`,
+      `https://ws.onfacet.dev/api/branch-switch`,
       {
         targetBranch: body.targetBranch,
         repoPath: body.repoPath

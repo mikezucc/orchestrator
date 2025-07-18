@@ -2,7 +2,7 @@
 
 ## Overview
 
-The application supports HTTPS with self-signed certificates for development and can be configured for production domains like slopbox.dev.
+The application supports HTTPS with self-signed certificates for development and can be configured for production domains like onfacet.dev.
 
 ## Certificate Generation
 
@@ -16,10 +16,10 @@ cd packages/backend && npm run generate-certs
 cd packages/frontend && npm run generate-certs
 ```
 
-### For multiple domains (including slopbox.dev)
+### For multiple domains (including onfacet.dev)
 
 ```bash
-# Backend - generates certificate for localhost, slopbox.dev, *.slopbox.dev
+# Backend - generates certificate for localhost, onfacet.dev, *.onfacet.dev
 cd packages/backend && npm run generate-certs:multi
 
 # Frontend - same domains
@@ -37,14 +37,14 @@ npm run generate-certs:multi --force
 The multi-domain certificate script creates a certificate with Subject Alternative Names (SAN) that includes:
 
 - `localhost` - For local development
-- `slopbox.dev` - Main domain
-- `*.slopbox.dev` - Wildcard for subdomains (www.slopbox.dev, etc.)
-- `api.slopbox.dev` - API subdomain (explicitly included for clarity)
+- `onfacet.dev` - Main domain
+- `*.onfacet.dev` - Wildcard for subdomains (www.onfacet.dev, etc.)
+- `api.onfacet.dev` - API subdomain (explicitly included for clarity)
 
 You can add additional domains by passing them as arguments:
 
 ```bash
-npm run generate-certs:multi localhost slopbox.dev *.slopbox.dev myapp.local 192.168.1.100
+npm run generate-certs:multi localhost onfacet.dev *.onfacet.dev myapp.local 192.168.1.100
 ```
 
 ## Certificate Details
@@ -57,31 +57,31 @@ The generated certificates:
 
 ## Production Considerations
 
-### For slopbox.dev Production
+### For onfacet.dev Production
 
 1. **Option 1: Use Let's Encrypt (Recommended)**
    ```bash
    # Install certbot
    sudo apt-get install certbot
    
-   # Get certificate for slopbox.dev
-   sudo certbot certonly --standalone -d slopbox.dev -d www.slopbox.dev
+   # Get certificate for onfacet.dev
+   sudo certbot certonly --standalone -d onfacet.dev -d www.onfacet.dev
    ```
 
 2. **Option 2: Use the self-signed certificate**
    - Generate with: `npm run generate-certs:multi`
    - Users will need to accept the certificate warning
 
-### Nginx Configuration for slopbox.dev
+### Nginx Configuration for onfacet.dev
 
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name slopbox.dev www.slopbox.dev;
+    server_name onfacet.dev www.onfacet.dev;
 
     # For Let's Encrypt
-    ssl_certificate /etc/letsencrypt/live/slopbox.dev/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/slopbox.dev/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/onfacet.dev/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/onfacet.dev/privkey.pem;
     
     # Or for self-signed
     # ssl_certificate /path/to/orchestrator/packages/backend/certs/cert.pem;
@@ -99,22 +99,22 @@ server {
 
 When using self-signed certificates:
 
-1. **Chrome**: Click "Advanced" → "Proceed to slopbox.dev (unsafe)"
+1. **Chrome**: Click "Advanced" → "Proceed to onfacet.dev (unsafe)"
 2. **Firefox**: Click "Advanced" → "Accept the Risk and Continue"
 3. **Safari**: Click "Show Details" → "visit this website"
 
 ## Troubleshooting
 
-### Certificate Not Working for slopbox.dev
+### Certificate Not Working for onfacet.dev
 
-1. Ensure the certificate was generated with slopbox.dev in the domains:
+1. Ensure the certificate was generated with onfacet.dev in the domains:
    ```bash
    # Check certificate domains
    openssl x509 -in packages/backend/certs/cert.pem -text -noout | grep -A 1 "Subject Alternative Name"
    ```
 
 2. Verify the certificate includes your domain:
-   - Should show: `DNS:localhost, DNS:slopbox.dev, DNS:*.slopbox.dev`
+   - Should show: `DNS:localhost, DNS:onfacet.dev, DNS:*.onfacet.dev`
 
 ### Browser Still Shows Warning
 

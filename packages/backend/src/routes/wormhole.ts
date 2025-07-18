@@ -35,7 +35,7 @@ initBinariesDir();
 
 // Helper function to get Wormhole server URL for a VM
 function getWormholeUrl(publicIp: string): string {
-  return `https://ws.slopbox.dev`;
+  return `https://ws.onfacet.dev`;
 }
 
 // Helper function to check if user is member of slopboxprimary org
@@ -252,7 +252,7 @@ wormholeRoutes.get('/debug/all-daemons', flexibleAuth, async (c) => {
     }
     
     // Fetch all daemon statuses from central server
-    const response = await axios.get('https://ws.slopbox.dev/debug/all-clients');
+    const response = await axios.get('https://ws.onfacet.dev/debug/all-clients');
     
     return c.json<ApiResponse<any>>({ 
       success: true, 

@@ -6,14 +6,14 @@ This guide provides scripts and instructions for setting up nginx to serve the D
 
 We provide two nginx setup scripts:
 
-1. **API Subdomain Setup** (`setup-nginx.sh`) - Serves API from api.slopbox.dev
+1. **API Subdomain Setup** (`setup-nginx.sh`) - Serves API from api.onfacet.dev
 2. **Simple Setup** (`setup-nginx-simple.sh`) - Serves everything from one domain
 
 ### Option 1: API Subdomain Configuration (Recommended)
 
 This setup serves:
-- Frontend from `slopbox.dev` 
-- API from `api.slopbox.dev`
+- Frontend from `onfacet.dev` 
+- API from `api.onfacet.dev`
 
 ```bash
 # Basic setup
@@ -48,7 +48,7 @@ sudo ./scripts/setup-nginx-simple.sh --no-ssl
 
 Both scripts support these options:
 
-- `--domain DOMAIN` - Set the main domain (default: slopbox.dev)
+- `--domain DOMAIN` - Set the main domain (default: onfacet.dev)
 - `--frontend-port PORT` - Frontend port (default: 5173)
 - `--backend-port PORT` - Backend port (default: 3000)
 - `--no-ssl` - Disable SSL configuration
@@ -79,10 +79,10 @@ Both scripts support these options:
 sudo apt-get install certbot
 
 # For API subdomain setup
-sudo certbot certonly --standalone -d slopbox.dev -d www.slopbox.dev -d api.slopbox.dev
+sudo certbot certonly --standalone -d onfacet.dev -d www.onfacet.dev -d api.onfacet.dev
 
 # For simple setup
-sudo certbot certonly --standalone -d slopbox.dev -d www.slopbox.dev
+sudo certbot certonly --standalone -d onfacet.dev -d www.onfacet.dev
 ```
 
 ### Option 2: Self-Signed Certificates (Development)
@@ -100,14 +100,14 @@ sudo ./scripts/setup-nginx.sh --self-signed
 
 ### For API Subdomain Setup
 Create these DNS records:
-- `A` record: `slopbox.dev` → Your server IP
-- `A` record: `www.slopbox.dev` → Your server IP  
-- `A` record: `api.slopbox.dev` → Your server IP
+- `A` record: `onfacet.dev` → Your server IP
+- `A` record: `www.onfacet.dev` → Your server IP  
+- `A` record: `api.onfacet.dev` → Your server IP
 
 ### For Simple Setup
 Create these DNS records:
-- `A` record: `slopbox.dev` → Your server IP
-- `A` record: `www.slopbox.dev` → Your server IP
+- `A` record: `onfacet.dev` → Your server IP
+- `A` record: `www.onfacet.dev` → Your server IP
 
 ## Environment Variables
 
@@ -117,18 +117,18 @@ After running the setup script, update your `.env` files:
 
 For API subdomain setup:
 ```bash
-CORS_ORIGINS=https://slopbox.dev,https://www.slopbox.dev
-FRONTEND_URL=https://slopbox.dev
-GOOGLE_REDIRECT_URI=https://api.slopbox.dev/api/auth/google/callback
-GITHUB_REDIRECT_URI=https://api.slopbox.dev/api/github-auth/callback
+CORS_ORIGINS=https://onfacet.dev,https://www.onfacet.dev
+FRONTEND_URL=https://onfacet.dev
+GOOGLE_REDIRECT_URI=https://api.onfacet.dev/api/auth/google/callback
+GITHUB_REDIRECT_URI=https://api.onfacet.dev/api/github-auth/callback
 ```
 
 For simple setup:
 ```bash
-CORS_ORIGINS=https://slopbox.dev,https://www.slopbox.dev
-FRONTEND_URL=https://slopbox.dev
-GOOGLE_REDIRECT_URI=https://slopbox.dev/api/auth/google/callback
-GITHUB_REDIRECT_URI=https://slopbox.dev/api/github-auth/callback
+CORS_ORIGINS=https://onfacet.dev,https://www.onfacet.dev
+FRONTEND_URL=https://onfacet.dev
+GOOGLE_REDIRECT_URI=https://onfacet.dev/api/auth/google/callback
+GITHUB_REDIRECT_URI=https://onfacet.dev/api/github-auth/callback
 ```
 
 ### Frontend (.env) - Optional
@@ -136,7 +136,7 @@ GITHUB_REDIRECT_URI=https://slopbox.dev/api/github-auth/callback
 Only needed if automatic API detection isn't working:
 ```bash
 # For API subdomain
-VITE_API_URL=https://api.slopbox.dev/api
+VITE_API_URL=https://api.onfacet.dev/api
 
 # For simple setup - leave empty (uses relative /api)
 VITE_API_URL=

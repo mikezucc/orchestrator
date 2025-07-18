@@ -41,10 +41,10 @@ const corsOrigins = process.env.CORS_ORIGINS
       'https://localhost:3000',
       'http://localhost',
       'https://localhost',
-      'http://slopbox.dev',
-      'https://slopbox.dev',
-      'http://www.slopbox.dev',
-      'https://www.slopbox.dev'
+      'http://onfacet.dev',
+      'https://onfacet.dev',
+      'http://www.onfacet.dev',
+      'https://www.onfacet.dev'
     ];
 
 console.log('CORS Origins:', corsOrigins);
