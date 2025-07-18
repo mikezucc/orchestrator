@@ -8,6 +8,7 @@ import { eq, and, asc, desc } from 'drizzle-orm';
 import type { CreateVMRequest, UpdateVMRequest, ApiResponse, VirtualMachine, ExecuteScriptRequest, ExecuteScriptResponse, ScriptExecution } from '@gce-platform/types';
 import { createVM, deleteVM, startVM, stopVM, resumeVM, suspendVM, duplicateVM } from '../services/gcp.js';
 import { executeScriptViaSSH } from '../services/gcp-ssh-execute.js';
+import { writeMultipleFilesViaSSH, createDirectoryViaSSH } from '../services/gcp-ssh-file-operations.js';
 import { executionSessionManager } from '../services/execution-sessions.js';
 import { syncOrganizationVMsFromProjects } from '../services/gcp-sync-org.js';
 import { syncSingleVM } from '../services/gcp-vm-sync.js';
@@ -1143,6 +1144,175 @@ vmRoutes.post('/:id/duplicate', async (c) => {
     }
     
     return c.json<ApiResponse<never>>({ success: false, error: error.message || String(error) }, 500);
+  }
+});
+
+// Upload SSL certificates to a VM
+vmRoutes.post('/:id/ssl-certificates', async (c) => {
+  const organizationId = (c as any).organizationId;
+  const userId = (c as any).userId;
+  const vmId = c.req.param('id');
+
+  try {
+    // Parse multipart form data
+    const formData = await c.req.formData();
+    const domain = formData.get('domain') as string;
+    const certificateFile = formData.get('certificate') as File;
+    const privateKeyFile = formData.get('privateKey') as File;
+
+    if (!domain || !certificateFile || !privateKeyFile) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Domain, certificate file, and private key file are required' 
+      }, 400);
+    }
+
+    // Verify VM exists and belongs to organization
+    const [vm] = await db.select().from(virtualMachines)
+      .where(and(
+        eq(virtualMachines.id, vmId),
+        eq(virtualMachines.organizationId, organizationId)
+      ));
+
+    if (!vm) {
+      return c.json<ApiResponse<never>>({ success: false, error: 'VM not found' }, 404);
+    }
+
+    if (vm.status !== 'running') {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'VM must be running to upload SSL certificates' 
+      }, 400);
+    }
+
+    // Get organization for username
+    const [organization] = await db.select().from(organizations)
+      .where(eq(organizations.id, organizationId));
+
+    if (!organization || !organization.gcpEmail) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Organization does not have Google Cloud credentials configured' 
+      }, 400);
+    }
+
+    // Generate username from organization's Google Cloud email
+    const username = organization.gcpEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Get organization access token
+    const accessToken = await getOrganizationAccessToken(organizationId);
+    if (!accessToken) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Failed to authenticate with Google Cloud' 
+      }, 401);
+    }
+
+    // Read file contents
+    const certificateContent = await certificateFile.text();
+    const privateKeyContent = await privateKeyFile.text();
+
+    // Validate certificate and key format (basic validation)
+    if (!certificateContent.includes('BEGIN CERTIFICATE') || !certificateContent.includes('END CERTIFICATE')) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Invalid certificate format. Certificate must be in PEM format.' 
+      }, 400);
+    }
+
+    if (!privateKeyContent.includes('BEGIN') || !privateKeyContent.includes('PRIVATE KEY')) {
+      return c.json<ApiResponse<never>>({ 
+        success: false, 
+        error: 'Invalid private key format. Key must be in PEM format.' 
+      }, 400);
+    }
+
+    // Sanitize domain name for file paths
+    const sanitizedDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '_');
+
+    // Define certificate paths
+    const certPath = `/etc/ssl/certs/${sanitizedDomain}.crt`;
+    const keyPath = `/etc/ssl/private/${sanitizedDomain}.key`;
+
+    // Create directories if they don't exist
+    await createDirectoryViaSSH({
+      projectId: vm.gcpProjectId,
+      zone: vm.zone,
+      instanceName: vm.gcpInstanceId!,
+      username,
+      filePath: '/etc/ssl/certs',
+      sudo: true,
+      accessToken
+    });
+
+    await createDirectoryViaSSH({
+      projectId: vm.gcpProjectId,
+      zone: vm.zone,
+      instanceName: vm.gcpInstanceId!,
+      username,
+      filePath: '/etc/ssl/private',
+      sudo: true,
+      accessToken
+    });
+
+    // Upload certificate files
+    await writeMultipleFilesViaSSH({
+      projectId: vm.gcpProjectId,
+      zone: vm.zone,
+      instanceName: vm.gcpInstanceId!,
+      username,
+      sudo: true,
+      accessToken,
+      files: [
+        {
+          filePath: certPath,
+          content: certificateContent,
+          permissions: '644'
+        },
+        {
+          filePath: keyPath,
+          content: privateKeyContent,
+          permissions: '600'
+        }
+      ]
+    });
+
+    // Optionally, reload nginx if it's installed
+    try {
+      await executeScriptViaSSH({
+        projectId: vm.gcpProjectId,
+        zone: vm.zone,
+        instanceName: vm.gcpInstanceId!,
+        username,
+        script: 'sudo nginx -t && sudo systemctl reload nginx',
+        accessToken,
+        timeout: 10000
+      });
+    } catch (nginxError) {
+      // Nginx might not be installed or configured yet, which is fine
+      console.log('Nginx reload failed (might not be installed):', nginxError);
+    }
+
+    return c.json<ApiResponse<{ 
+      message: string; 
+      certificatePath: string; 
+      privateKeyPath: string 
+    }>>({ 
+      success: true, 
+      data: { 
+        message: 'SSL certificates uploaded successfully',
+        certificatePath: certPath,
+        privateKeyPath: keyPath
+      } 
+    });
+
+  } catch (error: any) {
+    console.error('Failed to upload SSL certificates:', error);
+    
+    return c.json<ApiResponse<never>>({ 
+      success: false, 
+      error: error.message || 'Failed to upload SSL certificates' 
+    }, 500);
   }
 });
 

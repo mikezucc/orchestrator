@@ -14,6 +14,7 @@ import SSHTerminal from '../components/SSHTerminal';
 import ExecuteScriptModal from '../components/ExecuteScriptModal';
 import ScriptExecutionsList from '../components/ScriptExecutionsList';
 import AddFavoritePortModal from '../components/AddFavoritePortModal';
+import { SSLSettingsModal } from '../components/vm/SSLSettingsModal';
 import { useToast } from '../contexts/ToastContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 
@@ -30,6 +31,7 @@ export default function VMDetail() {
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [showVMInfo, setShowVMInfo] = useState(false);
   const [showAddFavoritePortModal, setShowAddFavoritePortModal] = useState(false);
+  const [showSSLSettingsModal, setShowSSLSettingsModal] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'executions'>('overview');
 
@@ -294,6 +296,18 @@ export default function VMDetail() {
                         </svg>
                         <span>Execute Script</span>
                       </button>
+                      <button
+                        onClick={() => {
+                          setShowSSLSettingsModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span>SSL Settings</span>
+                      </button>
                       <div className="border-t border-te-gray-200 dark:border-te-gray-800 my-1" />
                     </>
                   )}
@@ -497,6 +511,18 @@ export default function VMDetail() {
         <AddFavoritePortModal
           vmId={id!}
           onClose={() => setShowAddFavoritePortModal(false)}
+        />
+      )}
+
+      {showSSLSettingsModal && (
+        <SSLSettingsModal
+          isOpen={showSSLSettingsModal}
+          onClose={() => setShowSSLSettingsModal(false)}
+          vmId={id!}
+          vmName={vm.name}
+          onSuccess={() => {
+            showSuccess('SSL certificates uploaded successfully');
+          }}
         />
       )}
     </div>

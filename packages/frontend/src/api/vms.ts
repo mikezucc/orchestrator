@@ -62,3 +62,29 @@ export const vmApi = {
     return data;
   },
 };
+
+export async function uploadSSLCertificates(
+  vmId: string,
+  files: {
+    domain: string;
+    certificate: File;
+    privateKey: File;
+  }
+): Promise<ApiResponse<{ message: string; certificatePath: string; privateKeyPath: string }>> {
+  const formData = new FormData();
+  formData.append('domain', files.domain);
+  formData.append('certificate', files.certificate);
+  formData.append('privateKey', files.privateKey);
+
+  const { data } = await api.post<ApiResponse<{ 
+    message: string; 
+    certificatePath: string; 
+    privateKeyPath: string 
+  }>>(`/vms/${vmId}/ssl-certificates`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return data;
+}
