@@ -60,6 +60,6 @@ const renderTemplateSection = ({
 }`;
 };
 
-export const renderNginxConfigFile = (services: NginxTemplateParams[]) => {
+export const renderNginxConfigFileContent = (services: NginxTemplateParams[]) => {
   return services.map(renderTemplateSection).join('\n\n');
 };
