@@ -1,5 +1,4 @@
-import { NodeSSH } from 'node-ssh';
-import { connectToInstance } from './gcp-ssh-execute';
+import { executeScriptViaSSH } from './gcp-ssh-execute.js';
 
 interface WriteFileOptions {
   projectId: string;
@@ -34,40 +33,61 @@ export async function writeFileViaSSH(options: WriteFileOptions): Promise<void> 
     accessToken
   } = options;
 
-  const ssh = new NodeSSH();
-
   try {
-    await connectToInstance(ssh, projectId, zone, instanceName, username, accessToken);
+    // Convert content to base64 to safely handle binary data and special characters
+    const base64Content = Buffer.from(content).toString('base64');
+    
+    // Create a script that writes the file
+    const script = sudo ? `
+# Create temporary file
+TEMP_FILE=$(mktemp)
+# Decode base64 content and write to temp file
+echo "${base64Content}" | base64 -d > "$TEMP_FILE"
+# Move to final location with sudo
+sudo mv "$TEMP_FILE" "${filePath}"
+# Set permissions
+sudo chmod ${permissions} "${filePath}"
+# Verify file was written
+if [ -f "${filePath}" ]; then
+  echo "File successfully written to ${filePath}"
+else
+  echo "Failed to write file to ${filePath}" >&2
+  exit 1
+fi
+    ` : `
+# Create directory if it doesn't exist
+mkdir -p "$(dirname "${filePath}")"
+# Decode base64 content and write to file
+echo "${base64Content}" | base64 -d > "${filePath}"
+# Set permissions
+chmod ${permissions} "${filePath}"
+# Verify file was written
+if [ -f "${filePath}" ]; then
+  echo "File successfully written to ${filePath}"
+else
+  echo "Failed to write file to ${filePath}" >&2
+  exit 1
+fi
+    `;
 
-    if (sudo) {
-      const tempPath = `/tmp/${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      await ssh.execCommand(`touch ${tempPath}`);
-      await ssh.execCommand(`chmod 666 ${tempPath}`);
-      
-      await ssh.putFile(Buffer.from(content).toString('base64'), tempPath, {
-        mode: permissions,
-        encoding: 'base64'
-      });
-      
-      const result = await ssh.execCommand(`sudo mv ${tempPath} ${filePath} && sudo chmod ${permissions} ${filePath}`);
-      
-      if (result.code !== 0) {
-        throw new Error(`Failed to move file to ${filePath}: ${result.stderr}`);
-      }
-    } else {
-      await ssh.putFile(Buffer.from(content).toString('base64'), filePath, {
-        mode: permissions,
-        encoding: 'base64'
-      });
+    const result = await executeScriptViaSSH({
+      projectId,
+      zone,
+      instanceName,
+      username,
+      script,
+      accessToken,
+      timeout: 30
+    });
+
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to write file to ${filePath}: ${result.stderr}`);
     }
 
     console.log(`Successfully wrote file to ${filePath} on ${instanceName}`);
   } catch (error) {
     console.error(`Failed to write file via SSH: ${error}`);
     throw error;
-  } finally {
-    ssh.dispose();
   }
 }
 
@@ -82,46 +102,66 @@ export async function writeMultipleFilesViaSSH(options: WriteMultipleFilesOption
     accessToken
   } = options;
 
-  const ssh = new NodeSSH();
-
   try {
-    await connectToInstance(ssh, projectId, zone, instanceName, username, accessToken);
-
+    // Build a single script to write all files
+    const scriptParts: string[] = ['#!/bin/bash', 'set -e', ''];
+    
     for (const file of files) {
       const { filePath, content, permissions = '644' } = file;
-
+      const base64Content = Buffer.from(content).toString('base64');
+      
       if (sudo) {
-        const tempPath = `/tmp/${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        await ssh.execCommand(`touch ${tempPath}`);
-        await ssh.execCommand(`chmod 666 ${tempPath}`);
-        
-        await ssh.putFile(Buffer.from(content).toString('base64'), tempPath, {
-          mode: permissions,
-          encoding: 'base64'
-        });
-        
-        const result = await ssh.execCommand(`sudo mv ${tempPath} ${filePath} && sudo chmod ${permissions} ${filePath}`);
-        
-        if (result.code !== 0) {
-          throw new Error(`Failed to move file to ${filePath}: ${result.stderr}`);
-        }
+        scriptParts.push(`
+# Write file: ${filePath}
+TEMP_FILE=$(mktemp)
+echo "${base64Content}" | base64 -d > "$TEMP_FILE"
+sudo mkdir -p "$(dirname "${filePath}")"
+sudo mv "$TEMP_FILE" "${filePath}"
+sudo chmod ${permissions} "${filePath}"
+if [ -f "${filePath}" ]; then
+  echo "Successfully wrote ${filePath}"
+else
+  echo "Failed to write ${filePath}" >&2
+  exit 1
+fi
+`);
       } else {
-        await ssh.putFile(Buffer.from(content).toString('base64'), filePath, {
-          mode: permissions,
-          encoding: 'base64'
-        });
+        scriptParts.push(`
+# Write file: ${filePath}
+mkdir -p "$(dirname "${filePath}")"
+echo "${base64Content}" | base64 -d > "${filePath}"
+chmod ${permissions} "${filePath}"
+if [ -f "${filePath}" ]; then
+  echo "Successfully wrote ${filePath}"
+else
+  echo "Failed to write ${filePath}" >&2
+  exit 1
+fi
+`);
       }
+    }
+    
+    scriptParts.push(`echo "Successfully wrote ${files.length} files"`);
+    const script = scriptParts.join('\n');
 
-      console.log(`Successfully wrote file to ${filePath}`);
+    const result = await executeScriptViaSSH({
+      projectId,
+      zone,
+      instanceName,
+      username,
+      script,
+      accessToken,
+      timeout: 60 // Increase timeout for multiple files
+    });
+
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to write files: ${result.stderr}`);
     }
 
     console.log(`Successfully wrote ${files.length} files to ${instanceName}`);
   } catch (error) {
     console.error(`Failed to write files via SSH: ${error}`);
     throw error;
-  } finally {
-    ssh.dispose();
   }
 }
 
@@ -136,18 +176,22 @@ export async function createDirectoryViaSSH(options: Omit<WriteFileOptions, 'con
     accessToken
   } = options;
 
-  const ssh = new NodeSSH();
-
   try {
-    await connectToInstance(ssh, projectId, zone, instanceName, username, accessToken);
-
-    const command = sudo 
-      ? `sudo mkdir -p ${directoryPath}` 
-      : `mkdir -p ${directoryPath}`;
+    const script = sudo 
+      ? `sudo mkdir -p "${directoryPath}" && echo "Successfully created directory ${directoryPath}"` 
+      : `mkdir -p "${directoryPath}" && echo "Successfully created directory ${directoryPath}"`;
     
-    const result = await ssh.execCommand(command);
+    const result = await executeScriptViaSSH({
+      projectId,
+      zone,
+      instanceName,
+      username,
+      script,
+      accessToken,
+      timeout: 10
+    });
     
-    if (result.code !== 0) {
+    if (result.exitCode !== 0) {
       throw new Error(`Failed to create directory ${directoryPath}: ${result.stderr}`);
     }
 
@@ -155,7 +199,5 @@ export async function createDirectoryViaSSH(options: Omit<WriteFileOptions, 'con
   } catch (error) {
     console.error(`Failed to create directory via SSH: ${error}`);
     throw error;
-  } finally {
-    ssh.dispose();
   }
 }
