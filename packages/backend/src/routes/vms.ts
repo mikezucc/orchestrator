@@ -1230,27 +1230,17 @@ vmRoutes.post('/:id/ssl-certificates', async (c) => {
     // Sanitize domain name for file paths
     const sanitizedDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '_');
 
-    // Define certificate paths
-    const certPath = `/etc/ssl/certs/${sanitizedDomain}.crt`;
-    const keyPath = `/etc/ssl/private/${sanitizedDomain}.key`;
+    // Define certificate paths - both in /etc/nginx/ssl/ as requested
+    const certPath = `/etc/nginx/ssl/${sanitizedDomain}.crt`;
+    const keyPath = `/etc/nginx/ssl/${sanitizedDomain}.key`;
 
-    // Create directories if they don't exist
+    // Create directory if it doesn't exist
     await createDirectoryViaSSH({
       projectId: vm.gcpProjectId,
       zone: vm.zone,
       instanceName: vm.gcpInstanceId!,
       username,
       filePath: '/etc/ssl/certs',
-      sudo: true,
-      accessToken
-    });
-
-    await createDirectoryViaSSH({
-      projectId: vm.gcpProjectId,
-      zone: vm.zone,
-      instanceName: vm.gcpInstanceId!,
-      username,
-      filePath: '/etc/ssl/private',
       sudo: true,
       accessToken
     });

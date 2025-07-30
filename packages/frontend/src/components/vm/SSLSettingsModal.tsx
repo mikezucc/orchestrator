@@ -196,9 +196,9 @@ export function SSLSettingsModal({ isOpen, onClose, vmId, vmName, onSuccess }: S
                 <div className="text-sm text-yellow-800 dark:text-yellow-300">
                   <p className="font-semibold mb-1">Important:</p>
                   <ul className="list-disc list-inside space-y-1">
-                    <li>Certificates will be uploaded to <code>/etc/ssl/certs/</code></li>
-                    <li>Private keys will be uploaded to <code>/etc/ssl/private/</code></li>
-                    <li>Ensure your nginx configuration references these paths</li>
+                    <li>Both certificate and private key will be uploaded to <code>/etc/nginx/ssl/</code></li>
+                    <li>Certificate file: <code>/etc/nginx/ssl/[domain].crt</code></li>
+                    <li>Private key file: <code>/etc/nginx/ssl/[domain].key</code></li>
                     <li>The private key will be secured with 600 permissions</li>
                   </ul>
                 </div>

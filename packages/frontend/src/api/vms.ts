@@ -1,4 +1,5 @@
 import { api } from './client';
+import { getWebSocketBaseURL } from '../utils/api-config';
 import type { VirtualMachine, CreateVMRequest, UpdateVMRequest, ApiResponse, ExecuteScriptRequest, ExecuteScriptResponse } from '@gce-platform/types';
 
 export const vmApi = {
@@ -62,6 +63,74 @@ export const vmApi = {
     return data;
   },
 };
+
+export async function executeStreamingScript(
+  vmId: string,
+  request: ExecuteScriptRequest,
+  onMessage: (data: { type: 'output' | 'error' | 'complete'; data: string }) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+
+  // Get WebSocket URL
+  const wsBaseUrl = getWebSocketBaseURL();
+  const wsUrl = `${wsBaseUrl}/api/vms/${vmId}/execute-stream?token=${encodeURIComponent(token)}`;
+
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    let hasCompleted = false;
+
+    // Handle abort signal
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        ws.close();
+        reject(new DOMException('Aborted', 'AbortError'));
+      });
+    }
+
+    ws.onopen = () => {
+      // Send the script execution request
+      ws.send(JSON.stringify(request));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        if (message.type === 'error') {
+          onMessage({ type: 'error', data: message.data });
+          hasCompleted = true;
+          ws.close();
+          reject(new Error(message.data));
+        } else if (message.type === 'complete') {
+          onMessage({ type: 'complete', data: message.data });
+          hasCompleted = true;
+          ws.close();
+          resolve();
+        } else if (message.type === 'output') {
+          onMessage({ type: 'output', data: message.data });
+        }
+      } catch (err) {
+        console.error('Error parsing WebSocket message:', err);
+      }
+    };
+
+    ws.onerror = (error) => {
+      if (!hasCompleted) {
+        reject(new Error('WebSocket connection error'));
+      }
+    };
+
+    ws.onclose = () => {
+      if (!hasCompleted) {
+        reject(new Error('WebSocket connection closed unexpectedly'));
+      }
+    };
+  });
+}
 
 export async function uploadSSLCertificates(
   vmId: string,
