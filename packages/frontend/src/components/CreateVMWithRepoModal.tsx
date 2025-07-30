@@ -934,7 +934,7 @@ echo "All scripts completed successfully!"`;
             </button>
             <button
               onClick={handleSubmit}
-              disabled={createMutation.isPending || !selectedRepo || !organization?.gcpProjectIds || organization.gcpProjectIds.length === 0}
+              disabled={createMutation.isPending || (!skipRepository && !selectedRepo) || !organization?.gcpProjectIds || organization.gcpProjectIds.length === 0}
               className="btn-primary"
             >
               {createMutation.isPending ? 'Creating...' : 'Create VM with Repository'}

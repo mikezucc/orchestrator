@@ -36,7 +36,7 @@ export default function ScriptLibraryModal({
     tags: initialScript?.tags || [] as string[],
   });
   const [newTag, setNewTag] = useState('');
-  const isEditing = !!initialScript?.id;
+  const isEditing = !!initialScript?.id && !initialScript.id.startsWith('script-');
 
   // Fetch scripts
   const { data: scriptsData, isLoading } = useQuery({
@@ -115,7 +115,7 @@ export default function ScriptLibraryModal({
       return;
     }
     
-    if (isEditing && initialScript?.id) {
+    if (isEditing && initialScript?.id && !initialScript.id.startsWith('script-')) {
       updateMutation.mutate({ id: initialScript.id, data: newScript });
     } else {
       createMutation.mutate(newScript);

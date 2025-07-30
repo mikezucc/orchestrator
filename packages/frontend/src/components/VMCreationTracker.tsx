@@ -58,6 +58,8 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   const [showScriptOutput, setShowScriptOutput] = useState(false);
   const [startTime] = useState(Date.now());
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const scriptOutputRef = useRef<HTMLDivElement>(null);
   
   // Game state
   const [gameStarted, setGameStarted] = useState(false);
@@ -73,6 +75,28 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
   // Use refs to store the latest callback functions
   const onCompleteRef = useRef(onComplete);
   const onErrorRef = useRef(onError);
+  
+  // Handle manual scroll detection
+  const handleScriptOutputScroll = useRef<any>(null);
+  useEffect(() => {
+    const scrollContainer = scriptOutputRef.current;
+    if (!scrollContainer) return;
+    
+    handleScriptOutputScroll.current = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+      
+      // If user scrolled up (not near bottom), disable auto-scroll
+      if (!isNearBottom && autoScroll) {
+        setAutoScroll(false);
+      }
+    };
+    
+    scrollContainer.addEventListener('scroll', handleScriptOutputScroll.current);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScriptOutputScroll.current);
+    };
+  }, [autoScroll]);
   
   // Update refs when callbacks change
   useEffect(() => {
@@ -93,6 +117,13 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
       return () => clearInterval(interval);
     }
   }, [startTime, isComplete, error]);
+  
+  // Auto-scroll script output when new content is added
+  useEffect(() => {
+    if (autoScroll && scriptOutputRef.current && showScriptOutput) {
+      scriptOutputRef.current.scrollTop = scriptOutputRef.current.scrollHeight;
+    }
+  }, [scriptOutput, autoScroll, showScriptOutput]);
 
   // Game constants
   const GRAVITY = 0.6;
@@ -576,6 +607,23 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               Script Output ({scriptOutput.length} lines)
             </h4>
             <div className="flex items-center gap-2">
+              {!autoScroll && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAutoScroll(true);
+                    if (scriptOutputRef.current) {
+                      scriptOutputRef.current.scrollTop = scriptOutputRef.current.scrollHeight;
+                    }
+                  }}
+                  className="text-xs text-te-yellow hover:text-te-yellow-600 transition-colors flex items-center gap-1 animate-pulse"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5 5 5-5M7 5l5 5 5-5" />
+                  </svg>
+                  Resume Auto-scroll
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -604,7 +652,10 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
             </div>
           </div>
           {showScriptOutput && (
-            <div className="bg-te-gray-900 dark:bg-black border border-te-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+            <div 
+              ref={scriptOutputRef}
+              className="bg-te-gray-900 dark:bg-black border border-te-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto"
+            >
               <SyntaxHighlighter
                 language="bash"
                 style={atomOneDark}
@@ -618,8 +669,6 @@ export default function VMCreationTracker({ trackingId, onComplete, onError }: V
               >
                 {scriptOutput.join('')}
               </SyntaxHighlighter>
-              {/* Auto-scroll to bottom */}
-              <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })} />
             </div>
           )}
         </div>
