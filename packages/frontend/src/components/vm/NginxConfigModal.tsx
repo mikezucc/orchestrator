@@ -418,6 +418,9 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
     abortControllerRef.current = new AbortController();
 
     try {
+      // Generate the full nginx config for all server blocks
+      const fullConfig = generateNginxConfig();
+      
       // Generate script to handle multiple server blocks
       let script = `#!/bin/bash
 set -e
@@ -426,12 +429,20 @@ echo "Starting NGINX configuration..."
 
 # Backup existing configuration
 echo "Backing up existing NGINX configuration..."
-sudo cp -r /etc/nginx/sites-available /etc/nginx/sites-available.backup.\$(date +%Y%m%d_%H%M%S)
-sudo cp -r /etc/nginx/sites-enabled /etc/nginx/sites-enabled.backup.\$(date +%Y%m%d_%H%M%S)
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo cp -r /etc/nginx/sites-available /etc/nginx/sites-available.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo cp -r /etc/nginx/sites-enabled /etc/nginx/sites-enabled.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 
 # Disable all existing sites to start fresh
 echo "Disabling existing sites..."
 sudo find /etc/nginx/sites-enabled -type l -delete
+
+# Clear the default site configuration
+echo "Clearing default site configuration..."
+sudo tee /etc/nginx/sites-available/default > /dev/null << 'EOF'
+# Default site configuration cleared
+# Server blocks are now managed individually
+EOF
 
 `;
 
@@ -456,7 +467,18 @@ sudo ln -sf /etc/nginx/sites-available/${siteName} /etc/nginx/sites-enabled/
 `;
       });
 
+      // Also write a consolidated configuration file
       script += `
+# Write consolidated configuration to default
+echo "Writing consolidated configuration..."
+sudo tee /etc/nginx/sites-available/managed-sites.conf > /dev/null << 'EOF'
+# Managed by VM Orchestrator
+# Generated: \$(date)
+# Total server blocks: ${serverBlocks.length}
+
+${fullConfig}
+EOF
+
 # Test configuration
 echo "Testing NGINX configuration..."
 sudo nginx -t
