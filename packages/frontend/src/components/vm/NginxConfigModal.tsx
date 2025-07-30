@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Server, Plus, Trash2, Save, AlertCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { executeStreamingScript, fetchNginxConfig } from '../../api/vms';
+import { fetchNginxConfig, vmApi } from '../../api/vms';
+import { useMutation } from '@tanstack/react-query';
 
 interface ProxyRule {
   id: string;
@@ -230,16 +231,12 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
   ]);
   const [configPreview, setConfigPreview] = useState('');
   const [output, setOutput] = useState<string[]>([]);
-  const [isExecuting, setIsExecuting] = useState(false);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Function to load existing config
   const loadExistingConfig = async () => {
-    console.log('[NginxConfigModal] Loading config for VM:', vmId);
     if (!vmId) {
-      console.error('[NginxConfigModal] No vmId provided!');
       toast.error('No VM ID provided');
       return;
     }
@@ -259,7 +256,6 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
         toast.success('Existing configuration loaded');
       }
     } catch (error: any) {
-      console.error('[NginxConfigModal] Error loading config:', error);
       toast.error('Failed to load existing configuration');
     } finally {
       setIsLoadingConfig(false);
@@ -410,22 +406,17 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
     ));
   };
 
-  const applyConfiguration = async () => {
-    // Validate at least one server has a valid configuration
-    const hasValidServer = serverBlocks.some(server => 
-      server.serverName || (server.enableSSL && server.sslDomain)
-    );
-    
-    if (!hasValidServer) {
-      toast.error('At least one server block must have a server name or SSL domain configured');
-      return;
-    }
+  const applyConfigurationMutation = useMutation({
+    mutationFn: async () => {
+      // Validate at least one server has a valid configuration
+      const hasValidServer = serverBlocks.some(server => 
+        server.serverName || (server.enableSSL && server.sslDomain)
+      );
+      
+      if (!hasValidServer) {
+        throw new Error('At least one server block must have a server name or SSL domain configured');
+      }
 
-    setIsExecuting(true);
-    setOutput([]);
-    abortControllerRef.current = new AbortController();
-
-    try {
       // Generate the full nginx config for all server blocks
       const fullConfig = generateNginxConfig();
       
@@ -437,9 +428,9 @@ echo "Starting NGINX configuration..."
 
 # Backup existing configuration
 echo "Backing up existing NGINX configuration..."
-sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-sudo cp -r /etc/nginx/sites-available /etc/nginx/sites-available.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-sudo cp -r /etc/nginx/sites-enabled /etc/nginx/sites-enabled.backup.\$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo cp -r /etc/nginx/sites-available /etc/nginx/sites-available.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+sudo cp -r /etc/nginx/sites-enabled /etc/nginx/sites-enabled.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 
 # Disable all existing sites to start fresh
 echo "Disabling existing sites..."
@@ -481,7 +472,7 @@ sudo ln -sf /etc/nginx/sites-available/${siteName} /etc/nginx/sites-enabled/
 echo "Writing consolidated configuration..."
 sudo tee /etc/nginx/sites-available/managed-sites.conf > /dev/null << 'EOF'
 # Managed by VM Orchestrator
-# Generated: \$(date)
+# Generated: $(date)
 # Total server blocks: ${serverBlocks.length}
 
 ${fullConfig}
@@ -498,38 +489,52 @@ sudo systemctl reload nginx
 echo "NGINX configuration applied successfully!"
 `;
 
-      await executeStreamingScript(
-        vmId,
-        { script, description: 'Configure NGINX proxy' },
-        (data) => {
-          if (data.type === 'output') {
-            setOutput(prev => [...prev, data.data]);
-            // Auto-scroll to bottom
-            if (outputRef.current) {
-              outputRef.current.scrollTop = outputRef.current.scrollHeight;
-            }
-          } else if (data.type === 'error') {
-            toast.error(data.data);
-          } else if (data.type === 'complete') {
-            toast.success('NGINX configuration applied successfully');
-            onSuccess?.();
-          }
-        },
-        abortControllerRef.current.signal
-      );
-    } catch (error: any) {
-      if (error.name !== 'AbortError') {
-        toast.error(error.message || 'Failed to apply NGINX configuration');
+      const response = await vmApi.executeScript(vmId, { 
+        script, 
+        timeout: 30 
+      });
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to apply NGINX configuration');
       }
-    } finally {
-      setIsExecuting(false);
-      abortControllerRef.current = null;
+      
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data) {
+        // Split output by newlines but filter out empty lines for cleaner display
+        const outputLines = data.stdout.split('\n').filter(line => line.trim());
+        setOutput(outputLines);
+        
+        // Auto-scroll to bottom after setting output
+        setTimeout(() => {
+          if (outputRef.current) {
+            outputRef.current.scrollTop = outputRef.current.scrollHeight;
+          }
+        }, 0);
+        
+        if (data.exitCode === 0) {
+          toast.success('NGINX configuration applied successfully');
+          onSuccess?.();
+        } else {
+          toast.error(`Configuration failed with exit code: ${data.exitCode}`);
+          if (data.stderr) {
+            // Also show stderr in output
+            setOutput(prev => [...prev, '', '=== ERRORS ===', ...data.stderr.split('\n')]);
+          }
+        }
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to apply NGINX configuration');
     }
-  };
+  });
 
   const handleClose = () => {
-    if (isExecuting && abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (applyConfigurationMutation.isPending) {
+      if (!confirm('Configuration is being applied. Are you sure you want to close?')) {
+        return;
+      }
     }
     onClose();
   };
@@ -809,13 +814,13 @@ echo "NGINX configuration applied successfully!"
                 Cancel
               </button>
               <button
-                onClick={applyConfiguration}
-                disabled={isExecuting}
+                onClick={() => applyConfigurationMutation.mutate()}
+                disabled={applyConfigurationMutation.isPending}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 
                          disabled:opacity-50 disabled:cursor-not-allowed transition-colors
                          flex items-center gap-2"
               >
-                {isExecuting ? (
+                {applyConfigurationMutation.isPending ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent 
                                   rounded-full animate-spin" />
