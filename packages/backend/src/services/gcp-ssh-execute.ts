@@ -12,6 +12,7 @@ interface SSHExecuteParams {
   username: string;
   script: string;
   timeout?: number; // in seconds
+  streamWriteDelay?: number; // delay in milliseconds between writing lines to stream
   accessToken: string;
   sessionId?: string; // optional session ID for tracking
   vmId?: string; // VM ID for session tracking
@@ -32,6 +33,7 @@ export async function executeScriptViaSSH({
   username,
   script,
   timeout = 300,
+  streamWriteDelay = 1000,
   accessToken,
   sessionId,
   vmId,
@@ -213,7 +215,7 @@ export async function executeScriptViaSSH({
         promptCheckInterval = setInterval(() => {
           if (commandInProgress && isAtPrompt(lastOutput)) {
             const timeSinceLastPrompt = Date.now() - lastPromptTime;
-            if (timeSinceLastPrompt > 1000) { // 1 second at prompt
+            if (timeSinceLastPrompt > streamWriteDelay) { // Use configurable delay
               console.log('Detected shell prompt, moving to next command');
               commandInProgress = false;
               sendNextCommand();

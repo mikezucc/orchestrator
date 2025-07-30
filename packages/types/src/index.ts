@@ -90,6 +90,7 @@ export interface CreateFirewallRuleRequest {
 export interface ExecuteScriptRequest {
   script: string;
   timeout?: number; // in seconds
+  streamWriteDelay?: number; // delay in milliseconds between writing lines to stream
   githubSSHKey?: {
     registerKey?: boolean; // Register ephemeral SSH key with GitHub
     cleanupAfterExecution?: boolean; // Remove key from GitHub after execution

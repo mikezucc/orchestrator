@@ -954,6 +954,7 @@ vmRoutes.post('/:id/execute', async (c) => {
       username,
       script: body.script,
       timeout: body.timeout,
+      streamWriteDelay: body.streamWriteDelay,
       accessToken,
       vmId: vm.id,
       organizationId,

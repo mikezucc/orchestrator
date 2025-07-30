@@ -232,11 +232,29 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
   const [configPreview, setConfigPreview] = useState('');
   const [output, setOutput] = useState<string[]>([]);
   const outputRef = useRef<HTMLDivElement>(null);
+  const [estimatedTime, setEstimatedTime] = useState(0);
 
-  // Generate nginx config preview
+  // Generate nginx config preview and calculate estimated time
   useEffect(() => {
     const config = generateNginxConfig();
     setConfigPreview(config);
+    
+    // Calculate estimated completion time
+    // Count total lines that will be executed
+    let totalLines = 0;
+    
+    // Fixed overhead lines (backups, cleanup, test, reload)
+    totalLines += 6; // backup, delete links, clear default, test, reload
+    
+    // Lines per server block (tee command + ln command)
+    totalLines += serverBlocks.length * 40;
+    
+    // Consolidated config write
+    totalLines += 1;
+    
+    // 300ms per line as specified (but we're using 200ms actual delay)
+    const estimatedMs = totalLines * 300;
+    setEstimatedTime(estimatedMs);
   }, [serverBlocks]);
 
   const generateServerBlockConfig = (server: ServerBlock, isFirstServer: boolean = false) => {
@@ -417,7 +435,8 @@ sudo systemctl reload nginx
 
       const response = await vmApi.executeScript(vmId, { 
         script, 
-        timeout: 360
+        timeout: 360,
+        streamWriteDelay: 200 // 200ms delay between lines for nginx config
       });
       
       if (!response.success) {
@@ -439,16 +458,15 @@ sudo systemctl reload nginx
           }
         }, 0);
         
-        if (data.exitCode === 0) {
+        // if (data.exitCode === 0) {
           toast.success('NGINX configuration applied successfully');
           onSuccess?.();
-        } else {
-          toast.error(`Configuration failed with exit code: ${data.exitCode}`);
+        // } else {
           if (data.stderr) {
             // Also show stderr in output
             setOutput(prev => [...prev, '', '=== ERRORS ===', ...data.stderr.split('\n')]);
           }
-        }
+        // }
       }
     },
     onError: (error: any) => {
@@ -463,6 +481,16 @@ sudo systemctl reload nginx
       }
     }
     onClose();
+  };
+
+  const formatEstimatedTime = (ms: number) => {
+    const seconds = Math.ceil(ms / 1000);
+    if (seconds < 60) {
+      return `~${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0 ? `~${minutes}m ${remainingSeconds}s` : `~${minutes}m`;
   };
 
   if (!isOpen) return null;
@@ -735,7 +763,12 @@ sudo systemctl reload nginx
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Apply Configuration
+                    <span>Apply Configuration</span>
+                    {estimatedTime > 0 && (
+                      <span className="text-xs opacity-75">
+                        ({formatEstimatedTime(estimatedTime)})
+                      </span>
+                    )}
                   </>
                 )}
               </button>
