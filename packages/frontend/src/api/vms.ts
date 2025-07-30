@@ -64,52 +64,6 @@ export const vmApi = {
   },
 };
 
-export async function fetchNginxConfig(
-  vmId: string
-): Promise<{ config: string; error?: string }> {
-  try {
-    // Use the regular execute script endpoint like ExecuteScriptModal does
-    const response = await vmApi.executeScript(vmId, {
-      script: `#!/bin/bash
-# Dump all nginx server configurations
-for conf in /etc/nginx/sites-enabled/*; do
-  if [ -f "$conf" ] && [ ! -L "$conf" -o -e "$conf" ]; then
-    printf "===FILE:%s===\n" "$conf"
-    cat "$conf" 2>/dev/null || true
-    printf "\n"
-  fi
-done`,
-      timeout: 10
-    });
-
-    if (response.success && response.data) {
-      const output = response.data.stdout;
-      
-      // Process the output to extract configurations
-      const configs: string[] = [];
-      const fileRegex = /===FILE:(.+?)===([\s\S]*?)(?====FILE:|$)/g;
-      let match;
-      
-      while ((match = fileRegex.exec(output)) !== null) {
-        const fileContent = match[2].trim();
-        if (fileContent && fileContent.includes('server')) {
-          configs.push(fileContent);
-        }
-      }
-      
-      if (configs.length > 0) {
-        const finalConfig = configs.join('\n\n');
-        return { config: finalConfig };
-      } else {
-        return { config: '', error: 'No NGINX configuration found' };
-      }
-    }
-    
-    return { config: '', error: response.error || 'Failed to fetch NGINX config' };
-  } catch (error: any) {
-    return { config: '', error: error.message || 'Failed to fetch NGINX config' };
-  }
-}
 
 export async function executeStreamingScript(
   vmId: string,

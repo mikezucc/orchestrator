@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Server, Plus, Trash2, Save, AlertCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Server, Plus, Trash2, Save, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { fetchNginxConfig, vmApi } from '../../api/vms';
+import { vmApi } from '../../api/vms';
 import { useMutation } from '@tanstack/react-query';
 
 interface ProxyRule {
@@ -231,43 +231,7 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
   ]);
   const [configPreview, setConfigPreview] = useState('');
   const [output, setOutput] = useState<string[]>([]);
-  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
-
-  // Function to load existing config
-  const loadExistingConfig = async () => {
-    if (!vmId) {
-      toast.error('No VM ID provided');
-      return;
-    }
-    
-    setIsLoadingConfig(true);
-    try {
-      const result = await fetchNginxConfig(vmId);
-      
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      if (result.config) {
-        const parsed = parseNginxConfig(result.config);
-        setServerBlocks(parsed);
-        toast.success('Existing configuration loaded');
-      }
-    } catch (error: any) {
-      toast.error('Failed to load existing configuration');
-    } finally {
-      setIsLoadingConfig(false);
-    }
-  };
-
-  // Load existing config when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      loadExistingConfig();
-    }
-  }, [isOpen]);
 
   // Generate nginx config preview
   useEffect(() => {
@@ -284,19 +248,13 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
     config += `    server_name ${server.serverName || '_'};\n\n`;
 
     if (server.enableSSL && server.sslDomain) {
-      config += `    # SSL Configuration\n`;
       config += `    listen 443 ssl${isFirstServer ? ' default_server' : ''};\n`;
       config += `    listen [::]:443 ssl${isFirstServer ? ' default_server' : ''};\n`;
-      config += `    \n`;
       config += `    ssl_certificate /etc/nginx/ssl/${server.sslDomain}.crt;\n`;
       config += `    ssl_certificate_key /etc/nginx/ssl/${server.sslDomain}.key;\n`;
-      config += `    \n`;
-      config += `    # SSL Security Settings\n`;
       config += `    ssl_protocols TLSv1.2 TLSv1.3;\n`;
       config += `    ssl_ciphers HIGH:!aNULL:!MD5;\n`;
       config += `    ssl_prefer_server_ciphers on;\n`;
-      config += `    \n`;
-      config += `    # Redirect HTTP to HTTPS\n`;
       config += `    if ($scheme != "https") {\n`;
       config += `        return 301 https://$server_name$request_uri;\n`;
       config += `    }\n\n`;
@@ -459,7 +417,7 @@ sudo systemctl reload nginx
 
       const response = await vmApi.executeScript(vmId, { 
         script, 
-        timeout: 120
+        timeout: 360
       });
       
       if (!response.success) {
@@ -522,35 +480,15 @@ sudo systemctl reload nginx
                 NGINX Configuration
               </h2>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={loadExistingConfig}
-                disabled={isLoadingConfig}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 
-                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Reload existing configuration"
-              >
-                <RefreshCw className={`w-4 h-4 ${isLoadingConfig ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={handleClose}
-                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={handleClose}
+              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 relative">
-            {isLoadingConfig && (
-              <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 flex items-center justify-center z-10">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading existing configuration...</p>
-                </div>
-              </div>
-            )}
-            
+          <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Configure NGINX proxy for <span className="font-semibold">{vmName}</span>
