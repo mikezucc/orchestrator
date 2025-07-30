@@ -423,24 +423,11 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
       // Generate script to handle multiple server blocks
       let script = `#!/bin/bash
 set -e
-
-echo "Starting NGINX configuration..."
-
-# Backup existing configuration
-echo "Backing up existing NGINX configuration..."
 sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 sudo cp -r /etc/nginx/sites-available /etc/nginx/sites-available.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
 sudo cp -r /etc/nginx/sites-enabled /etc/nginx/sites-enabled.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-
-# Disable all existing sites to start fresh
-echo "Disabling existing sites..."
 sudo find /etc/nginx/sites-enabled -type l -delete
-
-# Clear the default site configuration
-echo "Clearing default site configuration..."
 sudo tee /etc/nginx/sites-available/default > /dev/null << 'EOF'
-# Default site configuration cleared
-# Server blocks are now managed individually
 EOF
 
 `;
@@ -454,44 +441,25 @@ EOF
         const serverConfig = generateServerBlockConfig(server, index === 0);
         
         script += `
-# Write configuration for ${siteName}
-echo "Writing configuration for ${siteName}..."
 sudo tee /etc/nginx/sites-available/${siteName} > /dev/null << 'EOF'
 ${serverConfig}
 EOF
-
-# Enable the site
-echo "Enabling ${siteName}..."
 sudo ln -sf /etc/nginx/sites-available/${siteName} /etc/nginx/sites-enabled/
 `;
       });
 
       // Also write a consolidated configuration file
       script += `
-# Write consolidated configuration to default
-echo "Writing consolidated configuration..."
 sudo tee /etc/nginx/sites-available/managed-sites.conf > /dev/null << 'EOF'
-# Managed by VM Orchestrator
-# Generated: $(date)
-# Total server blocks: ${serverBlocks.length}
-
 ${fullConfig}
 EOF
-
-# Test configuration
-echo "Testing NGINX configuration..."
 sudo nginx -t
-
-# Reload NGINX
-echo "Reloading NGINX..."
 sudo systemctl reload nginx
-
-echo "NGINX configuration applied successfully!"
 `;
 
       const response = await vmApi.executeScript(vmId, { 
         script, 
-        timeout: 30 
+        timeout: 120
       });
       
       if (!response.success) {

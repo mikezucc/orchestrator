@@ -72,14 +72,13 @@ export async function fetchNginxConfig(
     const response = await vmApi.executeScript(vmId, {
       script: `#!/bin/bash
 # Dump all nginx server configurations
-echo "===CONFIG_START==="
 for conf in /etc/nginx/sites-enabled/*; do
   if [ -f "$conf" ] && [ ! -L "$conf" -o -e "$conf" ]; then
-    echo "===FILE:$conf==="
+    printf "===FILE:%s===\n" "$conf"
     cat "$conf" 2>/dev/null || true
+    printf "\n"
   fi
-done
-echo "===CONFIG_END==="`,
+done`,
       timeout: 10
     });
 
@@ -87,23 +86,18 @@ echo "===CONFIG_END==="`,
       const output = response.data.stdout;
       
       // Process the output to extract configurations
-      if (output.includes('===CONFIG_START===') && output.includes('===CONFIG_END===')) {
-        const startIdx = output.indexOf('===CONFIG_START===') + '===CONFIG_START==='.length;
-        const endIdx = output.indexOf('===CONFIG_END===');
-        const configSection = output.substring(startIdx, endIdx).trim();
-        
-        // Combine all found configurations
-        const configs: string[] = [];
-        const fileRegex = /===FILE:(.+?)===([\s\S]*?)(?====FILE:|$)/g;
-        let match;
-        
-        while ((match = fileRegex.exec(configSection)) !== null) {
-          const fileContent = match[2].trim();
-          if (fileContent && fileContent.includes('server')) {
-            configs.push(fileContent);
-          }
+      const configs: string[] = [];
+      const fileRegex = /===FILE:(.+?)===([\s\S]*?)(?====FILE:|$)/g;
+      let match;
+      
+      while ((match = fileRegex.exec(output)) !== null) {
+        const fileContent = match[2].trim();
+        if (fileContent && fileContent.includes('server')) {
+          configs.push(fileContent);
         }
-        
+      }
+      
+      if (configs.length > 0) {
         const finalConfig = configs.join('\n\n');
         return { config: finalConfig };
       } else {
