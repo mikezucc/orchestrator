@@ -1240,7 +1240,7 @@ vmRoutes.post('/:id/ssl-certificates', async (c) => {
       zone: vm.zone,
       instanceName: vm.gcpInstanceId!,
       username,
-      filePath: '/etc/ssl/certs',
+      filePath: '/etc/nginx/ssl',
       sudo: true,
       accessToken
     });

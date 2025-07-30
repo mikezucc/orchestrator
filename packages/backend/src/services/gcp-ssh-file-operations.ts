@@ -37,38 +37,10 @@ export async function writeFileViaSSH(options: WriteFileOptions): Promise<void> 
     // Convert content to base64 to safely handle binary data and special characters
     const base64Content = Buffer.from(content).toString('base64');
     
-    // Create a script that writes the file
-    const script = sudo ? `
-# Create temporary file
-TEMP_FILE=$(mktemp)
-# Decode base64 content and write to temp file
-echo "${base64Content}" | base64 -d > "$TEMP_FILE"
-# Move to final location with sudo
-sudo mv "$TEMP_FILE" "${filePath}"
-# Set permissions
-sudo chmod ${permissions} "${filePath}"
-# Verify file was written
-if [ -f "${filePath}" ]; then
-  echo "File successfully written to ${filePath}"
-else
-  echo "Failed to write file to ${filePath}" >&2
-  exit 1
-fi
-    ` : `
-# Create directory if it doesn't exist
-mkdir -p "$(dirname "${filePath}")"
-# Decode base64 content and write to file
-echo "${base64Content}" | base64 -d > "${filePath}"
-# Set permissions
-chmod ${permissions} "${filePath}"
-# Verify file was written
-if [ -f "${filePath}" ]; then
-  echo "File successfully written to ${filePath}"
-else
-  echo "Failed to write file to ${filePath}" >&2
-  exit 1
-fi
-    `;
+    // Create a script that writes the file - single line commands
+    const script = sudo 
+      ? `TEMP_FILE=$(mktemp) && echo "${base64Content}" | base64 -d > "$TEMP_FILE" && sudo mkdir -p "$(dirname "${filePath}")" && sudo mv "$TEMP_FILE" "${filePath}" && sudo chmod ${permissions} "${filePath}" && echo "File successfully written to ${filePath}" || { echo "Failed to write file to ${filePath}" >&2; exit 1; }`
+      : `mkdir -p "$(dirname "${filePath}")" && echo "${base64Content}" | base64 -d > "${filePath}" && chmod ${permissions} "${filePath}" && echo "File successfully written to ${filePath}" || { echo "Failed to write file to ${filePath}" >&2; exit 1; }`;
 
     const result = await executeScriptViaSSH({
       projectId,
@@ -111,33 +83,15 @@ export async function writeMultipleFilesViaSSH(options: WriteMultipleFilesOption
       const base64Content = Buffer.from(content).toString('base64');
       
       if (sudo) {
-        scriptParts.push(`
-# Write file: ${filePath}
-TEMP_FILE=$(mktemp)
-echo "${base64Content}" | base64 -d > "$TEMP_FILE"
-sudo mkdir -p "$(dirname "${filePath}")"
-sudo mv "$TEMP_FILE" "${filePath}"
-sudo chmod ${permissions} "${filePath}"
-if [ -f "${filePath}" ]; then
-  echo "Successfully wrote ${filePath}"
-else
-  echo "Failed to write ${filePath}" >&2
-  exit 1
-fi
-`);
+        // Single line commands using && and || operators
+        scriptParts.push(`# Write file: ${filePath}`);
+        scriptParts.push(`TEMP_FILE=$(mktemp) && echo "${base64Content}" | base64 -d > "$TEMP_FILE" && sudo mkdir -p "$(dirname "${filePath}")" && sudo mv "$TEMP_FILE" "${filePath}" && sudo chmod ${permissions} "${filePath}" && echo "Successfully wrote ${filePath}" || { echo "Failed to write ${filePath}" >&2; exit 1; }`);
+        scriptParts.push(''); // Empty line for readability
       } else {
-        scriptParts.push(`
-# Write file: ${filePath}
-mkdir -p "$(dirname "${filePath}")"
-echo "${base64Content}" | base64 -d > "${filePath}"
-chmod ${permissions} "${filePath}"
-if [ -f "${filePath}" ]; then
-  echo "Successfully wrote ${filePath}"
-else
-  echo "Failed to write ${filePath}" >&2
-  exit 1
-fi
-`);
+        // Single line commands using && and || operators
+        scriptParts.push(`# Write file: ${filePath}`);
+        scriptParts.push(`mkdir -p "$(dirname "${filePath}")" && echo "${base64Content}" | base64 -d > "${filePath}" && chmod ${permissions} "${filePath}" && echo "Successfully wrote ${filePath}" || { echo "Failed to write ${filePath}" >&2; exit 1; }`);
+        scriptParts.push(''); // Empty line for readability
       }
     }
     
