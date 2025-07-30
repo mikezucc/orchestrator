@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Server, Plus, Trash2, Save, AlertCircle } from 'lucide-react';
+import { X, Server, Plus, Trash2, Save, AlertCircle, RefreshCw } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { executeStreamingScript } from '../../api/vms';
+import { executeStreamingScript, fetchNginxConfig } from '../../api/vms';
 
 interface ProxyRule {
   id: string;
@@ -20,6 +20,132 @@ interface NginxConfigModalProps {
   onSuccess?: () => void;
 }
 
+// Parse NGINX config to extract settings
+const parseNginxConfig = (config: string): {
+  serverName: string;
+  listenPort: string;
+  enableSSL: boolean;
+  sslDomain: string;
+  proxyRules: ProxyRule[];
+} => {
+  const result = {
+    serverName: '',
+    listenPort: '80',
+    enableSSL: false,
+    sslDomain: '',
+    proxyRules: [] as ProxyRule[]
+  };
+
+  try {
+    // Extract server_name
+    const serverNameMatch = config.match(/server_name\s+([^;]+);/);
+    if (serverNameMatch) {
+      result.serverName = serverNameMatch[1].trim().replace(/_/g, '');
+    }
+
+    // Extract listen directives
+    const listenMatches = config.matchAll(/listen\s+([^;]+);/g);
+    for (const match of listenMatches) {
+      const listenValue = match[1].trim();
+      if (listenValue.includes('ssl')) {
+        result.enableSSL = true;
+        const portMatch = listenValue.match(/(\d+)/);
+        if (portMatch && portMatch[1] === '443') {
+          result.listenPort = '443';
+        }
+      } else if (!listenValue.includes('[::]:')) {
+        const portMatch = listenValue.match(/(\d+)/);
+        if (portMatch) {
+          result.listenPort = portMatch[1];
+        }
+      }
+    }
+
+    // Extract SSL certificate domain
+    const sslCertMatch = config.match(/ssl_certificate\s+\/etc\/nginx\/ssl\/([^.]+)\.crt;/);
+    if (sslCertMatch) {
+      result.sslDomain = sslCertMatch[1];
+    }
+
+    // Extract location blocks - improved to handle nested braces
+    const extractLocationBlocks = (configText: string) => {
+      const locations: Array<{ location: string; content: string }> = [];
+      let pos = 0;
+      
+      while (pos < configText.length) {
+        const locationMatch = configText.substring(pos).match(/location\s+([^\s{]+)\s*{/);
+        if (!locationMatch) break;
+        
+        const startPos = pos + locationMatch.index!;
+        const location = locationMatch[1];
+        
+        // Find the matching closing brace
+        let braceCount = 0;
+        let contentStart = startPos + locationMatch[0].length;
+        let i = contentStart;
+        
+        for (; i < configText.length; i++) {
+          if (configText[i] === '{') braceCount++;
+          else if (configText[i] === '}') {
+            if (braceCount === 0) break;
+            braceCount--;
+          }
+        }
+        
+        if (i < configText.length) {
+          const content = configText.substring(contentStart, i);
+          locations.push({ location, content });
+        }
+        
+        pos = i + 1;
+      }
+      
+      return locations;
+    };
+
+    // Extract location blocks
+    const locationBlocks = extractLocationBlocks(config);
+    let ruleId = 1;
+    
+    for (const block of locationBlocks) {
+      const proxyPassMatch = block.content.match(/proxy_pass\s+([^;]+);/);
+      if (proxyPassMatch) {
+        const rule: ProxyRule = {
+          id: ruleId.toString(),
+          location: block.location,
+          proxyPass: proxyPassMatch[1].trim(),
+          headers: {}
+        };
+
+        // Extract custom headers
+        const headerRegex = /proxy_set_header\s+([^\s]+)\s+([^;]+);/g;
+        let headerMatch;
+        while ((headerMatch = headerRegex.exec(block.content)) !== null) {
+          const headerName = headerMatch[1];
+          const headerValue = headerMatch[2];
+          // Skip standard headers that are always included
+          if (!['Upgrade', 'Connection', 'Host', 'X-Real-IP', 'X-Forwarded-For', 'X-Forwarded-Proto'].includes(headerName)) {
+            rule.headers![headerName] = headerValue;
+          }
+        }
+
+        result.proxyRules.push(rule);
+        ruleId++;
+      }
+    }
+
+    // If no proxy rules found, add a default one
+    if (result.proxyRules.length === 0) {
+      result.proxyRules.push({ id: '1', location: '/', proxyPass: 'http://localhost:3000' });
+    }
+
+  } catch (error) {
+    console.error('Error parsing NGINX config:', error);
+  }
+
+  return result;
+};
+
 export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: NginxConfigModalProps) {
   const [serverName, setServerName] = useState('');
   const [listenPort, setListenPort] = useState('80');
@@ -31,8 +157,43 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
   const [configPreview, setConfigPreview] = useState('');
   const [output, setOutput] = useState<string[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Function to load existing config
+  const loadExistingConfig = async () => {
+    setIsLoadingConfig(true);
+    try {
+      const result = await fetchNginxConfig(vmId);
+      
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      if (result.config) {
+        const parsed = parseNginxConfig(result.config);
+        setServerName(parsed.serverName);
+        setListenPort(parsed.listenPort);
+        setEnableSSL(parsed.enableSSL);
+        setSslDomain(parsed.sslDomain);
+        setProxyRules(parsed.proxyRules);
+        toast.success('Existing configuration loaded');
+      }
+    } catch (error: any) {
+      toast.error('Failed to load existing configuration');
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  };
+
+  // Load existing config when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadExistingConfig();
+    }
+  }, [isOpen]);
 
   // Generate nginx config preview
   useEffect(() => {
@@ -210,15 +371,35 @@ echo "NGINX configuration applied successfully!"
                 NGINX Configuration
               </h2>
             </div>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadExistingConfig}
+                disabled={isLoadingConfig}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 
+                         disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Reload existing configuration"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingConfig ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={handleClose}
+                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6 relative">
+            {isLoadingConfig && (
+              <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 flex items-center justify-center z-10">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading existing configuration...</p>
+                </div>
+              </div>
+            )}
+            
             <div className="mb-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Configure NGINX proxy for <span className="font-semibold">{vmName}</span>
