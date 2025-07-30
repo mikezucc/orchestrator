@@ -237,6 +237,13 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
 
   // Function to load existing config
   const loadExistingConfig = async () => {
+    console.log('[NginxConfigModal] Loading config for VM:', vmId);
+    if (!vmId) {
+      console.error('[NginxConfigModal] No vmId provided!');
+      toast.error('No VM ID provided');
+      return;
+    }
+    
     setIsLoadingConfig(true);
     try {
       const result = await fetchNginxConfig(vmId);
@@ -252,6 +259,7 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
         toast.success('Existing configuration loaded');
       }
     } catch (error: any) {
+      console.error('[NginxConfigModal] Error loading config:', error);
       toast.error('Failed to load existing configuration');
     } finally {
       setIsLoadingConfig(false);
