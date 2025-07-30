@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Server, Plus, Trash2, Save, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { vmApi } from '../../api/vms';
 import { useMutation } from '@tanstack/react-query';
+import AnsiToHtml from 'ansi-to-html';
+import '../../styles/terminal.css';
 
 interface ProxyRule {
   id: string;
@@ -233,6 +235,40 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
   const [output, setOutput] = useState<string[]>([]);
   const outputRef = useRef<HTMLDivElement>(null);
   const [estimatedTime, setEstimatedTime] = useState(0);
+
+  // Initialize ANSI to HTML converter
+  const ansiConverter = useMemo(() => new AnsiToHtml({
+    fg: '#e5e7eb', // gray-200
+    bg: '#111827', // gray-900
+    newline: true,
+    escapeXML: true,
+    stream: true
+  }), []);
+
+  // Function to clean terminal control sequences
+  const cleanTerminalOutput = (text: string): string => {
+    if (!text) return '';
+    
+    // Remove common terminal control sequences that ansi-to-html doesn't handle
+    /* eslint-disable no-control-regex */
+    return text
+      .replace(/\x1b\[\?2004[lh]/g, '') // Remove bracketed paste mode
+      .replace(/\x1b\[([0-9]+)?[GK]/g, '') // Remove cursor positioning (G: move to column, K: clear line)
+      .replace(/\x1b\[\d*[JH]/g, '') // Remove clear screen and cursor home
+      .replace(/\x1b\[[\d;]*[fl]/g, '') // Remove cursor save/restore
+      .replace(/\x1b\[\?\d+[hl]/g, '') // Remove DEC private mode set/reset
+      .replace(/\x1b\]0;[^\x07]*\x07/g, '') // Remove terminal title sequences
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, (match) => {
+        // Preserve color codes but remove other escape sequences
+        if (match.match(/\x1b\[[0-9;]*m/)) {
+          return match; // Keep color codes
+        }
+        return ''; // Remove other sequences
+      })
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .replace(/\r/g, '\n'); // Handle carriage returns
+    /* eslint-enable no-control-regex */
+  };
 
   // Generate nginx config preview and calculate estimated time
   useEffect(() => {
@@ -722,9 +758,19 @@ sudo systemctl reload nginx
                     ref={outputRef}
                     className="bg-gray-900 text-gray-100 p-4 rounded-lg h-48 overflow-y-auto"
                   >
-                    <pre className="text-xs font-mono whitespace-pre-wrap">
-                      {output.join('')}
-                    </pre>
+                    <div className="terminal-output text-xs font-mono space-y-0.5">
+                      {output.map((line, index) => {
+                        const cleanedLine = cleanTerminalOutput(line);
+                        const htmlLine = ansiConverter.toHtml(cleanedLine);
+                        return (
+                          <div 
+                            key={index}
+                            className="leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: htmlLine || '&nbsp;' }}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
