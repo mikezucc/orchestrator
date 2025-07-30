@@ -67,44 +67,59 @@ export const vmApi = {
 export async function fetchNginxConfig(
   vmId: string
 ): Promise<{ config: string; error?: string }> {
-  try {
-    // Use the regular execute script endpoint to fetch nginx config
-    const response = await vmApi.executeScript(vmId, {
-      script: `#!/bin/bash
-# Try to find nginx config files
-if [ -f /etc/nginx/sites-available/default ]; then
-  echo "===DEFAULT_SITE_CONFIG==="
-  cat /etc/nginx/sites-available/default
-elif [ -f /etc/nginx/conf.d/default.conf ]; then
-  echo "===DEFAULT_SITE_CONFIG==="
-  cat /etc/nginx/conf.d/default.conf
-else
-  # Try to find any server config
-  for conf in /etc/nginx/sites-available/* /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
-    if [ -f "$conf" ] && grep -q "server {" "$conf" 2>/dev/null; then
-      echo "===DEFAULT_SITE_CONFIG==="
-      cat "$conf"
-      break
-    fi
-  done
-fi`,
-      timeout: 10
-    });
-
-    if (response.success && response.data) {
-      const output = response.data.stdout;
-      if (output.includes('===DEFAULT_SITE_CONFIG===')) {
-        const configStart = output.indexOf('===DEFAULT_SITE_CONFIG===') + '===DEFAULT_SITE_CONFIG==='.length;
-        const config = output.substring(configStart).trim();
-        return { config };
-      }
-      return { config: '', error: 'No NGINX configuration found' };
-    }
+  return new Promise((resolve) => {
+    let configOutput = '';
     
-    return { config: '', error: response.error || 'Failed to fetch NGINX config' };
-  } catch (error: any) {
-    return { config: '', error: error.message || 'Failed to fetch NGINX config' };
-  }
+    executeStreamingScript(
+      vmId,
+      {
+        script: `#!/bin/bash
+# Dump all nginx server configurations
+echo "===CONFIG_START==="
+for conf in /etc/nginx/sites-enabled/*; do
+  if [ -f "$conf" ] && [ ! -L "$conf" -o -e "$conf" ]; then
+    echo "===FILE:$conf==="
+    cat "$conf" 2>/dev/null || true
+  fi
+done
+echo "===CONFIG_END==="`,
+        description: 'Fetch NGINX configurations'
+      },
+      (data) => {
+        if (data.type === 'output') {
+          configOutput += data.data;
+        } else if (data.type === 'error') {
+          resolve({ config: '', error: data.data });
+        } else if (data.type === 'complete') {
+          // Process the output to extract configurations
+          if (configOutput.includes('===CONFIG_START===') && configOutput.includes('===CONFIG_END===')) {
+            const startIdx = configOutput.indexOf('===CONFIG_START===') + '===CONFIG_START==='.length;
+            const endIdx = configOutput.indexOf('===CONFIG_END===');
+            const configSection = configOutput.substring(startIdx, endIdx).trim();
+            
+            // Combine all found configurations
+            const configs: string[] = [];
+            const fileRegex = /===FILE:(.+?)===([\s\S]*?)(?====FILE:|$)/g;
+            let match;
+            
+            while ((match = fileRegex.exec(configSection)) !== null) {
+              const fileContent = match[2].trim();
+              if (fileContent && fileContent.includes('server')) {
+                configs.push(fileContent);
+              }
+            }
+            
+            const finalConfig = configs.join('\n\n');
+            resolve({ config: finalConfig });
+          } else {
+            resolve({ config: '', error: 'No NGINX configuration found' });
+          }
+        }
+      }
+    ).catch((error) => {
+      resolve({ config: '', error: error.message || 'Failed to fetch NGINX config' });
+    });
+  });
 }
 
 export async function executeStreamingScript(
