@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vmRepositoriesApi } from '../api/vm-repositories';
 import { wormholeApi } from '../api/wormhole';
+import { githubAuthApi } from '../api/github-auth';
 import { useToast } from '../contexts/ToastContext';
 import type { VMRepository } from '../api/vm-repositories';
+import type { GitHubBranch } from '../api/github-auth';
 
 interface VMRepositoriesSectionProps {
   vmId: string;
@@ -14,7 +16,7 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
   const [switchingBranch, setSwitchingBranch] = useState<string | null>(null);
   const [switchingClientBranch, setSwitchingClientBranch] = useState<string | null>(null);
-  const [githubBranches, setGithubBranches] = useState<Record<string, Array<{ name: string; protected: boolean; commit: { sha: string }; isDefault?: boolean }>>>({});
+  const [githubBranches, setGithubBranches] = useState<Record<string, GitHubBranch[]>>({});
   const [loadingGithubBranches, setLoadingGithubBranches] = useState<Set<string>>(new Set());
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
@@ -100,16 +102,28 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
         newSet.add(repoPath);
         // Fetch GitHub branches when expanding
         if (!githubBranches[repoId] && !loadingGithubBranches.has(repoId)) {
-          fetchGitHubBranches(repoId);
+          fetchGitHubBranches(repoId, repoPath);
         }
       }
       return newSet;
     });
   };
 
-  const fetchGitHubBranches = async (repoId: string) => {
-    // GitHub branches are now fetched from wormhole daemon data
-    // This function is kept for compatibility but doesn't do anything
+  const fetchGitHubBranches = async (repoId: string, repoFullName: string) => {
+    setLoadingGithubBranches(prev => new Set(prev).add(repoId));
+    try {
+      const branches = await githubAuthApi.getRepositoryBranches(repoFullName);
+      setGithubBranches(prev => ({ ...prev, [repoId]: branches }));
+    } catch (error) {
+      console.error('Failed to fetch GitHub branches:', error);
+      // Don't show error toast - fallback to daemon branches silently
+    } finally {
+      setLoadingGithubBranches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(repoId);
+        return newSet;
+      });
+    }
   };
 
   const handleBranchSwitch = (repoPath: string, targetBranch: string) => {

@@ -31,6 +31,15 @@ export interface ReposResponse {
   };
 }
 
+export interface GitHubBranch {
+  name: string;
+  protected: boolean;
+  commit: {
+    sha: string;
+  };
+  isDefault?: boolean;
+}
+
 export const githubAuthApi = {
   // Get current GitHub connection status
   getStatus: async (): Promise<GitHubStatus> => {
@@ -69,5 +78,12 @@ export const githubAuthApi = {
     
     const response = await fetchClient.get(`/github-auth/repos?${params}`);
     return response;
+  },
+
+  // Get branches for a specific repository
+  getRepositoryBranches: async (repoFullName: string): Promise<GitHubBranch[]> => {
+    const encodedRepo = encodeURIComponent(repoFullName);
+    const response = await fetchClient.get(`/github-auth/repos/${encodedRepo}/branches`);
+    return response.branches || [];
   },
 };

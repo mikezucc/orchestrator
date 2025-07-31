@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { flexibleAuth } from '../middleware/flexibleAuth.js';
 import { encrypt, decrypt } from '../utils/auth.js';
 import { generateSSHKeys } from '../services/gcp-ssh.js';
+import { GitHubAPIService } from '../services/github-api.js';
 import crypto from 'crypto';
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
@@ -388,6 +389,37 @@ githubAuthRoutes.get('/repos', flexibleAuth, async (c) => {
   } catch (error) {
     console.error('Get GitHub repositories error:', error);
     return c.json({ success: false, error: 'Failed to get repositories' }, 500);
+  }
+});
+
+// Get branches for a specific repository
+githubAuthRoutes.get('/repos/:repoFullName/branches', flexibleAuth, async (c) => {
+  try {
+    const userId = (c as any).userId || (c as any).user?.id;
+    
+    if (!userId) {
+      return c.json({ success: false, error: 'User not authenticated' }, 401);
+    }
+
+    const repoFullName = decodeURIComponent(c.req.param('repoFullName'));
+    
+    const githubApi = new GitHubAPIService();
+    const branches = await githubApi.getRepositoryBranches(userId, repoFullName);
+    
+    if (!branches) {
+      return c.json({ 
+        success: false, 
+        error: 'Failed to fetch branches. Please ensure you have authorized GitHub access.' 
+      }, 400);
+    }
+
+    return c.json({
+      success: true,
+      branches
+    });
+  } catch (error) {
+    console.error('Get GitHub branches error:', error);
+    return c.json({ success: false, error: 'Failed to get branches' }, 500);
   }
 });
 
