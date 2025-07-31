@@ -16,6 +16,7 @@ import ScriptExecutionsList from '../components/ScriptExecutionsList';
 import AddFavoritePortModal from '../components/AddFavoritePortModal';
 import { SSLSettingsModal } from '../components/vm/SSLSettingsModal';
 import { NginxConfigModal } from '../components/vm/NginxConfigModal';
+import { EnvConfigModal } from '../components/vm/EnvConfigModal';
 import { useToast } from '../contexts/ToastContext';
 import { useOrganization } from '../contexts/OrganizationContext';
 
@@ -34,6 +35,7 @@ export default function VMDetail() {
   const [showAddFavoritePortModal, setShowAddFavoritePortModal] = useState(false);
   const [showSSLSettingsModal, setShowSSLSettingsModal] = useState(false);
   const [showNginxConfigModal, setShowNginxConfigModal] = useState(false);
+  const [showEnvConfigModal, setShowEnvConfigModal] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState<{ stdout: string; stderr: string; exitCode: number; sessionId?: string; timestamp?: Date } | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'executions'>('overview');
 
@@ -322,6 +324,18 @@ export default function VMDetail() {
                         </svg>
                         <span>NGINX Config</span>
                       </button>
+                      <button
+                        onClick={() => {
+                          setShowEnvConfigModal(true);
+                          setShowActionsDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm hover:bg-te-gray-100 dark:hover:bg-te-gray-800 transition-colors flex items-center space-x-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Environment Config</span>
+                      </button>
                       <div className="border-t border-te-gray-200 dark:border-te-gray-800 my-1" />
                     </>
                   )}
@@ -548,6 +562,18 @@ export default function VMDetail() {
           vmName={vm.name}
           onSuccess={() => {
             showSuccess('NGINX configuration applied successfully');
+          }}
+        />
+      )}
+
+      {showEnvConfigModal && (
+        <EnvConfigModal
+          isOpen={showEnvConfigModal}
+          onClose={() => setShowEnvConfigModal(false)}
+          vmId={id!}
+          vmName={vm.name}
+          onSuccess={() => {
+            showSuccess('Environment files written successfully');
           }}
         />
       )}
