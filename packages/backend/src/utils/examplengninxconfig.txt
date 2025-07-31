@@ -102,7 +102,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
 
         if ($request_method = OPTIONS ) {
-            add_header 'Access-Control-Allow-Origin'  'https://slopbox.dev';
+            add_header 'Access-Control-Allow-Origin'  'https://onfacet.dev';
             add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD, PUT';
             add_header 'Access-Control-Allow-Headers' 'Authorization, Origin, X-Requested-With, Content-Type, Accept, x-user-id, x-organization-id';
 

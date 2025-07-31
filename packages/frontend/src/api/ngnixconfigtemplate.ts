@@ -55,7 +55,7 @@ ${forceSSL && enableSSL ? `
 
         ${isAPI ? `
         if ($request_method = OPTIONS ) {
-            add_header 'Access-Control-Allow-Origin'  'http://${hostname}';
+            add_header 'Access-Control-Allow-Origin'  'https://${hostname}';
             add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD, PUT';
             add_header 'Access-Control-Allow-Headers' 'Authorization, Origin, X-Requested-With, Content-Type, Accept${customHeaderNames.length > 0 ? ', ' : ''}${customHeaderNames.join(', ')}';
             return 200;
