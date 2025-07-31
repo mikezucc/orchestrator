@@ -105,7 +105,6 @@ export default function Admin() {
                     type="file"
                     className="sr-only"
                     onChange={handleFileSelect}
-                    accept=".exe,.bin,application/octet-stream"
                   />
                 </label>
               </div>
