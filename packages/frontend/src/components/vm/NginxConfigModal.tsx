@@ -22,6 +22,7 @@ interface ServerBlock {
   sslDomain: string;
   proxyRules: ProxyRule[];
   isExpanded: boolean;
+  customCorsHeaders?: string[];
 }
 
 interface NginxConfigModalProps {
@@ -111,6 +112,17 @@ const parseNginxConfig = (config: string): ServerBlock[] => {
       const sslCertMatch = server.content.match(/ssl_certificate\s+\/etc\/nginx\/ssl\/([^.]+)\.crt;/);
       if (sslCertMatch) {
         serverBlock.sslDomain = sslCertMatch[1];
+      }
+
+      // Extract custom CORS headers from Access-Control-Allow-Headers
+      const corsHeadersMatch = server.content.match(/add_header\s+'Access-Control-Allow-Headers'\s+'([^']+)'/);
+      if (corsHeadersMatch) {
+        const headersList = corsHeadersMatch[1].split(',').map(h => h.trim());
+        const baseHeaders = ['Authorization', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'];
+        const customHeaders = headersList.filter(h => !baseHeaders.includes(h));
+        if (customHeaders.length > 0) {
+          serverBlock.customCorsHeaders = customHeaders;
+        }
       }
 
       // Extract location blocks
@@ -205,7 +217,8 @@ const parseNginxConfig = (config: string): ServerBlock[] => {
         enableSSL: false,
         sslDomain: '',
         proxyRules: [{ id: `rule-${Date.now()}`, location: '/', proxyPass: 'http://localhost:3000' }],
-        isExpanded: true
+        isExpanded: true,
+        customCorsHeaders: []
       });
     }
 
@@ -219,7 +232,8 @@ const parseNginxConfig = (config: string): ServerBlock[] => {
       enableSSL: false,
       sslDomain: '',
       proxyRules: [{ id: `rule-${Date.now()}`, location: '/', proxyPass: 'http://localhost:3000' }],
-      isExpanded: true
+      isExpanded: true,
+      customCorsHeaders: []
     });
   }
 
@@ -235,7 +249,8 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
       enableSSL: false,
       sslDomain: '',
       proxyRules: [{ id: `rule-${Date.now()}`, location: '/', proxyPass: 'http://localhost:3000' }],
-      isExpanded: true
+      isExpanded: true,
+      customCorsHeaders: []
     }
   ]);
   const [configPreview, setConfigPreview] = useState('');
@@ -343,11 +358,15 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
 
       // Add CORS headers for API endpoints
       if (rule.isAPI) {
+        const baseHeaders = ['Authorization', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'];
+        const customHeaders = server.customCorsHeaders?.filter(h => h.trim()) || [];
+        const allHeaders = [...baseHeaders, ...customHeaders].join(', ');
+        
         config += `\n        # CORS configuration for API\n`;
         config += `        if ($request_method = OPTIONS) {\n`;
         config += `            add_header 'Access-Control-Allow-Origin' '*';\n`;
         config += `            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD, PUT, DELETE, PATCH';\n`;
-        config += `            add_header 'Access-Control-Allow-Headers' 'Authorization, Origin, X-Requested-With, Content-Type, Accept';\n`;
+        config += `            add_header 'Access-Control-Allow-Headers' '${allHeaders}';\n`;
         config += `            add_header 'Access-Control-Max-Age' 86400;\n`;
         config += `            return 204;\n`;
         config += `        }\n`;
@@ -376,7 +395,8 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
       enableSSL: false,
       sslDomain: '',
       proxyRules: [{ id: `rule-${Date.now()}`, location: '/', proxyPass: 'http://localhost:3000' }],
-      isExpanded: true
+      isExpanded: true,
+      customCorsHeaders: []
     };
     setServerBlocks([...serverBlocks, newServer]);
   };
@@ -690,6 +710,60 @@ sudo systemctl reload nginx
                                 </p>
                               </div>
                             )}
+                          </div>
+
+                          {/* Custom CORS Headers */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">Custom CORS Headers</h5>
+                              <button
+                                onClick={() => {
+                                  const currentHeaders = server.customCorsHeaders || [];
+                                  updateServerBlock(server.id, { 
+                                    customCorsHeaders: [...currentHeaders, ''] 
+                                  });
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-600 text-white 
+                                         rounded hover:bg-gray-700 transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Add Header
+                              </button>
+                            </div>
+                            {server.customCorsHeaders && server.customCorsHeaders.length > 0 && (
+                              <div className="space-y-2">
+                                {server.customCorsHeaders.map((header, index) => (
+                                  <div key={index} className="flex gap-2 items-center">
+                                    <input
+                                      type="text"
+                                      value={header}
+                                      onChange={(e) => {
+                                        const newHeaders = [...server.customCorsHeaders!];
+                                        newHeaders[index] = e.target.value;
+                                        updateServerBlock(server.id, { customCorsHeaders: newHeaders });
+                                      }}
+                                      placeholder="X-Custom-Header"
+                                      className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 
+                                               rounded focus:outline-none focus:ring-1 focus:ring-blue-500 
+                                               dark:bg-gray-700 dark:text-white"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const newHeaders = server.customCorsHeaders!.filter((_, i) => i !== index);
+                                        updateServerBlock(server.id, { customCorsHeaders: newHeaders });
+                                      }}
+                                      className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 
+                                               dark:hover:text-red-300"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              These headers will be added to Access-Control-Allow-Headers for all API endpoints in this server block
+                            </p>
                           </div>
 
                           {/* Proxy Rules */}
