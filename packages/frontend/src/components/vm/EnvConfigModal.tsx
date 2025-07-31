@@ -309,18 +309,19 @@ echo "All environment files have been written successfully!"
         timeout: 10
       });
 
+      console.log('response', response);
+
       if (response.success && response.data?.stdout) {
-        const content = response.data.stdout;
-        if (!content.includes('# File not found')) {
-          const variables = parseEnvContent(content);
-          if (variables.length > 0) {
-            updateEnvFile(fileId, { variables });
-            toast.success(`Loaded ${variables.length} variables from ${file.path}`);
-          } else {
-            toast.info('No variables found in file');
-          }
+        // Clean terminal output before parsing
+        const content = cleanTerminalOutput(response.data.stdout);
+        
+        const variables = parseEnvContent(content);
+        console.log('Parsed variables:', variables);
+        if (variables.length > 0) {
+          updateEnvFile(fileId, { variables });
+          toast.success(`Loaded ${variables.length} variables from ${file.path}`);
         } else {
-          toast.info('File does not exist on VM');
+          toast.info('No variables found in file');
         }
       }
     } catch (error) {
