@@ -541,6 +541,8 @@ sudo systemctl reload nginx
             // Also show stderr in output
             setOutput(prev => [...prev, '', '=== ERRORS ===', ...data.stderr.split('\n')]);
           }
+
+          handleClose();
         // }
       }
     },

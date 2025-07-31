@@ -92,6 +92,7 @@ export function EnvConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: Env
   const [output, setOutput] = useState<string[]>([]);
   const outputRef = useRef<HTMLDivElement>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [loadingFiles, setLoadingFiles] = useState<Record<string, boolean>>({});
 
   // Initialize ANSI to HTML converter
   const ansiConverter = useMemo(() => new AnsiToHtml({
@@ -253,7 +254,7 @@ echo "All environment files have been written successfully!"
 
       const response = await vmApi.executeScript(vmId, { 
         script, 
-        timeout: 60,
+        timeout: 360,
         streamWriteDelay: 100 // 100ms delay for env file writes
       });
       
@@ -278,6 +279,10 @@ echo "All environment files have been written successfully!"
         
         toast.success('Environment files written successfully');
         onSuccess?.();
+
+        setTimeout(() => {
+          onClose();
+        }, 1000);
         
         if (data.stderr) {
           // Also show stderr in output
@@ -303,6 +308,8 @@ echo "All environment files have been written successfully!"
     const file = envFiles.find(f => f.id === fileId);
     if (!file) return;
 
+    setLoadingFiles(prev => ({ ...prev, [fileId]: true }));
+
     try {
       const response = await vmApi.executeScript(vmId, {
         script: `cat ${file.path} 2>/dev/null || echo "# File not found"`,
@@ -326,6 +333,8 @@ echo "All environment files have been written successfully!"
       }
     } catch (error) {
       toast.error('Failed to load file from VM');
+    } finally {
+      setLoadingFiles(prev => ({ ...prev, [fileId]: false }));
     }
   };
 
@@ -397,11 +406,22 @@ echo "All environment files have been written successfully!"
                           />
                           <button
                             onClick={() => loadFromFile(file.id)}
+                            disabled={loadingFiles[file.id]}
                             className="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 
-                                     hover:text-blue-700 dark:hover:text-blue-300"
+                                     hover:text-blue-700 dark:hover:text-blue-300
+                                     disabled:opacity-50 disabled:cursor-not-allowed
+                                     flex items-center gap-1"
                             title="Load from VM"
                           >
-                            Load
+                            {loadingFiles[file.id] ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-blue-600 dark:border-blue-400 
+                                              border-t-transparent rounded-full animate-spin" />
+                                Loading...
+                              </>
+                            ) : (
+                              'Load'
+                            )}
                           </button>
                         </div>
                         {envFiles.length > 1 && (
