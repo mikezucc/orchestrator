@@ -33,5 +33,6 @@ export const getWebSocketBaseURL = () => {
   // Convert HTTP to WebSocket protocol and remove /api suffix
   return apiUrl
     .replace('http:', 'ws:')
-    .replace('https:', 'wss:');
+    .replace('https:', 'wss:')
+    .replace('api.', 'ws.');
 };
