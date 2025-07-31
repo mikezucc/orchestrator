@@ -20,12 +20,39 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
   const queryClient = useQueryClient();
   const { showError, showSuccess } = useToast();
 
-  // Fetch repositories from database with enriched wormhole data
-  const { data: repositories = [], isLoading, refetch } = useQuery({
-    queryKey: ['vm-repositories', vmId],
-    queryFn: () => vmRepositoriesApi.getRepositories(vmId),
+  // Fetch repositories directly from wormhole daemon
+  const { data: repositoriesData, isLoading, refetch } = useQuery({
+    queryKey: ['wormhole-repositories-direct', publicIp],
+    queryFn: () => publicIp ? wormholeApi.directApi.getRepositories(publicIp) : null,
+    enabled: !!publicIp,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+
+  // Transform wormhole data to match expected format
+  const repositories = repositoriesData ? repositoriesData.map((repo: any) => {
+    // Get current branch from first connected client or default to 'main'
+    const currentBranch = repo.clients?.find((c: any) => c.connected)?.branch || 'main';
+    
+    return {
+      id: repo.repoPath,
+      vmId,
+      repoFullName: repo.repoPath,
+      daemon: {
+        branch: currentBranch,
+        status: repo.connectedClientCount > 0 ? 'running' : 'stopped'
+      },
+      wormhole: {
+        branches: repo.branches || [],
+        availableBranches: repo.availableBranches,
+        activeBranches: repo.activeBranches?.reduce((acc: any, branch: string) => {
+          acc[branch] = repo.clients?.filter((c: any) => c.branch === branch).length || 0;
+          return acc;
+        }, {}) || {},
+        clientCount: repo.clientCount || 0
+      },
+      clients: repo.clients || []
+    };
+  }) : [];
 
   // Branch switch mutation
   const switchBranchMutation = useMutation({
@@ -36,7 +63,7 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
     onSuccess: () => {
       showSuccess('Branch switch initiated');
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['vm-repositories', vmId] });
+        queryClient.invalidateQueries({ queryKey: ['wormhole-repositories-direct', publicIp] });
       }, 2000);
     },
     onError: (error) => {
@@ -51,12 +78,12 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
   const scanMutation = useMutation({
     mutationFn: async () => {
       if (!publicIp) throw new Error('VM does not have a public IP');
-      return wormholeApi.directApi.scan(publicIp);
+      return wormholeApi.directApi.triggerScan(publicIp);
     },
     onSuccess: () => {
       showSuccess('Repository scan initiated');
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['vm-repositories', vmId] });
+        queryClient.invalidateQueries({ queryKey: ['wormhole-repositories-direct', publicIp] });
       }, 3000);
     },
     onError: (error) => {
@@ -81,20 +108,8 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
   };
 
   const fetchGitHubBranches = async (repoId: string) => {
-    setLoadingGithubBranches(prev => new Set(prev).add(repoId));
-    try {
-      const branches = await vmRepositoriesApi.getGitHubBranches(vmId, repoId);
-      setGithubBranches(prev => ({ ...prev, [repoId]: branches }));
-    } catch (error) {
-      console.error('Failed to fetch GitHub branches:', error);
-      // Don't show error toast - fallback to daemon branches silently
-    } finally {
-      setLoadingGithubBranches(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(repoId);
-        return newSet;
-      });
-    }
+    // GitHub branches are now fetched from wormhole daemon data
+    // This function is kept for compatibility but doesn't do anything
   };
 
   const handleBranchSwitch = (repoPath: string, targetBranch: string) => {
@@ -102,15 +117,17 @@ export default function VMRepositoriesSection({ vmId, publicIp }: VMRepositories
     switchBranchMutation.mutate({ repoPath, targetBranch });
   };
 
-  // Client branch switch mutation
+  // Client branch switch mutation - uses the same endpoint as regular branch switch
   const switchClientBranchMutation = useMutation({
     mutationFn: async ({ clientId, repoPath, targetBranch }: { clientId: string; repoPath: string; targetBranch: string }) => {
-      return vmRepositoriesApi.switchClientBranch(vmId, clientId, { repoPath, targetBranch });
+      if (!publicIp) throw new Error('VM does not have a public IP');
+      // Branch switches affect all clients on the daemon
+      return wormholeApi.directApi.switchBranch(publicIp, { repoPath, targetBranch });
     },
     onSuccess: () => {
       showSuccess('Client branch switch initiated');
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['vm-repositories', vmId] });
+        queryClient.invalidateQueries({ queryKey: ['wormhole-repositories-direct', publicIp] });
       }, 2000);
     },
     onError: (error) => {
