@@ -12,7 +12,7 @@ export const getApiBaseURL = () => {
   if (import.meta.env.PROD || process.env.NODE_ENV === 'production') {
     // If on onfacet.dev or www.onfacet.dev, use api.onfacet.dev
     if (hostname === 'onfacet.dev' || hostname === 'www.onfacet.dev') {
-      return `${protocol}//api.onfacet.dev/api`;
+      return `${protocol}//api.onfacet.dev`;
     }
     // Otherwise use relative path (same domain)
     return '/api';
@@ -33,6 +33,5 @@ export const getWebSocketBaseURL = () => {
   // Convert HTTP to WebSocket protocol and remove /api suffix
   return apiUrl
     .replace('http:', 'ws:')
-    .replace('https:', 'wss:')
-    .replace('/api', '');
+    .replace('https:', 'wss:');
 };
