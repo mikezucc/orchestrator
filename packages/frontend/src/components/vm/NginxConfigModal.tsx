@@ -11,6 +11,7 @@ interface ProxyRule {
   location: string;
   proxyPass: string;
   headers?: Record<string, string>;
+  isAPI?: boolean;
 }
 
 interface ServerBlock {
@@ -170,6 +171,12 @@ const parseNginxConfig = (config: string): ServerBlock[] => {
             if (!['Upgrade', 'Connection', 'Host', 'X-Real-IP', 'X-Forwarded-For', 'X-Forwarded-Proto'].includes(headerName)) {
               rule.headers![headerName] = headerValue;
             }
+          }
+
+          // Check if this location has CORS configuration (indicating it's an API)
+          if (block.content.includes('$request_method = OPTIONS') && 
+              block.content.includes('Access-Control-Allow-Origin')) {
+            rule.isAPI = true;
           }
 
           serverBlock.proxyRules.push(rule);
@@ -332,6 +339,18 @@ export function NginxConfigModal({ isOpen, onClose, vmId, vmName, onSuccess }: N
         Object.entries(rule.headers).forEach(([key, value]) => {
           config += `        proxy_set_header ${key} ${value};\n`;
         });
+      }
+
+      // Add CORS headers for API endpoints
+      if (rule.isAPI) {
+        config += `\n        # CORS configuration for API\n`;
+        config += `        if ($request_method = OPTIONS) {\n`;
+        config += `            add_header 'Access-Control-Allow-Origin' '*';\n`;
+        config += `            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD, PUT, DELETE, PATCH';\n`;
+        config += `            add_header 'Access-Control-Allow-Headers' 'Authorization, Origin, X-Requested-With, Content-Type, Accept';\n`;
+        config += `            add_header 'Access-Control-Max-Age' 86400;\n`;
+        config += `            return 204;\n`;
+        config += `        }\n`;
       }
 
       config += `    }\n`;
@@ -690,34 +709,51 @@ sudo systemctl reload nginx
                             <div className="space-y-2">
                               {server.proxyRules.map((rule) => (
                                 <div key={rule.id} className="flex gap-3 items-start p-3 bg-gray-50 dark:bg-gray-900 rounded">
-                                  <div className="flex-1 grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                        Location
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={rule.location}
-                                        onChange={(e) => updateProxyRule(server.id, rule.id, 'location', e.target.value)}
-                                        placeholder="/api"
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 
-                                                 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 
-                                                 dark:bg-gray-800 dark:text-white"
-                                      />
+                                  <div className="flex-1 space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                          Location
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={rule.location}
+                                          onChange={(e) => updateProxyRule(server.id, rule.id, 'location', e.target.value)}
+                                          placeholder="/api"
+                                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 
+                                                   rounded focus:outline-none focus:ring-1 focus:ring-blue-500 
+                                                   dark:bg-gray-800 dark:text-white"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                          Proxy Pass
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={rule.proxyPass}
+                                          onChange={(e) => updateProxyRule(server.id, rule.id, 'proxyPass', e.target.value)}
+                                          placeholder="http://localhost:3000"
+                                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 
+                                                   rounded focus:outline-none focus:ring-1 focus:ring-blue-500 
+                                                   dark:bg-gray-800 dark:text-white"
+                                        />
+                                      </div>
                                     </div>
-                                    <div>
-                                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                        Proxy Pass
-                                      </label>
+                                    <div className="flex items-center gap-2">
                                       <input
-                                        type="text"
-                                        value={rule.proxyPass}
-                                        onChange={(e) => updateProxyRule(server.id, rule.id, 'proxyPass', e.target.value)}
-                                        placeholder="http://localhost:3000"
-                                        className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 
-                                                 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 
-                                                 dark:bg-gray-800 dark:text-white"
+                                        type="checkbox"
+                                        id={`api-${rule.id}`}
+                                        checked={rule.isAPI || false}
+                                        onChange={(e) => updateProxyRule(server.id, rule.id, 'isAPI', e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                       />
+                                      <label 
+                                        htmlFor={`api-${rule.id}`}
+                                        className="text-xs font-medium text-gray-700 dark:text-gray-300"
+                                      >
+                                        Enable CORS for API endpoints
+                                      </label>
                                     </div>
                                   </div>
                                   {server.proxyRules.length > 1 && (
