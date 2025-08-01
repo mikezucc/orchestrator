@@ -11,7 +11,6 @@ import Scripts from './pages/Scripts';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Login from './pages/Login';
-import LoginOTP from './pages/LoginOTP';
 import AuthCallback from './pages/AuthCallback';
 import OrganizationSettings from './pages/OrganizationSettings';
 import CreateOrganization from './pages/CreateOrganization';
@@ -31,8 +30,7 @@ function App() {
             <OrganizationProvider>
               <Router>
                 <Routes>
-                  <Route path="/login" element={<LoginOTP />} />
-                  <Route path="/login-google" element={<Login />} />
+                  <Route path="/login" element={<Login />} />
                   <Route path="/auth/callback" element={<AuthCallback />} />
                   <Route path="/create-organization" element={<ProtectedRoute><CreateOrganization /></ProtectedRoute>} />
                   <Route path="/" element={<Layout />}>
