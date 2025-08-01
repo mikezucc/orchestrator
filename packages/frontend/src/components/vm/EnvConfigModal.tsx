@@ -243,7 +243,7 @@ ${dir !== '' ? `sudo mkdir -p ${dir}` : ''}
 sudo tee ${file.path} > /dev/null << 'EOF'
 ${content}
 EOF
-sudo chmod 600 ${file.path}
+sudo chmod 644 ${file.path}
 echo "✓ Written ${file.path}"
 `;
       });
@@ -574,7 +574,7 @@ echo "All environment files have been written successfully!"
           <div className="flex justify-between items-center p-6 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-500">
               <AlertCircle className="w-4 h-4" />
-              <span>Files will be written with restricted permissions (600)</span>
+              <span>Files will be written with permissions 644</span>
             </div>
             
             <div className="flex gap-3">
