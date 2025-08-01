@@ -8,6 +8,13 @@
     repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(0,0,0,0.005) 2px, rgba(0,0,0,0.005) 4px);
 }
 
+.dark .graphite-bg {
+  background-color: #1a1a1a;
+  background-image: 
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 4px),
+    repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(255,255,255,0.005) 2px, rgba(255,255,255,0.005) 4px);
+}
+
 .graphite-bg::before {
   content: '';
   @apply absolute inset-0 pointer-events-none;
@@ -16,6 +23,13 @@
     radial-gradient(circle at 80% 50%, rgba(0,0,0,0.02) 0%, transparent 50%),
     radial-gradient(circle at 50% 50%, rgba(0,0,0,0.01) 0%, transparent 70%);
   filter: blur(40px);
+}
+
+.dark .graphite-bg::before {
+  background-image: 
+    radial-gradient(circle at 20% 50%, rgba(255,255,255,0.02) 0%, transparent 50%),
+    radial-gradient(circle at 80% 50%, rgba(255,255,255,0.02) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.01) 0%, transparent 70%);
 }
 
 .graphite-card {
@@ -27,6 +41,15 @@
     inset 0 0 40px rgba(0,0,0,0.02);
   position: relative;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark .graphite-card {
+  @apply bg-gray-800/90;
+  border: 2px solid #e0e0e0;
+  box-shadow: 
+    4px 4px 0 0 #e0e0e0,
+    4px 4px 12px 4px rgba(255,255,255,0.08),
+    inset 0 0 40px rgba(255,255,255,0.02);
 }
 
 .graphite-card::before {
@@ -51,9 +74,19 @@
   letter-spacing: 0.05em;
 }
 
+.dark .graphite-text-primary {
+  @apply text-gray-100;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+}
+
 .graphite-text-secondary {
   @apply text-gray-700;
   text-shadow: 0.5px 0.5px 0 rgba(255,255,255,0.3);
+}
+
+.dark .graphite-text-secondary {
+  @apply text-gray-400;
+  text-shadow: 0.5px 0.5px 0 rgba(0,0,0,0.3);
 }
 
 .graphite-btn {
@@ -67,6 +100,15 @@
     inset 0 0 0 0 #2a2a2a;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   transform: translate(0, 0);
+}
+
+.dark .graphite-btn {
+  background: linear-gradient(135deg, #374151 0%, #2d3748 100%);
+  border: 2px solid #e0e0e0;
+  color: #e0e0e0;
+  box-shadow: 
+    3px 3px 0 0 #e0e0e0,
+    inset 0 0 0 0 #e0e0e0;
 }
 
 .graphite-btn::before {
@@ -91,6 +133,13 @@
   background: linear-gradient(135deg, #fcfcfc 0%, #f4f4f4 100%);
 }
 
+.dark .graphite-btn:hover {
+  box-shadow: 
+    5px 5px 0 0 #e0e0e0,
+    inset 0 0 0 0 #e0e0e0;
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+}
+
 .graphite-btn:hover::before {
   opacity: 1;
 }
@@ -102,14 +151,63 @@
     inset 2px 2px 4px rgba(0,0,0,0.1);
 }
 
+.dark .graphite-btn:active {
+  box-shadow: 
+    2px 2px 0 0 #e0e0e0,
+    inset 2px 2px 4px rgba(255,255,255,0.1);
+}
+
+.graphite-btn-secondary {
+  @apply relative font-medium tracking-wide uppercase px-6 py-3;
+  background: transparent;
+  border: 2px solid #4a4a4a;
+  color: #4a4a4a;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark .graphite-btn-secondary {
+  border: 2px solid #a0a0a0;
+  color: #a0a0a0;
+}
+
+.graphite-btn-secondary:hover {
+  border-color: #2a2a2a;
+  color: #2a2a2a;
+  background: rgba(0,0,0,0.02);
+}
+
+.dark .graphite-btn-secondary:hover {
+  border-color: #e0e0e0;
+  color: #e0e0e0;
+  background: rgba(255,255,255,0.05);
+}
+
+.graphite-border {
+  border-color: #4a4a4a;
+}
+
+.dark .graphite-border {
+  border-color: #a0a0a0;
+}
+
 .graphite-input {
-  @apply relative bg-white/80;
+  @apply relative bg-white/80 px-4 py-3;
   border: 2px solid #4a4a4a;
   box-shadow: 
     inset 2px 2px 4px rgba(0,0,0,0.08),
     inset -1px -1px 2px rgba(255,255,255,0.5);
   background-image: 
     repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(0,0,0,0.02) 20px, rgba(0,0,0,0.02) 21px);
+}
+
+.dark .graphite-input {
+  @apply bg-gray-700/80 text-gray-100;
+  border: 2px solid #9a9a9a;
+  box-shadow: 
+    inset 2px 2px 4px rgba(255,255,255,0.08),
+    inset -1px -1px 2px rgba(0,0,0,0.5);
+  background-image: 
+    repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.02) 20px, rgba(255,255,255,0.02) 21px);
 }
 
 .graphite-divider {
@@ -135,6 +233,13 @@
 .graphite-logo span {
   @apply relative;
   background: linear-gradient(135deg, #6a6a6a 0%, #4a4a4a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .graphite-logo span {
+  background: linear-gradient(135deg, #e0e0e0 0%, #c0c0c0 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -193,4 +298,9 @@
   fill: #2a2a2a;
   stroke-dasharray: 100;
   animation: pencil-draw 0.5s ease-out forwards;
+}
+
+.dark .graphite-icon path {
+  stroke: #e0e0e0;
+  fill: #e0e0e0;
 }
