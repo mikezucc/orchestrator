@@ -478,14 +478,14 @@ export default function VMDetail() {
               </button>
             </div>
             {/* VM Repositories from database */}
-            <VMRepositoriesSection vmId={id!} publicIp={vm.publicIp} />
+            {/* <VMRepositoriesSection vmId={id!} publicIp={vm.publicIp} /> */}
             
             {/* Wormhole ports and status */}
-            <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} />
+            {/* <WormholeSection vmId={id!} publicIp={vm.publicIp} autoConnect={true} /> */}
           </div>
 
           {/* Debug panel for slopboxprimary members */}
-          <WormholeDebugPanel organizationSlug={currentOrganization?.slug} />
+          {/* <WormholeDebugPanel organizationSlug={currentOrganization?.slug} /> */}
 
           <div>
             <FirewallRules vmId={id!} rules={rules} />
