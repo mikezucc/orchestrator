@@ -10,3 +10,4 @@ drizzle/
 packages/backend/certs/
 packages/frontend/certs/
 packages/backend/wormhole-binaries/
+packages/backend/src/services/vibespace*.json
